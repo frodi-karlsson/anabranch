@@ -1,0 +1,7 @@
+{
+  "name": "anabranch",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  }
+}
