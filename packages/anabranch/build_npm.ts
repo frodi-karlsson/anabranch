@@ -9,6 +9,9 @@ await build({
   entryPoints: [`${dir}/index.ts`],
   outDir: `${dir}/npm`,
   shims: { deno: false },
+  compilerOptions: {
+    lib: ["ESNext", "DOM"],
+  },
   scriptModule: false,
   test: false,
   package: {
