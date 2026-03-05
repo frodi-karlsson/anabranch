@@ -12,6 +12,8 @@
     "coverage": "deno test --coverage=packages/anabranch/coverage --clean && deno coverage ./packages/anabranch/coverage",
     "coverage:html": "deno test --coverage=packages/anabranch/coverage --clean && deno coverage --html ./packages/anabranch/coverage",
     "coverage:lcov": "deno test --coverage=packages/anabranch/coverage --clean && deno coverage --lcov --output=packages/anabranch/coverage.lcov ./packages/anabranch/coverage",
-    "build:npm": "deno run -A ./packages/anabranch/build_npm.ts"
+    "build:npm": "deno run -A ./packages/anabranch/build_npm.ts",
+    "build:npm:web-client": "deno run -A ./packages/web-client/build_npm.ts",
+    "build:npm:broken-link-checker": "deno run -A ./packages/broken-link-checker/build_npm.ts"
   }
 }

@@ -1,13 +1,9 @@
-import { Channel, Source, Task } from "@anabranch/anabranch";
-import type { Stream } from "@anabranch/anabranch";
+import { Channel, Source } from "@anabranch/anabranch";
+import type { Stream, Task } from "@anabranch/anabranch";
 import { WebClient } from "@anabranch/web-client";
 import type { HttpError, ResponseResult } from "@anabranch/web-client";
 import { _extractLinks } from "./extract.ts";
-import type {
-  BrokenLinkCheckerOptions,
-  CheckResult,
-  RetryOptions,
-} from "./types.ts";
+import type { BrokenLinkCheckerOptions, CheckResult } from "./types.ts";
 
 export class BrokenLinkChecker {
   private readonly concurrency: number;
@@ -76,9 +72,7 @@ export class BrokenLinkChecker {
           if (isPath) {
             const contentType = result.headers.get("content-type") ?? "";
             if (contentType.includes("text/html")) {
-              const html = typeof result.data === "string"
-                ? result.data
-                : "";
+              const html = typeof result.data === "string" ? result.data : "";
               for (const link of _extractLinks(html, finalUrl)) {
                 enqueue(link, url, { skipFilter: false });
               }
