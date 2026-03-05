@@ -78,4 +78,7 @@ jobs:
           registry-url: https://registry.npmjs.org
           token: ""
       - run: deno task build:npm
-      - run: cd npm && npm publish --provenance --access public
+      - name: Unset NODE_AUTH_TOKEN and publish
+        run: |
+          unset NODE_AUTH_TOKEN
+          cd npm && npm publish --provenance --access public
