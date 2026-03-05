@@ -6,6 +6,8 @@ interface Event {
   value?: number;
 }
 
+class FatalError extends Error {}
+
 function createEventStream() {
   return new Source<Event, Error>(async function* () {
     yield { type: "info", message: "System started" };
@@ -20,18 +22,16 @@ function createEventStream() {
   });
 }
 
-const fatalError = new Error("Fatal error detected");
-
 const events = createEventStream();
 const processed = events
   .filter((e) => e.type !== "info")
   .map((e) => {
     if (e.type === "error" && e.message.includes("Database")) {
-      throw fatalError;
+      throw new FatalError(e.message);
     }
     return e;
   })
-  .throwOn((e): e is Error => e === fatalError);
+  .throwOn((e): e is FatalError => e instanceof FatalError);
 
 console.log("Processing events (will throw on fatal error):");
 try {
