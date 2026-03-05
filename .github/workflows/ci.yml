@@ -4,7 +4,9 @@ on:
   push:
     branches: [main]
     tags:
-      - "v*"
+      - "anabranch@*"
+      - "web-client@*"
+      - "broken-link-checker@*"
   pull_request:
   workflow_dispatch:
 
@@ -49,7 +51,7 @@ jobs:
 
   publish-jsr-anabranch:
     needs: check
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/anabranch@')
     permissions:
       contents: read
       id-token: write
@@ -59,7 +61,7 @@ jobs:
 
   publish-jsr-web-client:
     needs: check
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/web-client@')
     permissions:
       contents: read
       id-token: write
@@ -69,7 +71,7 @@ jobs:
 
   publish-jsr-broken-link-checker:
     needs: check
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/broken-link-checker@')
     permissions:
       contents: read
       id-token: write
@@ -79,21 +81,21 @@ jobs:
 
   publish-npm-anabranch:
     needs: check
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/anabranch@')
     uses: ./.github/workflows/publish-npm.yml
     with:
       package: anabranch
 
   publish-npm-web-client:
     needs: check
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/web-client@')
     uses: ./.github/workflows/publish-npm.yml
     with:
       package: web-client
 
   publish-npm-broken-link-checker:
     needs: check
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/broken-link-checker@')
     uses: ./.github/workflows/publish-npm.yml
     with:
       package: broken-link-checker
