@@ -1,5 +1,5 @@
 {
-  "workspace": ["./packages/anabranch"],
+  "workspace": ["./packages/anabranch", "./packages/broken-link-checker"],
   "tasks": {
     "check": "deno fmt --check && deno lint && deno test",
     "doc": "deno task doc:anabranch && cp docs-src/index.html docs/index.html",
