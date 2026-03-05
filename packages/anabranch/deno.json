@@ -1,6 +1,6 @@
 {
   "name": "@anabranch/anabranch",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Async stream processing with error collection and single-task utilities",
   "exports": "./index.ts",
   "publish": {
