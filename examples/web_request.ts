@@ -7,12 +7,10 @@ const urls = Deno.args.length ? Deno.args : [
   "https://jsonplaceholder.typicode.com/todos/4",
 ];
 
-const fetched = AnabranchSource.from(
+const { successes, errors } = await new AnabranchSource<string, Error>(
   async function* () {
-    for (const url of urls) {
-      yield url;
-    }
-  }(),
+    yield* urls;
+  },
 )
   .withConcurrency(4)
   .map(async (url) => {
@@ -22,15 +20,13 @@ const fetched = AnabranchSource.from(
     }
     const data = (await response.json()) as { id: number; title: string };
     return { url, id: data.id, title: data.title };
-  });
+  })
+  .partition();
 
-for await (const result of fetched) {
-  if (result.type === "success") {
-    console.log(`${result.value.id}: ${result.value.title}`);
-  } else {
-    const message = result.error instanceof Error
-      ? result.error.message
-      : String(result.error);
-    console.error(`Failed: ${message}`);
-  }
+for (const item of successes) {
+  console.log(`${item.id}: ${item.title}`);
+}
+
+for (const error of errors) {
+  console.error(`Failed: ${error.message}`);
 }

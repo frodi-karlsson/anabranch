@@ -155,6 +155,8 @@ export interface AnabranchStream<T, E>
   /**
    * Similar to `Array.prototype.reduce`, but works on the stream of results. If the provided function throws an error or returns a rejected promise, the error will be collected and emitted as an error result in the stream.
    *
+   * If any error results are present in the stream, they will be thrown as an `AnabranchAggregateError` after the stream is exhausted. Use `filterErr(() => false)` upstream to explicitly drop errors if you want to fold only the successes.
+   *
    * @example
    * ```ts
    * import { AnabranchStream } from "anabranch";
@@ -174,6 +176,7 @@ export interface AnabranchStream<T, E>
    * console.log("Sum:", sum);
    * ```
    *
+   * @throws {AnabranchAggregateError} If any error results were present in the stream.
    * @see {@link AnabranchStream.foldErr}
    */
   fold<U>(
@@ -776,10 +779,16 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
     initialValue: U,
   ): Promise<U> {
     let accumulator = initialValue;
+    const errors: E[] = [];
     for await (const result of this.source()) {
       if (result.type === "success") {
         accumulator = await fn(accumulator, result.value);
+      } else {
+        errors.push(result.error);
       }
+    }
+    if (errors.length) {
+      throw new AnabranchAggregateError(errors);
     }
     return accumulator;
   }

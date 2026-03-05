@@ -1,5 +1,5 @@
 /**
- * Thrown by {@link AnabranchStream.collect} when one or more error results were collected during stream processing.
+ * Thrown by {@link AnabranchStream.collect} and {@link AnabranchStream.fold} when one or more error results were collected during stream processing.
  */
 export class AnabranchAggregateError extends Error {
   /** The errors collected during stream processing. */

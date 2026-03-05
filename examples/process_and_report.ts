@@ -10,30 +10,29 @@ const filePaths = (async function* () {
   }
 })();
 
-const stream = AnabranchSource.from(filePaths)
+const summary = await AnabranchSource.from(filePaths)
   .withConcurrency(4)
   .map(async (path) => {
     const text = await Deno.readTextFile(path);
     const lines = text.split(/\r?\n/).length;
     return { path, lines, bytes: text.length };
   })
+  .tapErr((error) => {
+    console.error(`Failed: ${error instanceof Error ? error.message : String(error)}`);
+  })
+  .filterErr(() => false)
   .filter((info) => info.lines > 0)
-  .map((info) => ({
-    ...info,
-    density: info.bytes / info.lines,
-  }))
-  .filter((info) => Number.isFinite(info.density));
-
-const summary = await stream.fold(
-  (acc, info) => {
-    acc.count += 1;
-    acc.totalLines += info.lines;
-    acc.totalBytes += info.bytes;
-    acc.maxDensity = Math.max(acc.maxDensity, info.density);
-    return acc;
-  },
-  { count: 0, totalLines: 0, totalBytes: 0, maxDensity: 0 },
-);
+  .map((info) => ({ ...info, density: info.bytes / info.lines }))
+  .filter((info) => Number.isFinite(info.density))
+  .fold(
+    (acc, info) => ({
+      count: acc.count + 1,
+      totalLines: acc.totalLines + info.lines,
+      totalBytes: acc.totalBytes + info.bytes,
+      maxDensity: Math.max(acc.maxDensity, info.density),
+    }),
+    { count: 0, totalLines: 0, totalBytes: 0, maxDensity: 0 },
+  );
 
 console.log(
   `files=${summary.count} lines=${summary.totalLines} bytes=${summary.totalBytes} maxDensity=${

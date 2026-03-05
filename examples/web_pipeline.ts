@@ -7,13 +7,9 @@ const urls = [
   "https://jsonplaceholder.typicode.com/todos/4",
 ];
 
-const stream = AnabranchSource.from(
-  async function* () {
-    for (const url of urls) {
-      yield url;
-    }
-  }(),
-)
+const stream = new AnabranchSource<string, Error>(async function* () {
+  yield* urls;
+})
   .withConcurrency(4)
   .map(async (url) => {
     const response = await fetch(url);

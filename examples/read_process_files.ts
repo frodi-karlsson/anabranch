@@ -9,7 +9,7 @@ const filePaths = (async function* () {
   }
 })();
 
-const processed = AnabranchSource.from(filePaths)
+const { successes, errors } = await AnabranchSource.from(filePaths)
   .withConcurrency(4)
   .flatMap(async (path) => {
     const text = await Deno.readTextFile(path);
@@ -18,16 +18,13 @@ const processed = AnabranchSource.from(filePaths)
       { path, metric: "lines", value: lines },
       { path, metric: "bytes", value: text.length },
     ];
-  });
+  })
+  .partition();
 
-for await (const result of processed) {
-  if (result.type === "success") {
-    const { path, metric, value } = result.value;
-    console.log(`${path}: ${metric}=${value}`);
-  } else {
-    const message = result.error instanceof Error
-      ? result.error.message
-      : String(result.error);
-    console.error(`Failed: ${message}`);
-  }
+for (const { path, metric, value } of successes) {
+  console.log(`${path}: ${metric}=${value}`);
+}
+
+for (const error of errors) {
+  console.error(`Failed: ${error instanceof Error ? error.message : String(error)}`);
 }

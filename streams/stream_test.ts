@@ -499,15 +499,28 @@ Deno.test(
 Deno.test(
   "AnabranchStream.fold - should accumulate successful values",
   async () => {
+    const stream = streamFrom<number, string>([success(1), success(3)]);
+
+    const result = await stream.fold((acc, value) => acc + value, 0);
+
+    assertEquals(result, 4);
+  },
+);
+
+Deno.test(
+  "AnabranchStream.fold - should throw aggregate error when errors are present",
+  async () => {
     const stream = streamFrom<number, string>([
       success(1),
       failure("bad"),
       success(3),
     ]);
 
-    const result = await stream.fold((acc, value) => acc + value, 0);
-
-    assertEquals(result, 4);
+    await assertRejects(
+      () => stream.fold((acc, value) => acc + value, 0),
+      Error,
+      "AggregateError: 1 errors",
+    );
   },
 );
 
