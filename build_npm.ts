@@ -13,7 +13,7 @@ await build({
   package: {
     name: "anabranch",
     version,
-    description: "Error-tolerant async streams for TypeScript",
+    description: "Async streams that keep flowing, even when things go wrong",
     license: "MIT",
     repository: {
       type: "git",
