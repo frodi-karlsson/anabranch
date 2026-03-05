@@ -1,0 +1,16 @@
+name: Publish JSR
+
+inputs:
+  package:
+    required: true
+    type: string
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v4
+    - uses: denoland/setup-deno@v2
+      with:
+        deno-version: v2.x
+    - run: cd packages/${{ inputs.package }} && deno publish
+      shell: bash
