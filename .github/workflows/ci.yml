@@ -77,8 +77,7 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
           token: ""
+      - name: Clear auth token for OIDC
+        run: echo "NODE_AUTH_TOKEN=" >> $GITHUB_ENV
       - run: deno task build:npm
-      - name: Unset NODE_AUTH_TOKEN and publish
-        run: |
-          unset NODE_AUTH_TOKEN
-          cd npm && npm publish --provenance --access public
+      - run: cd npm && npm publish --provenance --access public
