@@ -3,4 +3,5 @@ node_modules
 **/local-*
 docs/
 coverage/
+npm/
 .DS_Store

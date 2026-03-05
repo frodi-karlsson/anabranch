@@ -1,7 +1,7 @@
-import {
-  type AnabranchErrorResult,
-  type AnabranchResult,
-  type AnabranchSuccessResult,
+import type {
+  AnabranchErrorResult,
+  AnabranchResult,
+  AnabranchSuccessResult,
 } from "./index.ts";
 import { _AnabranchStreamImpl } from "./streams/stream.ts";
 
