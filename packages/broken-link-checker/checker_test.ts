@@ -189,7 +189,7 @@ Deno.test("BrokenLinkChecker.filterUrls - should not apply to seed URL", async (
   assertEquals(ok, [200]);
 });
 
-Deno.test("BrokenLinkChecker.filterErrors - should remove matching broken results from output", async () => {
+Deno.test("BrokenLinkChecker.keepBroken - should keep matching broken results in output", async () => {
   const fetch = mockFetch({
     "https://example.com/": makeResponse(
       200,
@@ -201,7 +201,7 @@ Deno.test("BrokenLinkChecker.filterErrors - should remove matching broken result
   const checker = new BrokenLinkChecker({
     fetch,
     retry: { attempts: 1, delay: () => 0 },
-  }).filterErrors((result) => result.status !== 401);
+  }).keepBroken((result) => result.status !== 401);
   const { broken } = await collectResults(checker, "https://example.com/");
   assertEquals(broken, ["https://example.com/broken"]);
 });

@@ -10,7 +10,9 @@ export class BrokenLinkChecker {
   private readonly timeout: number;
   private readonly client: WebClient;
   private readonly urlFilters: Array<(url: URL) => boolean>;
-  private readonly errorFilters: Array<(result: CheckResult) => boolean>;
+  private readonly keepBrokenPredicates: Array<
+    (result: CheckResult) => boolean
+  >;
 
   constructor(options?: BrokenLinkCheckerOptions) {
     this.concurrency = options?.concurrency ?? 10;
@@ -22,7 +24,7 @@ export class BrokenLinkChecker {
       headers: { "User-Agent": options?.userAgent ?? "BrokenLinkChecker/1.0" },
     });
     this.urlFilters = [];
-    this.errorFilters = [];
+    this.keepBrokenPredicates = [];
   }
 
   filterUrls(fn: (url: URL) => boolean): BrokenLinkChecker {
@@ -30,15 +32,15 @@ export class BrokenLinkChecker {
     return this;
   }
 
-  filterErrors(fn: (result: CheckResult) => boolean): BrokenLinkChecker {
-    this.errorFilters.push(fn);
+  keepBroken(fn: (result: CheckResult) => boolean): BrokenLinkChecker {
+    this.keepBrokenPredicates.push(fn);
     return this;
   }
 
   check(startUrl: string | URL): Stream<CheckResult, Error> {
     const seed = typeof startUrl === "string" ? new URL(startUrl) : startUrl;
     const host = seed.hostname;
-    const { concurrency, client, urlFilters, errorFilters } = this;
+    const { concurrency, client, urlFilters, keepBrokenPredicates } = this;
 
     const channel = new Channel<WorkItem>();
     const visited = new Set<string>();
@@ -109,7 +111,9 @@ export class BrokenLinkChecker {
         pending--;
         if (pending === 0) channel.close();
       })
-      .filter((result) => result.ok || errorFilters.every((f) => f(result)));
+      .filter((result) =>
+        result.ok || keepBrokenPredicates.every((f) => f(result))
+      );
   }
 }
 
