@@ -126,6 +126,21 @@ const task = Task.of(async (signal) => {
 controller.abort();
 ```
 
+For resource lifecycle management, use `Task.acquireRelease` to acquire a resource,
+run a composed task, and release it regardless of success or failure:
+
+```ts
+const task = Task.acquireRelease({
+  acquire: (signal) => db.connect(signal),
+  release: (conn) => conn.close(),
+  use: (conn) => Task.of(() => query(conn))
+    .retry({ attempts: 3 })
+    .timeout(5_000),
+});
+
+const result = await task.result();
+```
+
 `Task` error types are not runtime-checked; the `E` type is a hint for how you
 expect the task to fail.
 
