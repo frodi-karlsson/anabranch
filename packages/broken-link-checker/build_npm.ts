@@ -26,6 +26,10 @@ await build({
     bugs: {
       url: "https://github.com/frodi-karlsson/anabranch/issues",
     },
+    dependencies: {
+      anabranch: "^0",
+      linkedom: "^0",
+    },
   },
   postBuild() {
     Deno.copyFileSync(`${dir}/../../LICENSE`, `${dir}/npm/LICENSE`);

@@ -1,4 +1,4 @@
-import { DOMParser } from "@b-fuze/deno-dom";
+import { parseHTML } from "linkedom";
 
 const SKIP_SCHEMES = /^(mailto:|tel:|javascript:|data:)/i;
 
@@ -8,13 +8,14 @@ const SKIP_SCHEMES = /^(mailto:|tel:|javascript:|data:)/i;
  * Fragments, special schemes, and empty hrefs are excluded.
  */
 export function _extractLinks(html: string, baseUrl: URL): URL[] {
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  if (!doc) return [];
+  const parsed = parseHTML(html);
+  // deno-lint-ignore no-explicit-any
+  const document = (parsed as any).document;
 
   const seen = new Set<string>();
   const links: URL[] = [];
 
-  for (const el of doc.querySelectorAll("a[href]")) {
+  for (const el of document.querySelectorAll("a[href]")) {
     const raw = el.getAttribute("href")?.trim();
     if (!raw || raw.startsWith("#") || SKIP_SCHEMES.test(raw)) continue;
 
