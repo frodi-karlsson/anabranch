@@ -217,3 +217,20 @@ Deno.test("Task.acquireRelease - should release on error", async () => {
   assertEquals(result.type, "error");
   assertEquals(released, true);
 });
+
+Deno.test("Task.acquireRelease - should pass signal to acquire", async () => {
+  let receivedSignal: AbortSignal | undefined;
+  const controller = new AbortController();
+  const task = Task.acquireRelease({
+    acquire: (signal) => {
+      receivedSignal = signal;
+      return Promise.resolve("resource");
+    },
+    release: () => Promise.resolve(),
+    use: () => Task.of(() => Promise.resolve("result")),
+  });
+
+  const result = await task.withSignal(controller.signal).run();
+  assertEquals(receivedSignal, controller.signal);
+  assertEquals(result, "result");
+});

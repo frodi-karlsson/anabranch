@@ -325,10 +325,14 @@ export class Task<T, E> {
    * of success or failure. Useful for resource lifecycle management when the
    * use computation is a composed Task chain.
    *
+   * The `acquire` function receives an optional AbortSignal that is active when
+   * the task is run with a signal. The `release` function always runs and does
+   * not receive a signal — cleanup should not be cancellable.
+   *
    * @example
    * ```ts
    * const task = Task.acquireRelease({
-   *   acquire: () => db.connect(),
+   *   acquire: (signal) => db.connect(signal),
    *   release: (conn) => conn.close(),
    *   use: (conn) => Task.of(() => query(conn))
    *     .retry({ attempts: 3 })
@@ -343,12 +347,12 @@ export class Task<T, E> {
     release,
     use,
   }: {
-    acquire: () => Promise<R>;
+    acquire: (signal?: AbortSignal) => Promise<R>;
     release: (resource: R) => Promise<void>;
     use: (resource: R) => Task<T, E>;
   }): Task<T, E> {
     return new Task(async (signal) => {
-      const resource = await acquire();
+      const resource = await acquire(signal);
       try {
         const innerTask = use(resource);
         return signal
