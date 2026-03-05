@@ -2,6 +2,10 @@ name: Publish npm
 
 on:
   workflow_call:
+    inputs:
+      package:
+        required: true
+        type: string
 
 jobs:
   publish:
