@@ -68,13 +68,13 @@ export class BrokenLinkChecker {
         headers: { Accept: "text/html, application/xhtml+xml" },
       });
 
-      return await task
-        .map((result): CheckResult => {
-          const finalUrl = result.url;
+      const result = await task
+        .map((res): CheckResult => {
+          const finalUrl = res.url;
           if (isPath) {
-            const contentType = result.headers.get("content-type") ?? "";
+            const contentType = res.headers.get("content-type") ?? "";
             if (contentType.includes("text/html")) {
-              const html = typeof result.data === "string" ? result.data : "";
+              const html = typeof res.data === "string" ? res.data : "";
               for (const link of _extractLinks(html, finalUrl)) {
                 enqueue(link, url, { skipFilter: false });
               }
@@ -83,9 +83,9 @@ export class BrokenLinkChecker {
           return {
             url: finalUrl,
             parent,
-            ok: result.ok,
-            status: result.status,
-            reason: result.ok ? undefined : `HTTP ${result.status}`,
+            ok: res.ok,
+            status: res.status,
+            reason: res.ok ? undefined : `HTTP ${res.status}`,
             isPath,
             durationMs: Date.now() - start,
           };
@@ -100,6 +100,10 @@ export class BrokenLinkChecker {
           durationMs: Date.now() - start,
         }))
         .run();
+
+      pending--;
+      if (pending === 0) channel.close();
+      return result;
     }
 
     enqueue(seed, undefined, { skipFilter: true });
@@ -107,10 +111,6 @@ export class BrokenLinkChecker {
     return Source.from<WorkItem, Error>(channel.successes())
       .withConcurrency(concurrency)
       .map(checkOne)
-      .tap(() => {
-        pending--;
-        if (pending === 0) channel.close();
-      })
       .filter((result) =>
         result.ok || keepBrokenPredicates.every((f) => f(result))
       );
