@@ -15,6 +15,7 @@ function getText(data: unknown): Promise<string> {
   return Promise.resolve("");
 }
 
+/** A concurrent website crawler that finds broken links. */
 export class BrokenLinkChecker {
   private readonly concurrency: number;
   private readonly timeout: number;
@@ -39,16 +40,29 @@ export class BrokenLinkChecker {
     this.keepBrokenPredicates = [];
   }
 
+  /** Filter URLs before checking them. */
   filterUrls(fn: (url: URL) => boolean): BrokenLinkChecker {
     this.urlFilters.push(fn);
     return this;
   }
 
+  /** Keep broken links in results that match the predicate. */
   keepBroken(fn: (result: CheckResult) => boolean): BrokenLinkChecker {
     this.keepBrokenPredicates.push(fn);
     return this;
   }
 
+  /**
+   * Start crawling from one or more entrypoints.
+   * Returns a stream of CheckResult. Use partition() to separate ok/broken links
+   * (successes) from stream errors (errors).
+   * @example
+   * ```ts
+   * const { successes } = await new BrokenLinkChecker()
+   *   .check(["https://example.com", "https://example.com/sitemap.xml"])
+   *   .partition();
+   * ```
+   */
   check(startUrls: (string | URL)[]): Stream<CheckResult, Error> {
     const seeds = startUrls.map((
       u,
