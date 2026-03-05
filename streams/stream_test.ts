@@ -641,7 +641,9 @@ Deno.test("AnabranchStream.tap - should run side effect and pass through", async
     failure("bad"),
     success(2),
   ]);
-  const tapped = stream.tap((value) => { seen.push(value); });
+  const tapped = stream.tap((value) => {
+    seen.push(value);
+  });
 
   const results = await tapped.toArray();
 
@@ -675,7 +677,9 @@ Deno.test("AnabranchStream.tapErr - should run side effect on errors and pass th
     success(1),
     failure("worse"),
   ]);
-  const tapped = stream.tapErr((error) => { seen.push(error); });
+  const tapped = stream.tapErr((error) => {
+    seen.push(error);
+  });
 
   const results = await tapped.toArray();
 
@@ -777,9 +781,9 @@ Deno.test("AnabranchStream integration - should compose multiple operations", as
       if (n === 3) throw new Error("map error");
       return n;
     })
-    .filter((n) => n % 2 !== 0)          // keep odds: 1, 5
-    .flatMap((n) => [n, n * 100])         // expand: 1, 100, 5, 500
-    .recover(() => -1)                    // recover all errors as -1
+    .filter((n) => n % 2 !== 0) // keep odds: 1, 5
+    .flatMap((n) => [n, n * 100]) // expand: 1, 100, 5, 500
+    .recover(() => -1) // recover all errors as -1
     .collect();
 
   assertEquals(result.sort((a, b) => a - b), [-1, -1, 1, 5, 100, 500]);
@@ -853,8 +857,12 @@ Deno.test(
         if (n === 2) throw "bad";
         return n * 10;
       })
-      .tap((v) => { successLog.push(v); })
-      .tapErr((e: string) => { errorLog.push(e); })
+      .tap((v) => {
+        successLog.push(v);
+      })
+      .tapErr((e: string) => {
+        errorLog.push(e);
+      })
       .map((n) => n + 1)
       .partition();
 

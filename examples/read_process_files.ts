@@ -26,5 +26,7 @@ for (const { path, metric, value } of successes) {
 }
 
 for (const error of errors) {
-  console.error(`Failed: ${error instanceof Error ? error.message : String(error)}`);
+  console.error(
+    `Failed: ${error instanceof Error ? error.message : String(error)}`,
+  );
 }

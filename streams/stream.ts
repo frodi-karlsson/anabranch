@@ -673,7 +673,10 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
               if (isPromise(ret)) await ret;
               yield result;
             } catch (error) {
-              yield { type: "error", error: error as E } as AnabranchResult<T, E>;
+              yield { type: "error", error: error as E } as AnabranchResult<
+                T,
+                E
+              >;
             }
           } else {
             yield result;
@@ -698,7 +701,10 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
               if (isPromise(ret)) await ret;
               yield result;
             } catch (error) {
-              yield { type: "error", error: error as E } as AnabranchResult<T, E>;
+              yield { type: "error", error: error as E } as AnabranchResult<
+                T,
+                E
+              >;
             }
           } else {
             yield result;
@@ -743,12 +749,19 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
           if (result.type === "success") {
             try {
               const shouldContinue = fn(result.value);
-              if (isPromise(shouldContinue) ? !(await shouldContinue) : !shouldContinue) {
+              if (
+                isPromise(shouldContinue)
+                  ? !(await shouldContinue)
+                  : !shouldContinue
+              ) {
                 break;
               }
               yield result;
             } catch (error) {
-              yield { type: "error", error: error as E } as AnabranchResult<T, E>;
+              yield { type: "error", error: error as E } as AnabranchResult<
+                T,
+                E
+              >;
               break;
             }
           } else {

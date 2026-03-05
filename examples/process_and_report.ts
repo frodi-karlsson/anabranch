@@ -18,7 +18,9 @@ const summary = await AnabranchSource.from(filePaths)
     return { path, lines, bytes: text.length };
   })
   .tapErr((error) => {
-    console.error(`Failed: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(
+      `Failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
   })
   .filterErr(() => false)
   .filter((info) => info.lines > 0)
