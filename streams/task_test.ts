@@ -171,3 +171,49 @@ Deno.test("Task.withSignal - should abort underlying task", async () => {
   await assertRejects(() => runPromise, Error, "aborted");
   gate.resolve();
 });
+
+Deno.test("Task.acquireRelease - should acquire, use, and release resource", async () => {
+  let acquired = false;
+  let released = false;
+  const task = Task.acquireRelease({
+    acquire: () => {
+      acquired = true;
+      return Promise.resolve("resource");
+    },
+    release: (r) => {
+      released = true;
+      assertEquals(r, "resource");
+      return Promise.resolve();
+    },
+    use: (r) =>
+      Task.of(() =>
+        Promise.resolve().then(() => {
+          assertEquals(r, "resource");
+          return "result";
+        })
+      ),
+  });
+
+  const result = await task.result();
+  assertEquals(result.type, "success");
+  assertEquals((result as { value: string }).value, "result");
+  assertEquals(acquired, true);
+  assertEquals(released, true);
+});
+
+Deno.test("Task.acquireRelease - should release on error", async () => {
+  let released = false;
+  const task = Task.acquireRelease<unknown, number, Error>({
+    acquire: () => Promise.resolve("resource"),
+    release: () => {
+      released = true;
+      return Promise.resolve();
+    },
+    use: () =>
+      Task.of<number, Error>(() => Promise.reject(new Error("failed"))),
+  });
+
+  const result = await task.result();
+  assertEquals(result.type, "error");
+  assertEquals(released, true);
+});

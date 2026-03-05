@@ -320,6 +320,46 @@ export class Task<T, E> {
     });
   }
 
+  /**
+   * Acquires a resource, runs a task that uses it, and releases it regardless
+   * of success or failure. Useful for resource lifecycle management when the
+   * use computation is a composed Task chain.
+   *
+   * @example
+   * ```ts
+   * const task = Task.acquireRelease({
+   *   acquire: () => db.connect(),
+   *   release: (conn) => conn.close(),
+   *   use: (conn) => Task.of(() => query(conn))
+   *     .retry({ attempts: 3 })
+   *     .timeout(5_000),
+   * });
+   *
+   * const result = await task.result();
+   * ```
+   */
+  static acquireRelease<R, T, E>({
+    acquire,
+    release,
+    use,
+  }: {
+    acquire: () => Promise<R>;
+    release: (resource: R) => Promise<void>;
+    use: (resource: R) => Task<T, E>;
+  }): Task<T, E> {
+    return new Task(async (signal) => {
+      const resource = await acquire();
+      try {
+        const innerTask = use(resource);
+        return signal
+          ? await innerTask.withSignal(signal).run()
+          : await innerTask.run();
+      } finally {
+        await release(resource);
+      }
+    });
+  }
+
   protected runWithSignal(signal?: AbortSignal): Promise<T> {
     if (!signal) {
       return this.runTask();
