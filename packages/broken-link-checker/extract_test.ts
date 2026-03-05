@@ -1,5 +1,5 @@
 import { assertEquals } from "@std/assert";
-import { _extractLinks } from "./extract.ts";
+import { _extractLinks, _extractLinksFromXml } from "./extract.ts";
 
 Deno.test("_extractLinks - should return empty array for empty HTML", () => {
   assertEquals(_extractLinks("", base), []);
@@ -98,5 +98,162 @@ Deno.test("_extractLinks - should extract multiple unique links", () => {
 Deno.test("_extractLinks - should skip anchors without href attribute", () => {
   assertEquals(_extractLinks(`<a name="anchor">no href</a>`, base), []);
 });
+
+Deno.test("_extractLinksFromXml - should return empty array for empty XML", () => {
+  assertEquals(_extractLinksFromXml(""), []);
+});
+
+Deno.test("_extractLinksFromXml - should return empty array when no loc elements", () => {
+  assertEquals(_extractLinksFromXml("<urlset></urlset>"), []);
+});
+
+Deno.test("_extractLinksFromXml - should extract URLs from sitemap", () => {
+  const xml = `
+    <?xml version="1.0" encoding="UTF-8"?>
+    <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+      <url>
+        <loc>https://example.com/</loc>
+      </url>
+      <url>
+        <loc>https://example.com/about</loc>
+      </url>
+    </urlset>
+  `;
+  const links = _extractLinksFromXml(xml);
+  assertEquals(links.length, 2);
+  assertEquals(links[0].href, "https://example.com/");
+  assertEquals(links[1].href, "https://example.com/about");
+});
+
+Deno.test("_extractLinksFromXml - should extract URLs from sitemap index", () => {
+  const xml = `
+    <?xml version="1.0" encoding="UTF-8"?>
+    <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+      <sitemap>
+        <loc>https://example.com/sitemap1.xml</loc>
+      </sitemap>
+      <sitemap>
+        <loc>https://example.com/sitemap2.xml</loc>
+      </sitemap>
+    </sitemapindex>
+  `;
+  const links = _extractLinksFromXml(xml);
+  assertEquals(links.length, 2);
+  assertEquals(links[0].href, "https://example.com/sitemap1.xml");
+  assertEquals(links[1].href, "https://example.com/sitemap2.xml");
+});
+
+Deno.test("_extractLinksFromXml - should deduplicate URLs", () => {
+  const xml = `
+    <urlset>
+      <url><loc>https://example.com/page</loc></url>
+      <url><loc>https://example.com/page</loc></url>
+    </urlset>
+  `;
+  const links = _extractLinksFromXml(xml);
+  assertEquals(links.length, 1);
+  assertEquals(links[0].href, "https://example.com/page");
+});
+
+Deno.test("_extractLinksFromXml - should skip empty loc elements", () => {
+  const xml = `
+    <urlset>
+      <url><loc>https://example.com/page</loc></url>
+      <url><loc></loc></url>
+    </urlset>
+  `;
+  const links = _extractLinksFromXml(xml);
+  assertEquals(links.length, 1);
+});
+
+Deno.test("_extractLinksFromXml - should skip invalid URLs", () => {
+  const xml = `
+    <urlset>
+      <url><loc>https://example.com/valid</loc></url>
+      <url><loc>not-a-url</loc></url>
+    </urlset>
+  `;
+  const links = _extractLinksFromXml(xml);
+  assertEquals(links.length, 1);
+  assertEquals(links[0].href, "https://example.com/valid");
+});
+
+const xmlTestCases = [
+  {
+    name: "should handle whitespace in loc elements",
+    xml: `<urlset><url><loc>
+https://example.com/page
+</loc></url></urlset>`,
+    expected: ["https://example.com/page"],
+  },
+  {
+    name: "should handle newlines between tags",
+    xml: `<urlset>
+<url>
+<loc>https://example.com/page1</loc>
+</url>
+<url>
+<loc>https://example.com/page2</loc>
+</url>
+</urlset>`,
+    expected: ["https://example.com/page1", "https://example.com/page2"],
+  },
+  {
+    name: "should handle XML with namespaces",
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url>
+    <loc>https://example.com/page</loc>
+  </url>
+</urlset>`,
+    expected: ["https://example.com/page"],
+  },
+  {
+    name: "should handle sitemap index format",
+    xml: `<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap>
+    <loc>https://example.com/sitemap-1.xml</loc>
+  </sitemap>
+  <sitemap>
+    <loc>https://example.com/sitemap-2.xml</loc>
+  </sitemap>
+</sitemapindex>`,
+    expected: [
+      "https://example.com/sitemap-1.xml",
+      "https://example.com/sitemap-2.xml",
+    ],
+  },
+  {
+    name: "should handle multiline loc content",
+    xml: `<urlset>
+<url>
+<loc>
+https://example.com/
+very-long-page-name
+</loc>
+</url>
+</urlset>`,
+    expected: ["https://example.com/very-long-page-name"],
+  },
+  {
+    name: "should handle mixed whitespace",
+    xml: `<urlset>
+<url><loc>  https://example.com/a  </loc></url>
+<url><loc>https://example.com/b</loc></url>
+</urlset>`,
+    expected: ["https://example.com/a", "https://example.com/b"],
+  },
+];
+
+for (const testCase of xmlTestCases) {
+  Deno.test(`_extractLinksFromXml - ${testCase.name}`, () => {
+    const links = _extractLinksFromXml(testCase.xml);
+    assertEquals(
+      links.map((u) => u.href),
+      testCase.expected,
+    );
+  });
+}
 
 const base = new URL("https://example.com/page/index.html");

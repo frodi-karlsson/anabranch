@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { BrokenLinkChecker } from "./checker.ts";
 
 type FetchFn = typeof globalThis.fetch;
@@ -130,7 +130,7 @@ Deno.test("BrokenLinkChecker.check - should set isPath true for same-host and fa
   });
   const results: Array<{ url: string; isPath: boolean }> = [];
   for await (
-    const result of checker.check("https://example.com/").successes()
+    const result of checker.check(["https://example.com/"]).successes()
   ) {
     results.push({ url: result.url.href, isPath: result.isPath });
   }
@@ -151,7 +151,7 @@ Deno.test("BrokenLinkChecker.check - should set parent to undefined for seed and
   });
   const results: Array<{ url: string; parent: string | undefined }> = [];
   for await (
-    const result of checker.check("https://example.com/").successes()
+    const result of checker.check(["https://example.com/"]).successes()
   ) {
     results.push({ url: result.url.href, parent: result.parent?.href });
   }
@@ -206,13 +206,38 @@ Deno.test("BrokenLinkChecker.keepBroken - should keep matching broken results in
   assertEquals(broken, ["https://example.com/broken"]);
 });
 
+Deno.test("BrokenLinkChecker.check - should support multiple entrypoints", async () => {
+  const fetch = mockFetch({
+    "https://example.com/": makeResponse(200, "<html></html>"),
+    "https://example.com/page1": makeResponse(200, "<html></html>"),
+    "https://example.com/sitemap.xml": makeResponse(
+      200,
+      `<a href="/page1">page1</a><a href="/page2">page2</a>`,
+    ),
+    "https://example.com/page2": makeResponse(200, "<html></html>"),
+  });
+  const checker = new BrokenLinkChecker({
+    fetch,
+    retry: { attempts: 1, delay: () => 0 },
+  });
+  const urls = await checker
+    .check(["https://example.com/", "https://example.com/sitemap.xml"])
+    .map((r) => r.url.href)
+    .collect();
+  assertEquals(urls.length, 4);
+  assert(urls.includes("https://example.com/"));
+  assert(urls.includes("https://example.com/page1"));
+  assert(urls.includes("https://example.com/page2"));
+  assert(urls.includes("https://example.com/sitemap.xml"));
+});
+
 async function collectResults(
   checker: BrokenLinkChecker,
   url: string,
 ): Promise<{ ok: number[]; broken: string[] }> {
   const ok: number[] = [];
   const broken: string[] = [];
-  for await (const result of checker.check(url).successes()) {
+  for await (const result of checker.check([url]).successes()) {
     if (result.ok) {
       ok.push(result.status!);
     } else {

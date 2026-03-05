@@ -35,3 +35,32 @@ export function _extractLinks(html: string, baseUrl: URL): URL[] {
 
   return links;
 }
+
+/**
+ * Extracts all URLs from an XML sitemap.
+ * Handles standard sitemaps and sitemap indexes.
+ */
+export function _extractLinksFromXml(xml: string): URL[] {
+  const seen = new Set<string>();
+  const links: URL[] = [];
+
+  const locMatches = xml.matchAll(/<loc[^>]*>([\s\S]*?)<\/loc>/gi);
+  for (const match of locMatches) {
+    const raw = match[1]?.trim();
+    if (!raw) continue;
+
+    let url: URL;
+    try {
+      url = new URL(raw);
+    } catch {
+      continue;
+    }
+
+    const key = url.href;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    links.push(url);
+  }
+
+  return links.filter((url) => url.hostname !== "");
+}
