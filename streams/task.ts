@@ -239,7 +239,7 @@ export class Task<T, E> {
   static race<T, E>(tasks: Task<T, E>[]): Task<Result<T, E[]>, never> {
     return new Task(async (signal) => {
       if (tasks.length === 0) {
-        return { type: "error", error: [] } as unknown as Result<T, E[]>;
+        throw new Error("Task.race requires at least one task");
       }
 
       const errors: E[] = [];

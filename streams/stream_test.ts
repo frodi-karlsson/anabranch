@@ -556,6 +556,21 @@ Deno.test("Stream.mapErr - should transform errors", async () => {
   ]);
 });
 
+Deno.test("Stream.mapErr - should emit error when callback throws", async () => {
+  const stream = streamFrom<number, string>([failure("bad"), success(1)]);
+  const mapped = stream.mapErr((error) => {
+    if (error === "bad") throw "mapped-error";
+    return error;
+  });
+
+  const results = await mapped.toArray();
+
+  assertEquals(results, [
+    { type: "error", error: "mapped-error" },
+    { type: "success", value: 1 },
+  ]);
+});
+
 Deno.test("Stream.filterErr - should keep matching errors", async () => {
   const stream = streamFrom<number, string>([
     failure("bad"),
@@ -618,6 +633,27 @@ Deno.test(
     assertEquals(results, [
       { type: "success", value: 42 },
       { type: "error", error: "skip" },
+    ]);
+  },
+);
+
+Deno.test(
+  "Stream.recoverWhen - should emit error when recovery function throws",
+  async () => {
+    const stream = streamFrom<number, string>([
+      failure("recoverable"),
+    ]);
+    const recovered = stream.recoverWhen(
+      (error): error is "recoverable" => error === "recoverable",
+      () => {
+        throw "recovery failed";
+      },
+    );
+
+    const results = await recovered.toArray();
+
+    assertEquals(results, [
+      { type: "error", error: "recovery failed" },
     ]);
   },
 );
@@ -739,6 +775,52 @@ Deno.test("Stream.tryMap - should collect errors from fn", async () => {
   assertEquals(results[2], { type: "success", value: 30 });
 });
 
+Deno.test(
+  "Stream.tryMap - should honor concurrency limit",
+  async () => {
+    let inFlight = 0;
+    let maxObserved = 0;
+    const started = deferred<void>();
+    const gates = [
+      deferred<void>(),
+      deferred<void>(),
+      deferred<void>(),
+      deferred<void>(),
+    ];
+    const stream = new Source<number, string>(async function* () {
+      yield 1;
+      yield 2;
+      yield 3;
+      yield 4;
+    }).withConcurrency(2);
+
+    const mapped = stream.tryMap(
+      async (value) => {
+        inFlight += 1;
+        maxObserved = Math.max(maxObserved, inFlight);
+        if (inFlight === 2) {
+          started.resolve();
+        }
+        await gates[value - 1].promise;
+        inFlight -= 1;
+        return value * 10;
+      },
+      (error) => `error: ${error}`,
+    );
+
+    const resultsPromise = mapped.toArray();
+    await started.promise;
+    assertEquals(maxObserved, 2);
+
+    for (const gate of gates) {
+      gate.resolve();
+    }
+
+    await resultsPromise;
+    assertEquals(maxObserved, 2);
+  },
+);
+
 Deno.test("Stream.take - should limit successes, errors pass through", async () => {
   const stream = streamFrom<number, string>([
     success(1),
@@ -812,6 +894,32 @@ Deno.test("Stream.partition - should split successes and errors", async () => {
 
   assertEquals(successes, [1, 2]);
   assertEquals(errors, ["bad", "worse"]);
+});
+
+Deno.test("Stream.partition - should handle stream with only successes", async () => {
+  const stream = streamFrom<number, string>([
+    success(1),
+    success(2),
+    success(3),
+  ]);
+
+  const { successes, errors } = await stream.partition();
+
+  assertEquals(successes, [1, 2, 3]);
+  assertEquals(errors, []);
+});
+
+Deno.test("Stream.partition - should handle stream with only errors", async () => {
+  const stream = streamFrom<number, string>([
+    failure("bad"),
+    failure("worse"),
+    failure("terrible"),
+  ]);
+
+  const { successes, errors } = await stream.partition();
+
+  assertEquals(successes, []);
+  assertEquals(errors, ["bad", "worse", "terrible"]);
 });
 
 Deno.test("Stream integration - should compose multiple operations", async () => {

@@ -234,3 +234,88 @@ Deno.test("Task.acquireRelease - should pass signal to acquire", async () => {
   assertEquals(receivedSignal, controller.signal);
   assertEquals(result, "result");
 });
+
+Deno.test("Task.acquireRelease - should release even when signal aborted during use", async () => {
+  let released = false;
+  const gate = Promise.withResolvers<void>();
+  const task = Task.acquireRelease({
+    acquire: () => Promise.resolve("resource"),
+    release: () => {
+      released = true;
+      return Promise.resolve();
+    },
+    use: () =>
+      Task.of(() =>
+        Promise.race([
+          gate.promise.then(() => "done"),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("timeout")), 10_000)
+          ),
+        ])
+      ),
+  });
+
+  const controller = new AbortController();
+  const runPromise = task.withSignal(controller.signal).run();
+
+  controller.abort(new Error("aborted during use"));
+
+  await assertRejects(() => runPromise, Error, "aborted during use");
+  assertEquals(released, true);
+});
+
+Deno.test("Task.retry - should throw final error when all attempts exhausted", async () => {
+  let attempts = 0;
+  const task = Task.of<number, string>(() => {
+    attempts += 1;
+    return Promise.reject(`error ${attempts}`);
+  }).retry({ attempts: 3 });
+
+  await assertRejects(() => task.run(), "error 3");
+  assertEquals(attempts, 3);
+});
+
+Deno.test("Task.all - should reject on first failure", async () => {
+  const task = Task.all([
+    Task.of(() => Promise.resolve(1)),
+    Task.of(() => Promise.reject("fail")),
+    Task.of(() => Promise.resolve(3)),
+  ]);
+
+  await assertRejects(() => task.run(), "fail");
+});
+
+Deno.test("Task.race - should throw for empty input", async () => {
+  const task = Task.race<string, never>([]);
+  await assertRejects(
+    () => task.run(),
+    Error,
+    "Task.race requires at least one task",
+  );
+});
+
+Deno.test("Task.flatMap - should not run second task when first fails", async () => {
+  let secondRan = false;
+  const task = Task.of(() => Promise.reject("first fail"))
+    .flatMap(() =>
+      Task.of(() => {
+        secondRan = true;
+        return Promise.resolve("second");
+      })
+    );
+
+  const result = await task.result();
+  assertEquals(result.type, "error");
+  assertEquals((result as { error: string }).error, "first fail");
+  assertEquals(secondRan, false);
+});
+
+Deno.test("Task.timeout - should resolve when task completes within timeout", async () => {
+  const task = Task.of<string, Error>(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    return "success";
+  }).timeout(5_000, new Error("timed out"));
+
+  const value = await task.run();
+  assertEquals(value, "success");
+});
