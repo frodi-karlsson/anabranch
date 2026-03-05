@@ -621,6 +621,304 @@ Deno.test("AnabranchStream.recover - should convert errors to successes", async 
   ]);
 });
 
+Deno.test("AnabranchStream.tap - should run side effect and pass through", async () => {
+  const seen: number[] = [];
+  const stream = streamFrom<number, string>([
+    success(1),
+    failure("bad"),
+    success(2),
+  ]);
+  const tapped = stream.tap((value) => { seen.push(value); });
+
+  const results = await tapped.toArray();
+
+  assertEquals(seen, [1, 2]);
+  assertEquals(results, [
+    { type: "success", value: 1 },
+    { type: "error", error: "bad" },
+    { type: "success", value: 2 },
+  ]);
+});
+
+Deno.test("AnabranchStream.tap - should convert thrown errors into error results", async () => {
+  const stream = streamFrom<number, Error>([success(1), success(2)]);
+  const expectedError = new Error("tap failed");
+  const tapped = stream.tap((value) => {
+    if (value === 2) throw expectedError;
+  });
+
+  const results = await tapped.toArray();
+
+  assertEquals(results, [
+    { type: "success", value: 1 },
+    { type: "error", error: expectedError },
+  ]);
+});
+
+Deno.test("AnabranchStream.tapErr - should run side effect on errors and pass through", async () => {
+  const seen: string[] = [];
+  const stream = streamFrom<number, string>([
+    failure("bad"),
+    success(1),
+    failure("worse"),
+  ]);
+  const tapped = stream.tapErr((error) => { seen.push(error); });
+
+  const results = await tapped.toArray();
+
+  assertEquals(seen, ["bad", "worse"]);
+  assertEquals(results, [
+    { type: "error", error: "bad" },
+    { type: "success", value: 1 },
+    { type: "error", error: "worse" },
+  ]);
+});
+
+Deno.test("AnabranchStream.take - should limit successes, errors pass through", async () => {
+  const stream = streamFrom<number, string>([
+    success(1),
+    failure("bad"),
+    success(2),
+    success(3),
+    success(4),
+  ]);
+  const taken = stream.take(2);
+
+  const results = await taken.toArray();
+
+  assertEquals(results, [
+    { type: "success", value: 1 },
+    { type: "error", error: "bad" },
+    { type: "success", value: 2 },
+  ]);
+});
+
+Deno.test("AnabranchStream.take - should handle n=0", async () => {
+  const stream = streamFrom<number, string>([success(1), success(2)]);
+  const taken = stream.take(0);
+
+  const results = await taken.toArray();
+
+  assertEquals(results, []);
+});
+
+Deno.test("AnabranchStream.takeWhile - should stop when predicate returns false", async () => {
+  const stream = streamFrom<number, string>([
+    success(1),
+    success(2),
+    success(5),
+    success(3),
+  ]);
+  const taken = stream.takeWhile((value) => value < 5);
+
+  const results = await taken.toArray();
+
+  assertEquals(results, [
+    { type: "success", value: 1 },
+    { type: "success", value: 2 },
+  ]);
+});
+
+Deno.test("AnabranchStream.takeWhile - should emit error and stop when predicate throws", async () => {
+  const stream = streamFrom<number, Error>([success(1), success(2)]);
+  const expectedError = new Error("predicate failed");
+  const taken = stream.takeWhile((value) => {
+    if (value === 2) throw expectedError;
+    return true;
+  });
+
+  const results = await taken.toArray();
+
+  assertEquals(results, [
+    { type: "success", value: 1 },
+    { type: "error", error: expectedError },
+  ]);
+});
+
+Deno.test("AnabranchStream.partition - should split successes and errors", async () => {
+  const stream = streamFrom<number, string>([
+    success(1),
+    failure("bad"),
+    success(2),
+    failure("worse"),
+  ]);
+
+  const { successes, errors } = await stream.partition();
+
+  assertEquals(successes, [1, 2]);
+  assertEquals(errors, ["bad", "worse"]);
+});
+
+Deno.test("AnabranchStream integration - should compose multiple operations", async () => {
+  const stream = new AnabranchSource<number, Error>(async function* () {
+    yield 1;
+    yield 2;
+    yield 3;
+    yield 4;
+    yield 5;
+    throw new Error("source error");
+  });
+
+  const result = await stream
+    .map((n) => {
+      if (n === 3) throw new Error("map error");
+      return n;
+    })
+    .filter((n) => n % 2 !== 0)          // keep odds: 1, 5
+    .flatMap((n) => [n, n * 100])         // expand: 1, 100, 5, 500
+    .recover(() => -1)                    // recover all errors as -1
+    .collect();
+
+  assertEquals(result.sort((a, b) => a - b), [-1, -1, 1, 5, 100, 500]);
+});
+
+Deno.test(
+  "AnabranchStream integration - partial recovery: recoverWhen leaves unmatched errors intact",
+  async () => {
+    type Err = "retryable" | "fatal";
+    const stream = new AnabranchSource<number, Err>(async function* () {
+      yield 1;
+      yield 2;
+      yield 3;
+    });
+
+    const { successes, errors } = await stream
+      .map((n): number => {
+        if (n === 1) throw "retryable" as Err;
+        if (n === 2) throw "fatal" as Err;
+        return n * 10;
+      })
+      .recoverWhen(
+        (e): e is "retryable" => e === "retryable",
+        () => -1,
+      )
+      .partition();
+
+    assertEquals(successes.sort((a, b) => a - b), [-1, 30]);
+    assertEquals(errors, ["fatal"]);
+  },
+);
+
+Deno.test(
+  "AnabranchStream integration - error transformation chain: mapErr then filterErr",
+  async () => {
+    const stream = new AnabranchSource<number, string>(async function* () {
+      yield 1;
+      yield 2;
+      yield 3;
+    });
+
+    const { successes, errors } = await stream
+      .map((n) => {
+        if (n === 1) throw "minor error";
+        if (n === 2) throw "CRITICAL error";
+        return n * 10;
+      })
+      .mapErr((e: string) => e.toUpperCase())
+      .filterErr((e) => e.startsWith("CRITICAL"))
+      .partition();
+
+    assertEquals(successes, [30]);
+    assertEquals(errors, ["CRITICAL ERROR"]);
+  },
+);
+
+Deno.test(
+  "AnabranchStream integration - tap and tapErr observe without affecting pipeline",
+  async () => {
+    const successLog: number[] = [];
+    const errorLog: string[] = [];
+
+    const stream = new AnabranchSource<number, string>(async function* () {
+      yield 1;
+      yield 2;
+      yield 3;
+    });
+
+    const { successes, errors } = await stream
+      .map((n) => {
+        if (n === 2) throw "bad";
+        return n * 10;
+      })
+      .tap((v) => { successLog.push(v); })
+      .tapErr((e: string) => { errorLog.push(e); })
+      .map((n) => n + 1)
+      .partition();
+
+    assertEquals(successLog, [10, 30]);
+    assertEquals(errorLog, ["bad"]);
+    assertEquals(successes, [11, 31]);
+    assertEquals(errors, ["bad"]);
+  },
+);
+
+Deno.test(
+  "AnabranchStream integration - take limits output of a large source",
+  async () => {
+    const stream = new AnabranchSource<number, never>(async function* () {
+      let i = 0;
+      while (true) yield i++;
+    });
+
+    const results = await stream
+      .map((n) => n * 2)
+      .take(5)
+      .collect();
+
+    assertEquals(results, [0, 2, 4, 6, 8]);
+  },
+);
+
+Deno.test(
+  "AnabranchStream integration - takeWhile stops pipeline mid-stream",
+  async () => {
+    const stream = new AnabranchSource<number, string>(async function* () {
+      yield 1;
+      yield 2;
+      yield 3;
+      yield 4;
+      yield 5;
+    });
+
+    const { successes, errors } = await stream
+      .map((n) => {
+        if (n === 2) throw "oops";
+        return n;
+      })
+      .takeWhile((n) => n < 4)
+      .partition();
+
+    // 1 passes, 2 becomes error (errors pass through takeWhile),
+    // 3 passes, 4 triggers takeWhile to stop
+    assertEquals(successes, [1, 3]);
+    assertEquals(errors, ["oops"]);
+  },
+);
+
+Deno.test(
+  "AnabranchStream integration - concurrent map with error accumulation",
+  async () => {
+    const stream = new AnabranchSource<number, Error>(async function* () {
+      for (let i = 1; i <= 6; i++) yield i;
+    }).withConcurrency(3);
+
+    const { successes, errors } = await stream
+      .map(async (n) => {
+        await Promise.resolve();
+        if (n % 2 === 0) throw new Error(`even: ${n}`);
+        return n;
+      })
+      .filter((n) => n < 5)
+      .partition();
+
+    assertEquals(successes.sort((a, b) => a - b), [1, 3]);
+    assertEquals(
+      errors.map((e) => e.message).sort(),
+      ["even: 2", "even: 4", "even: 6"],
+    );
+  },
+);
+
 Deno.test("AnabranchStream.throwOn - should throw matching errors", async () => {
   const stream = streamFrom<number, "boom" | "other">([
     success(1),
