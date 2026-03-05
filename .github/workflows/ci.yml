@@ -76,6 +76,6 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
-          token: ''
+          token: ""
       - run: deno task build:npm
       - run: cd npm && npm publish --provenance --access public
