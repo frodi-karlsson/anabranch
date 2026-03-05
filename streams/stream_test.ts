@@ -1137,3 +1137,124 @@ Deno.test("Stream.throwOn - should throw the same error instance", async () => {
     "explode",
   );
 });
+
+Deno.test("Stream.scan - should emit running accumulator", async () => {
+  const stream = streamFrom<number, string>([
+    success(1),
+    success(2),
+    success(3),
+  ]);
+  const scanned = stream.scan((sum, n) => sum + n, 0);
+
+  const results = await scanned.toArray();
+
+  assertEquals(results, [
+    { type: "success", value: 1 },
+    { type: "success", value: 3 },
+    { type: "success", value: 6 },
+  ]);
+});
+
+Deno.test("Stream.scan - should pass errors through", async () => {
+  const stream = streamFrom<number, string>([
+    success(1),
+    failure("bad"),
+    success(2),
+  ]);
+  const scanned = stream.scan((sum, n) => sum + n, 0);
+
+  const results = await scanned.toArray();
+
+  assertEquals(results, [
+    { type: "success", value: 1 },
+    { type: "error", error: "bad" },
+    { type: "success", value: 3 },
+  ]);
+});
+
+Deno.test("Stream.scan - should emit initial value", async () => {
+  const stream = streamFrom<number, string>([
+    success(10),
+  ]);
+  const scanned = stream.scan((acc, n) => acc + n, 5);
+
+  const results = await scanned.toArray();
+
+  assertEquals(results, [
+    { type: "success", value: 15 },
+  ]);
+});
+
+Deno.test("Stream.chunks - should group successes into arrays", async () => {
+  const stream = streamFrom<number, string>([
+    success(1),
+    success(2),
+    success(3),
+    success(4),
+    success(5),
+  ]);
+  const chunked = stream.chunks(2);
+
+  const results = await chunked.toArray();
+
+  assertEquals(results, [
+    { type: "success", value: [1, 2] },
+    { type: "success", value: [3, 4] },
+    { type: "success", value: [5] },
+  ]);
+});
+
+Deno.test("Stream.chunks - should emit partial chunk at end", async () => {
+  const stream = streamFrom<number, string>([
+    success(1),
+    success(2),
+    success(3),
+  ]);
+  const chunked = stream.chunks(2);
+
+  const results = await chunked.toArray();
+
+  assertEquals(results, [
+    { type: "success", value: [1, 2] },
+    { type: "success", value: [3] },
+  ]);
+});
+
+Deno.test("Stream.chunks - should pass errors through without breaking chunk", async () => {
+  const stream = streamFrom<number, string>([
+    success(1),
+    success(2),
+    failure("bad"),
+    success(3),
+    success(4),
+  ]);
+  const chunked = stream.chunks(2);
+
+  const results = await chunked.toArray();
+
+  assertEquals(results, [
+    { type: "success", value: [1, 2] },
+    { type: "error", error: "bad" },
+    { type: "success", value: [3, 4] },
+  ]);
+});
+
+Deno.test("Stream.chunks - should flush chunk on error", async () => {
+  const stream = streamFrom<number, string>([
+    success(1),
+    success(2),
+    success(3),
+    failure("bad"),
+    success(4),
+  ]);
+  const chunked = stream.chunks(2);
+
+  const results = await chunked.toArray();
+
+  assertEquals(results, [
+    { type: "success", value: [1, 2] },
+    { type: "success", value: [3] },
+    { type: "error", error: "bad" },
+    { type: "success", value: [4] },
+  ]);
+});

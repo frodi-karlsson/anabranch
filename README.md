@@ -126,16 +126,17 @@ const task = Task.of(async (signal) => {
 controller.abort();
 ```
 
-For resource lifecycle management, use `Task.acquireRelease` to acquire a resource,
-run a composed task, and release it regardless of success or failure:
+For resource lifecycle management, use `Task.acquireRelease` to acquire a
+resource, run a composed task, and release it regardless of success or failure:
 
 ```ts
 const task = Task.acquireRelease({
   acquire: (signal) => db.connect(signal),
   release: (conn) => conn.close(),
-  use: (conn) => Task.of(() => query(conn))
-    .retry({ attempts: 3 })
-    .timeout(5_000),
+  use: (conn) =>
+    Task.of(() => query(conn))
+      .retry({ attempts: 3 })
+      .timeout(5_000),
 });
 
 const result = await task.result();
@@ -191,6 +192,33 @@ Use `throwOn` to throw specific errors immediately, terminating iteration:
 
 ```ts
 stream.throwOn((e): e is FatalError => e instanceof FatalError);
+```
+
+### Accumulating state
+
+`scan` is like `fold` but emits the running accumulator after each value:
+
+```ts
+const payments = new Source<Payment, Error>(async function* () {
+  /* stream of payment events */
+});
+
+payments
+  .scan((total, payment) => total + payment.amount, 0)
+  .tap((total) => updateDashboard(total));
+```
+
+`chunks` groups consecutive successes into fixed-size arrays:
+
+```ts
+const records = new Source<Record, Error>(async function* () {
+  /* stream of database records */
+});
+
+// Batch records for bulk insert
+records
+  .chunks(100)
+  .map((batch) => db.insertMany(batch));
 ```
 
 ### Concurrency and backpressure

@@ -208,6 +208,29 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    */
   fold<U>(fn: (acc: U, value: T) => Promisable<U>, initialValue: U): Promise<U>;
   /**
+   * Like `fold` but emits the running accumulator after each successful value,
+   * allowing downstream operations to react to intermediate states.
+   *
+   * @example
+   * ```ts
+   * import { Source } from "anabranch";
+   *
+   * const stream = new Source<number, Error>(async function* () {
+   *   yield 1;
+   *   yield 2;
+   *   yield 3;
+   * });
+   *
+   * const scanned = stream.scan((sum, n) => sum + n, 0);
+   * // Emits: { type: "success", value: 1 }, { type: "success", value: 3 }, { type: "success", value: 6 }
+   * ```
+   * @see {@link Stream.fold}
+   */
+  scan<U>(
+    fn: (acc: U, value: T) => Promisable<U>,
+    initialValue: U,
+  ): Stream<U, E>;
+  /**
    * Similar to `Array.prototype.map`, but works on the stream of errors. If the provided function throws an error or returns a rejected promise, the new error will be collected and emitted as an error result in the stream.
    *
    * @example
@@ -389,6 +412,27 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * including both successes and errors, without throwing an aggregate error.
    */
   toArray(): Promise<Result<T, E>[]>;
+  /**
+   * Collects consecutive successful values into fixed-size arrays. Errors pass
+   * through without breaking the current chunk.
+   *
+   * @example
+   * ```ts
+   * import { Source } from "anabranch";
+   *
+   * const stream = new Source<number, Error>(async function* () {
+   *   yield 1;
+   *   yield 2;
+   *   yield 3;
+   *   yield 4;
+   *   yield 5;
+   * });
+   *
+   * const chunked = stream.chunks(2);
+   * // Emits: { type: "success", value: [1, 2] }, { type: "success", value: [3, 4] }, { type: "success", value: [5] }
+   * ```
+   */
+  chunks(size: number): Stream<T[], E>;
 
   [Symbol.asyncIterator](): AsyncIterator<Result<T, E>>;
 }
@@ -916,6 +960,64 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
       throw new AggregateError(errors);
     }
     return accumulator;
+  }
+
+  scan<U>(
+    fn: (acc: U, value: T) => Promisable<U>,
+    initialValue: U,
+  ): Stream<U, E> {
+    const source = this.source;
+    const concurrency = this.concurrency;
+    const bufferSize = this.bufferSize;
+    return new _StreamImpl<U, E>(
+      async function* () {
+        let accumulator = initialValue;
+        for await (const result of source()) {
+          if (result.type === "success") {
+            accumulator = await fn(accumulator, result.value);
+            yield { type: "success", value: accumulator } as Result<U, E>;
+          } else {
+            yield result as unknown as Result<U, E>;
+          }
+        }
+      },
+      concurrency,
+      bufferSize,
+    );
+  }
+
+  chunks(size: number): Stream<T[], E> {
+    if (size <= 0) {
+      throw new Error("chunks size must be positive");
+    }
+    const source = this.source;
+    const concurrency = this.concurrency;
+    const bufferSize = this.bufferSize;
+    return new _StreamImpl<T[], E>(
+      async function* () {
+        let chunk: T[] = [];
+        for await (const result of source()) {
+          if (result.type === "success") {
+            chunk.push(result.value);
+            if (chunk.length === size) {
+              yield { type: "success", value: chunk } as Result<T[], E>;
+              chunk = [];
+            }
+          } else {
+            if (chunk.length > 0) {
+              yield { type: "success", value: chunk } as Result<T[], E>;
+              chunk = [];
+            }
+            yield result as unknown as Result<T[], E>;
+          }
+        }
+        if (chunk.length > 0) {
+          yield { type: "success", value: chunk } as Result<T[], E>;
+        }
+      },
+      concurrency,
+      bufferSize,
+    );
   }
 
   mapErr<F>(fn: (error: E) => Promisable<F>): Stream<T, F> {
