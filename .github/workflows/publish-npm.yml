@@ -1,28 +1,27 @@
 name: Publish npm
 
-inputs:
-  package:
-    required: true
-    type: string
+on:
+  workflow_call:
 
-runs:
-  using: composite
-  steps:
-    - uses: actions/checkout@v4
-    - uses: denoland/setup-deno@v2
-      with:
-        deno-version: v2.x
-    - uses: actions/setup-node@v4
-      with:
-        node-version: 24
-        registry-url: https://registry.npmjs.org
-    - name: Clear auth token for OIDC
-      run: echo "NODE_AUTH_TOKEN=" >> $GITHUB_ENV
-      shell: bash
-    - name: Update npm
-      run: npm install -g npm@latest
-      shell: bash
-    - run: deno task build:npm:${{ inputs.package }}
-      shell: bash
-    - run: cd packages/${{ inputs.package }}/npm && npm publish --access public
-      shell: bash
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: Clear auth token for OIDC
+        run: echo "NODE_AUTH_TOKEN=" >> $GITHUB_ENV
+        shell: bash
+      - name: Update npm
+        run: npm install -g npm@latest
+        shell: bash
+      - run: deno task build:npm:${{ inputs.package }}
+        shell: bash
+      - run: cd packages/${{ inputs.package }}/npm && npm publish --access public
+        shell: bash
