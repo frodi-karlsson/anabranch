@@ -4,6 +4,7 @@
   "exports": "./index.ts",
   "imports": {
     "@anabranch/anabranch": "jsr:@anabranch/anabranch@^0.4.2",
+    "@anabranch/web-client": "jsr:@anabranch/web-client@^0.1.0",
     "@b-fuze/deno-dom": "jsr:@b-fuze/deno-dom@0.1.56",
     "@std/assert": "jsr:@std/assert@1"
   }

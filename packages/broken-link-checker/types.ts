@@ -1,3 +1,5 @@
+import type { RequestOptions, WebClientOptions } from "@anabranch/web-client";
+
 export interface CheckResult {
   url: URL;
   parent: URL | undefined;
@@ -8,16 +10,12 @@ export interface CheckResult {
   durationMs: number;
 }
 
-export interface RetryOptions {
-  attempts?: number;
-  delay?: (attempt: number) => number;
-  when?: (error: Error) => boolean;
-}
+export type RetryOptions = RequestOptions["retry"];
 
 export interface BrokenLinkCheckerOptions {
   concurrency?: number;
   timeout?: number;
   retry?: RetryOptions;
-  fetch?: typeof globalThis.fetch;
+  fetch?: WebClientOptions["fetch"];
   userAgent?: string;
 }

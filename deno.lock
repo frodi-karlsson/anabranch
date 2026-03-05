@@ -81,6 +81,7 @@
       "packages/broken-link-checker": {
         "dependencies": [
           "jsr:@anabranch/anabranch@~0.4.2",
+          "jsr:@anabranch/web-client@0.1",
           "jsr:@b-fuze/deno-dom@0.1.56",
           "jsr:@std/assert@1"
         ]
