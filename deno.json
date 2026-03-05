@@ -2,7 +2,7 @@
   "workspace": ["./packages/anabranch"],
   "tasks": {
     "check": "deno fmt --check && deno lint && deno test",
-    "doc": "deno task doc:anabranch",
+    "doc": "deno task doc:anabranch && cp docs-src/index.html docs/index.html",
     "doc:anabranch": "mkdir -p docs/anabranch && deno doc --html --name=anabranch --output=docs/anabranch ./packages/anabranch/index.ts",
     "doc:lint": "deno doc --lint ./packages/anabranch/index.ts",
     "coverage": "deno test --coverage=packages/anabranch/coverage --clean && deno coverage ./packages/anabranch/coverage",
