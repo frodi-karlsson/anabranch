@@ -164,11 +164,13 @@ export class Task<T, E> {
           if (when && !when(lastError)) {
             throw lastError;
           }
-          const delayMs = typeof delay === "function"
-            ? delay(attempt, lastError)
-            : (delay ?? 0);
-          if (delayMs > 0) {
-            await this.delayWithSignal(delayMs, signal);
+          if (attempt + 1 < attempts) {
+            const delayMs = typeof delay === "function"
+              ? delay(attempt, lastError)
+              : (delay ?? 0);
+            if (delayMs > 0) {
+              await this.delayWithSignal(delayMs, signal);
+            }
           }
         }
       }
