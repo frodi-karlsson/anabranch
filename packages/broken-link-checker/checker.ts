@@ -102,7 +102,8 @@ export class BrokenLinkChecker {
 
     enqueue(seed, undefined, { skipFilter: true });
 
-    return Source.from<WorkItem, Error>(channel.successes(), concurrency)
+    return Source.from<WorkItem, Error>(channel.successes())
+      .withConcurrency(concurrency)
       .map(checkOne)
       .tap(() => {
         pending--;

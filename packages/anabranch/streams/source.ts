@@ -69,17 +69,11 @@ export class Source<T, E> extends _StreamImpl<T, E> {
    * const stream = Source.from<number, Error>(generate());
    * ```
    */
-  static from<T, E>(
-    source: AsyncIterable<T>,
-    concurrency: number = Infinity,
-    bufferSize: number = Infinity,
-  ): Source<T, E> {
+  static from<T, E>(source: AsyncIterable<T>): Source<T, E> {
     return new Source(
       async function* () {
         yield* source;
       },
-      concurrency,
-      bufferSize,
     );
   }
 
