@@ -37,8 +37,10 @@
   },
   "tasks": {
     "check": "deno fmt --check && deno lint && deno test",
-    "doc": "deno task doc:anabranch && cp docs-src/index.html docs/index.html",
+    "doc": "deno task doc:anabranch && deno task doc:web-client && deno task doc:broken-link-checker && cp docs-src/index.html docs/index.html",
     "doc:anabranch": "mkdir -p docs/anabranch && deno doc --html --name=anabranch --output=docs/anabranch ./packages/anabranch/index.ts",
+    "doc:web-client": "mkdir -p docs/web-client && deno doc --html --name=web-client --output=docs/web-client ./packages/web-client/index.ts",
+    "doc:broken-link-checker": "mkdir -p docs/broken-link-checker && deno doc --html --name=broken-link-checker --output=docs/broken-link-checker ./packages/broken-link-checker/index.ts",
     "doc:lint": "deno doc --lint ./packages/anabranch/index.ts",
     "coverage": "deno test --coverage=packages/anabranch/coverage --clean && deno coverage ./packages/anabranch/coverage",
     "coverage:html": "deno test --coverage=packages/anabranch/coverage --clean && deno coverage --html ./packages/anabranch/coverage",
