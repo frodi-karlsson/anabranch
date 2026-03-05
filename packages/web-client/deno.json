@@ -1,0 +1,9 @@
+{
+  "name": "@anabranch/web-client",
+  "version": "0.1.0",
+  "exports": "./index.ts",
+  "imports": {
+    "@anabranch/anabranch": "jsr:@anabranch/anabranch@^0.4.2",
+    "@std/assert": "jsr:@std/assert@1"
+  }
+}

@@ -150,7 +150,7 @@ export class Task<T, E> {
    */
   retry(options: {
     attempts: number;
-    delay?: number | ((attempt: number) => number);
+    delay?: number | ((attempt: number, error: E) => number);
     when?: (error: E) => boolean;
   }): Task<T, E> {
     const { attempts, delay, when } = options;
@@ -165,7 +165,7 @@ export class Task<T, E> {
             throw lastError;
           }
           const delayMs = typeof delay === "function"
-            ? delay(attempt)
+            ? delay(attempt, lastError)
             : (delay ?? 0);
           if (delayMs > 0) {
             await this.delayWithSignal(delayMs, signal);

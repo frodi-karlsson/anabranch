@@ -112,6 +112,30 @@ Deno.test("Task.retry - should use delay function", async () => {
   assertEquals(delays, [0, 1, 2]);
 });
 
+Deno.test("Task.retry - should receive error in delay function", async () => {
+  const delays: Array<{ attempt: number; error: string }> = [];
+  let attempts = 0;
+  const task = Task.of<number, string>(() => {
+    attempts += 1;
+    return Promise.reject(`error-${attempts}`);
+  }).retry({
+    attempts: 3,
+    delay: (attempt, error) => {
+      delays.push({ attempt, error });
+      return 0;
+    },
+  });
+
+  await assertRejects(() => task.run(), "error-3");
+
+  assertEquals(attempts, 3);
+  assertEquals(delays, [
+    { attempt: 0, error: "error-1" },
+    { attempt: 1, error: "error-2" },
+    { attempt: 2, error: "error-3" },
+  ]);
+});
+
 Deno.test("Task.race - should resolve first success", async () => {
   const slow = Task.of<number, string>(async () => {
     await Promise.resolve();

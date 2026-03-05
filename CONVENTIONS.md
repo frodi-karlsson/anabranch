@@ -10,3 +10,6 @@
   explicit; use destructured objects for boolean flags (e.g.
   `{ skipFilter }: { skipFilter: boolean }`).
 - Test names follow the pattern `Container.method - should description`.
+- All exported symbols must have JSDoc with a one-line summary. Use `@default`
+  for default values and `@example` for usage examples. Avoid `@param`,
+  `@returns`, and redundant type information in documentation.
