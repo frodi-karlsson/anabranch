@@ -11,16 +11,6 @@ handling.
 | [web-client](./packages/web-client)                   | Modern HTTP client built on fetch with automatic retries, timeouts, and rate-limit handling. Returns Task for composable error handling.    |
 | [broken-link-checker](./packages/broken-link-checker) | Crawl websites and find broken links. Uses web-client for robust HTTP and anabranch streams for concurrent processing with backpressure.    |
 
-## Quick Start
-
-```ts
-import { BrokenLinkChecker } from "@anabranch/broken-link-checker";
-
-const checker = new BrokenLinkChecker();
-const results = await checker.check("https://example.com").toArray();
-console.log(results);
-```
-
 ## Publishing
 
 Create a version tag and push:
