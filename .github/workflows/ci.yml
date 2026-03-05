@@ -74,9 +74,11 @@ jobs:
           deno-version: v2.x
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           registry-url: https://registry.npmjs.org
       - name: Clear auth token for OIDC
         run: echo "NODE_AUTH_TOKEN=" >> $GITHUB_ENV
+      - name: Update npm
+        run: npm install -g npm@latest
       - run: deno task build:npm
-      - run: cd npm && npm publish --provenance --access public
+      - run: cd npm && npm publish --access public
