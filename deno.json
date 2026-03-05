@@ -1,6 +1,11 @@
 {
   "tasks": {
-    "check": "deno fmt --check && deno lint && deno test"
+    "check": "deno fmt --check && deno lint && deno test",
+    "doc": "deno doc --html --name=anabranch --output=docs ./index.ts",
+    "doc:lint": "deno doc --lint ./index.ts",
+    "coverage": "deno test --coverage --clean && deno coverage ./coverage",
+    "coverage:html": "deno test --coverage --clean && deno coverage --html ./coverage",
+    "coverage:lcov": "deno test --coverage --clean && deno coverage --lcov --output=coverage.lcov ./coverage"
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@1"

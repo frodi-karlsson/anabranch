@@ -1,3 +1,6 @@
 
 node_modules
 **/local-*
+docs/
+coverage/
+.DS_Store
