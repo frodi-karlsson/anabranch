@@ -1185,6 +1185,26 @@ Deno.test("Stream.scan - should emit initial value", async () => {
   ]);
 });
 
+Deno.test("Stream.scan - should emit error when callback throws", async () => {
+  const stream = streamFrom<number, string>([
+    success(1),
+    success(2),
+    success(3),
+  ]);
+  const scanned = stream.scan((sum, n) => {
+    if (n === 2) throw "scan failed";
+    return sum + n;
+  }, 0);
+
+  const results = await scanned.toArray();
+
+  assertEquals(results, [
+    { type: "success", value: 1 },
+    { type: "error", error: "scan failed" },
+    { type: "success", value: 4 },
+  ]);
+});
+
 Deno.test("Stream.chunks - should group successes into arrays", async () => {
   const stream = streamFrom<number, string>([
     success(1),

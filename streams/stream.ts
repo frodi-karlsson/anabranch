@@ -974,8 +974,12 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
         let accumulator = initialValue;
         for await (const result of source()) {
           if (result.type === "success") {
-            accumulator = await fn(accumulator, result.value);
-            yield { type: "success", value: accumulator } as Result<U, E>;
+            try {
+              accumulator = await fn(accumulator, result.value);
+              yield { type: "success", value: accumulator } as Result<U, E>;
+            } catch (error) {
+              yield { type: "error", error: error as E } as Result<U, E>;
+            }
           } else {
             yield result as unknown as Result<U, E>;
           }
