@@ -15,7 +15,7 @@ await build({
   scriptModule: false,
   test: false,
   package: {
-    name: "anabranch/broken-link-checker",
+    name: "@anabranch/broken-link-checker",
     version,
     description: "Crawl websites and find broken links",
     license: "MIT",

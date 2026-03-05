@@ -15,7 +15,7 @@ await build({
   scriptModule: false,
   test: false,
   package: {
-    name: "anabranch/web-client",
+    name: "@anabranch/web-client",
     version,
     description: "Modern HTTP client with retries and error handling",
     license: "MIT",
