@@ -1,4 +1,4 @@
-import { AnabranchSource } from "../index.ts";
+import { Source } from "../index.ts";
 
 const urls = Deno.args.length ? Deno.args : [
   "https://jsonplaceholder.typicode.com/todos/1",
@@ -7,7 +7,7 @@ const urls = Deno.args.length ? Deno.args : [
   "https://jsonplaceholder.typicode.com/todos/4",
 ];
 
-const { successes, errors } = await new AnabranchSource<string, Error>(
+const { successes, errors } = await new Source<string, Error>(
   async function* () {
     yield* urls;
   },

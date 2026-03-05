@@ -1,8 +1,8 @@
-import { assertEquals, assertRejects } from "@std/assert";
-import { type AnabranchResult, AnabranchSource } from "../index.ts";
+import { assertEquals, assertObjectMatch, assertRejects } from "@std/assert";
+import { type Result, Source } from "../index.ts";
 import { deferred, failure, streamFrom, success } from "../test_utils.ts";
 
-Deno.test("AnabranchStream.toArray - should collect all results", async () => {
+Deno.test("Stream.toArray - should collect all results", async () => {
   const stream = streamFrom<number, string>([
     success(1),
     failure("boom"),
@@ -19,7 +19,7 @@ Deno.test("AnabranchStream.toArray - should collect all results", async () => {
 });
 
 Deno.test(
-  "AnabranchStream.collect - should return successes when no errors",
+  "Stream.collect - should return successes when no errors",
   async () => {
     const stream = streamFrom<number, string>([success(1), success(2)]);
 
@@ -30,7 +30,7 @@ Deno.test(
 );
 
 Deno.test(
-  "AnabranchStream.collect - should throw aggregate error when errors exist",
+  "Stream.collect - should throw aggregate error when errors exist",
   async () => {
     const stream = streamFrom<number, string>([
       success(1),
@@ -47,7 +47,7 @@ Deno.test(
 );
 
 Deno.test(
-  "AnabranchStream.successes - should yield only successful values",
+  "Stream.successes - should yield only successful values",
   async () => {
     const stream = streamFrom<string, string>([
       success("a"),
@@ -64,7 +64,7 @@ Deno.test(
   },
 );
 
-Deno.test("AnabranchStream.errors - should yield only errors", async () => {
+Deno.test("Stream.errors - should yield only errors", async () => {
   const stream = streamFrom<string, string>([
     success("a"),
     failure("bad"),
@@ -79,9 +79,9 @@ Deno.test("AnabranchStream.errors - should yield only errors", async () => {
   assertEquals(collected, ["bad", "worse"]);
 });
 
-Deno.test("AnabranchStream iterator - should yield all results", async () => {
+Deno.test("Stream iterator - should yield all results", async () => {
   const stream = streamFrom<number, string>([success(1), failure("boom")]);
-  const collected: AnabranchResult<number, string>[] = [];
+  const collected: Result<number, string>[] = [];
 
   for await (const result of stream) {
     collected.push(result);
@@ -93,7 +93,7 @@ Deno.test("AnabranchStream iterator - should yield all results", async () => {
   ]);
 });
 
-Deno.test("AnabranchStream.map - should transform successful values", async () => {
+Deno.test("Stream.map - should transform successful values", async () => {
   const stream = streamFrom<number, string>([
     success(2),
     failure("bad"),
@@ -110,7 +110,7 @@ Deno.test("AnabranchStream.map - should transform successful values", async () =
   ]);
 });
 
-Deno.test("AnabranchStream.flatMap - should expand successes", async () => {
+Deno.test("Stream.flatMap - should expand successes", async () => {
   const stream = streamFrom<number, string>([
     success(1),
     failure("bad"),
@@ -131,7 +131,7 @@ Deno.test("AnabranchStream.flatMap - should expand successes", async () => {
 });
 
 Deno.test(
-  "AnabranchStream.flatMap - should convert thrown errors into error results",
+  "Stream.flatMap - should convert thrown errors into error results",
   async () => {
     const stream = streamFrom<number, Error>([success(1), success(2)]);
     const expectedError = new Error("nope");
@@ -153,7 +153,7 @@ Deno.test(
 );
 
 Deno.test(
-  "AnabranchStream.flatMap - should convert iterable errors into error results",
+  "Stream.flatMap - should convert iterable errors into error results",
   async () => {
     const stream = streamFrom<number, Error>([success(1)]);
     const expectedError = new Error("bad iterable");
@@ -171,7 +171,7 @@ Deno.test(
 );
 
 Deno.test(
-  "AnabranchStream.flatMap - should preserve concurrency settings",
+  "Stream.flatMap - should preserve concurrency settings",
   async () => {
     let inFlight = 0;
     let maxObserved = 0;
@@ -184,7 +184,7 @@ Deno.test(
       deferred<void>(),
       deferred<void>(),
     ];
-    const stream = new AnabranchSource<number, string>(async function* () {
+    const stream = new Source<number, string>(async function* () {
       yield 1;
       yield 2;
       yield 3;
@@ -217,7 +217,7 @@ Deno.test(
 );
 
 Deno.test(
-  "AnabranchStream.map - should honor concurrency limit",
+  "Stream.map - should honor concurrency limit",
   async () => {
     let inFlight = 0;
     let maxObserved = 0;
@@ -228,7 +228,7 @@ Deno.test(
       deferred<void>(),
       deferred<void>(),
     ];
-    const stream = new AnabranchSource<number, string>(async function* () {
+    const stream = new Source<number, string>(async function* () {
       yield 1;
       yield 2;
       yield 3;
@@ -259,9 +259,9 @@ Deno.test(
 );
 
 Deno.test(
-  "AnabranchStream.map - should preserve order with concurrency 1",
+  "Stream.map - should preserve order with concurrency 1",
   async () => {
-    const stream = new AnabranchSource<number, string>(async function* () {
+    const stream = new Source<number, string>(async function* () {
       yield 1;
       yield 2;
       yield 3;
@@ -283,13 +283,13 @@ Deno.test(
 );
 
 Deno.test(
-  "AnabranchStream.map - should apply buffer backpressure",
+  "Stream.map - should apply buffer backpressure",
   async () => {
     let inFlight = 0;
     let maxObserved = 0;
     const started = deferred<void>();
     const gate = deferred<void>();
-    const stream = new AnabranchSource<number, string>(async function* () {
+    const stream = new Source<number, string>(async function* () {
       yield 1;
       yield 2;
       yield 3;
@@ -317,10 +317,10 @@ Deno.test(
 );
 
 Deno.test(
-  "AnabranchStream.map - should propagate errors from mapped tasks",
+  "Stream.map - should propagate errors from mapped tasks",
   async () => {
     const expectedError = new Error("map failed");
-    const stream = new AnabranchSource<number, Error>(async function* () {
+    const stream = new Source<number, Error>(async function* () {
       yield 1;
       yield 2;
     }).withConcurrency(2);
@@ -342,10 +342,10 @@ Deno.test(
 );
 
 Deno.test(
-  "AnabranchStream.map - should surface source generator errors",
+  "Stream.map - should surface source generator errors",
   async () => {
     const expectedError = new Error("source failed");
-    const stream = new AnabranchSource<number, Error>(async function* () {
+    const stream = new Source<number, Error>(async function* () {
       yield 1;
       throw expectedError;
     }).withConcurrency(1);
@@ -369,10 +369,10 @@ Deno.test(
 );
 
 Deno.test(
-  "AnabranchStream.map - should emit generator errors before completion",
+  "Stream.map - should emit generator errors before completion",
   async () => {
     const expectedError = new Error("source race");
-    const stream = new AnabranchSource<number, Error>(async function* () {
+    const stream = new Source<number, Error>(async function* () {
       yield 1;
       await Promise.resolve();
       throw expectedError;
@@ -397,13 +397,13 @@ Deno.test(
 );
 
 Deno.test(
-  "AnabranchStream.throwOn - should preserve concurrency settings",
+  "Stream.throwOn - should preserve concurrency settings",
   async () => {
     let inFlight = 0;
     let maxObserved = 0;
     const started = deferred<void>();
     const gates = [deferred<void>(), deferred<void>(), deferred<void>()];
-    const stream = new AnabranchSource<number, "boom">(async function* () {
+    const stream = new Source<number, "boom">(async function* () {
       yield 1;
       yield 2;
       yield 3;
@@ -436,7 +436,7 @@ Deno.test(
 );
 
 Deno.test(
-  "AnabranchStream.map - should convert thrown errors into error results",
+  "Stream.map - should convert thrown errors into error results",
   async () => {
     const stream = streamFrom<number, Error>([success(2), success(3)]);
     const expectedError = new Error("nope");
@@ -457,7 +457,7 @@ Deno.test(
 );
 
 Deno.test(
-  "AnabranchStream.filter - should keep matching successes",
+  "Stream.filter - should keep matching successes",
   async () => {
     const stream = streamFrom<number, string>([
       success(1),
@@ -476,7 +476,7 @@ Deno.test(
 );
 
 Deno.test(
-  "AnabranchStream.filter - should convert thrown errors into error results",
+  "Stream.filter - should convert thrown errors into error results",
   async () => {
     const stream = streamFrom<number, Error>([success(1), success(2)]);
     const expectedError = new Error("filter failed");
@@ -497,7 +497,7 @@ Deno.test(
 );
 
 Deno.test(
-  "AnabranchStream.fold - should accumulate successful values",
+  "Stream.fold - should accumulate successful values",
   async () => {
     const stream = streamFrom<number, string>([success(1), success(3)]);
 
@@ -508,7 +508,7 @@ Deno.test(
 );
 
 Deno.test(
-  "AnabranchStream.fold - should throw aggregate error when errors are present",
+  "Stream.fold - should throw aggregate error when errors are present",
   async () => {
     const stream = streamFrom<number, string>([
       success(1),
@@ -525,7 +525,7 @@ Deno.test(
 );
 
 Deno.test(
-  "AnabranchStream.fold - should throw aggregate error when callback fails",
+  "Stream.fold - should throw aggregate error when callback fails",
   async () => {
     const stream = streamFrom<number, Error>([success(1), success(2)]);
     const expectedError = new Error("fold failed");
@@ -544,7 +544,7 @@ Deno.test(
   },
 );
 
-Deno.test("AnabranchStream.mapErr - should transform errors", async () => {
+Deno.test("Stream.mapErr - should transform errors", async () => {
   const stream = streamFrom<number, string>([failure("bad"), success(1)]);
   const mapped = stream.mapErr((error) => `${error}-mapped`);
 
@@ -556,7 +556,7 @@ Deno.test("AnabranchStream.mapErr - should transform errors", async () => {
   ]);
 });
 
-Deno.test("AnabranchStream.filterErr - should keep matching errors", async () => {
+Deno.test("Stream.filterErr - should keep matching errors", async () => {
   const stream = streamFrom<number, string>([
     failure("bad"),
     failure("worse"),
@@ -572,7 +572,7 @@ Deno.test("AnabranchStream.filterErr - should keep matching errors", async () =>
   ]);
 });
 
-Deno.test("AnabranchStream.foldErr - should accumulate errors", async () => {
+Deno.test("Stream.foldErr - should accumulate errors", async () => {
   const stream = streamFrom<number, string>([
     failure("bad"),
     success(1),
@@ -585,7 +585,7 @@ Deno.test("AnabranchStream.foldErr - should accumulate errors", async () => {
 });
 
 Deno.test(
-  "AnabranchStream.foldErr - should throw raw error when callback fails",
+  "Stream.foldErr - should throw raw error when callback fails",
   async () => {
     const stream = streamFrom<number, Error>([failure(new Error("bad"))]);
     const expectedError = new Error("foldErr failed");
@@ -602,7 +602,7 @@ Deno.test(
 );
 
 Deno.test(
-  "AnabranchStream.recoverWhen - should convert matching errors to success",
+  "Stream.recoverWhen - should convert matching errors to success",
   async () => {
     const stream = streamFrom<number, "recover" | "skip">([
       failure("recover"),
@@ -622,7 +622,7 @@ Deno.test(
   },
 );
 
-Deno.test("AnabranchStream.recover - should convert errors to successes", async () => {
+Deno.test("Stream.recover - should convert errors to successes", async () => {
   const stream = streamFrom<number, string>([failure("bad"), success(1)]);
   const recovered = stream.recover(() => 0);
 
@@ -634,7 +634,7 @@ Deno.test("AnabranchStream.recover - should convert errors to successes", async 
   ]);
 });
 
-Deno.test("AnabranchStream.tap - should run side effect and pass through", async () => {
+Deno.test("Stream.tap - should run side effect and pass through", async () => {
   const seen: number[] = [];
   const stream = streamFrom<number, string>([
     success(1),
@@ -655,7 +655,7 @@ Deno.test("AnabranchStream.tap - should run side effect and pass through", async
   ]);
 });
 
-Deno.test("AnabranchStream.tap - should convert thrown errors into error results", async () => {
+Deno.test("Stream.tap - should convert thrown errors into error results", async () => {
   const stream = streamFrom<number, Error>([success(1), success(2)]);
   const expectedError = new Error("tap failed");
   const tapped = stream.tap((value) => {
@@ -670,13 +670,13 @@ Deno.test("AnabranchStream.tap - should convert thrown errors into error results
   ]);
 });
 
-Deno.test("AnabranchStream.tapErr - should run side effect on errors and pass through", async () => {
-  const seen: string[] = [];
+Deno.test("Stream.tapErr - should run side effect on errors and pass through", async () => {
   const stream = streamFrom<number, string>([
     failure("bad"),
     success(1),
     failure("worse"),
   ]);
+  const seen: string[] = [];
   const tapped = stream.tapErr((error) => {
     seen.push(error);
   });
@@ -691,7 +691,55 @@ Deno.test("AnabranchStream.tapErr - should run side effect on errors and pass th
   ]);
 });
 
-Deno.test("AnabranchStream.take - should limit successes, errors pass through", async () => {
+Deno.test("Stream.tryMap - should transform successes and errors", async () => {
+  const stream = streamFrom<number, string>([
+    success(1),
+    success(2),
+    failure("original"),
+    success(4),
+  ]);
+  const mapped = stream.tryMap(
+    (v) => v * 10,
+    (e, val) => `mapped: ${e} from ${val}`,
+  );
+
+  const results = await mapped.toArray();
+
+  assertEquals(results, [
+    { type: "success", value: 10 },
+    { type: "success", value: 20 },
+    { type: "error", error: "original" },
+    { type: "success", value: 40 },
+  ]);
+});
+
+Deno.test("Stream.tryMap - should collect errors from fn", async () => {
+  const stream = streamFrom<number, Error>([
+    success(1),
+    success(2),
+    success(3),
+  ]);
+  const mapped = stream.tryMap(
+    (v) => {
+      if (v === 2) throw new Error("cannot map 2");
+      return v * 10;
+    },
+    (e, val) => new Error(`wrapped: ${val}: ${(e as Error).message}`),
+  );
+
+  const results = await mapped.toArray();
+
+  assertEquals(results.length, 3);
+  assertEquals(results[0], { type: "success", value: 10 });
+  assertEquals(results[1].type, "error");
+  assertObjectMatch(results[1], {
+    type: "error",
+    error: { message: "wrapped: 2: cannot map 2" },
+  });
+  assertEquals(results[2], { type: "success", value: 30 });
+});
+
+Deno.test("Stream.take - should limit successes, errors pass through", async () => {
   const stream = streamFrom<number, string>([
     success(1),
     failure("bad"),
@@ -710,7 +758,7 @@ Deno.test("AnabranchStream.take - should limit successes, errors pass through", 
   ]);
 });
 
-Deno.test("AnabranchStream.take - should handle n=0", async () => {
+Deno.test("Stream.take - should handle n=0", async () => {
   const stream = streamFrom<number, string>([success(1), success(2)]);
   const taken = stream.take(0);
 
@@ -719,7 +767,7 @@ Deno.test("AnabranchStream.take - should handle n=0", async () => {
   assertEquals(results, []);
 });
 
-Deno.test("AnabranchStream.takeWhile - should stop when predicate returns false", async () => {
+Deno.test("Stream.takeWhile - should stop when predicate returns false", async () => {
   const stream = streamFrom<number, string>([
     success(1),
     success(2),
@@ -736,7 +784,7 @@ Deno.test("AnabranchStream.takeWhile - should stop when predicate returns false"
   ]);
 });
 
-Deno.test("AnabranchStream.takeWhile - should emit error and stop when predicate throws", async () => {
+Deno.test("Stream.takeWhile - should emit error and stop when predicate throws", async () => {
   const stream = streamFrom<number, Error>([success(1), success(2)]);
   const expectedError = new Error("predicate failed");
   const taken = stream.takeWhile((value) => {
@@ -752,7 +800,7 @@ Deno.test("AnabranchStream.takeWhile - should emit error and stop when predicate
   ]);
 });
 
-Deno.test("AnabranchStream.partition - should split successes and errors", async () => {
+Deno.test("Stream.partition - should split successes and errors", async () => {
   const stream = streamFrom<number, string>([
     success(1),
     failure("bad"),
@@ -766,8 +814,8 @@ Deno.test("AnabranchStream.partition - should split successes and errors", async
   assertEquals(errors, ["bad", "worse"]);
 });
 
-Deno.test("AnabranchStream integration - should compose multiple operations", async () => {
-  const stream = new AnabranchSource<number, Error>(async function* () {
+Deno.test("Stream integration - should compose multiple operations", async () => {
+  const stream = new Source<number, Error>(async function* () {
     yield 1;
     yield 2;
     yield 3;
@@ -790,10 +838,10 @@ Deno.test("AnabranchStream integration - should compose multiple operations", as
 });
 
 Deno.test(
-  "AnabranchStream integration - partial recovery: recoverWhen leaves unmatched errors intact",
+  "Stream integration - partial recovery: recoverWhen leaves unmatched errors intact",
   async () => {
     type Err = "retryable" | "fatal";
-    const stream = new AnabranchSource<number, Err>(async function* () {
+    const stream = new Source<number, Err>(async function* () {
       yield 1;
       yield 2;
       yield 3;
@@ -817,9 +865,9 @@ Deno.test(
 );
 
 Deno.test(
-  "AnabranchStream integration - error transformation chain: mapErr then filterErr",
+  "Stream integration - error transformation chain: mapErr then filterErr",
   async () => {
-    const stream = new AnabranchSource<number, string>(async function* () {
+    const stream = new Source<number, string>(async function* () {
       yield 1;
       yield 2;
       yield 3;
@@ -841,12 +889,12 @@ Deno.test(
 );
 
 Deno.test(
-  "AnabranchStream integration - tap and tapErr observe without affecting pipeline",
+  "Stream integration - tap and tapErr observe without affecting pipeline",
   async () => {
     const successLog: number[] = [];
     const errorLog: string[] = [];
 
-    const stream = new AnabranchSource<number, string>(async function* () {
+    const stream = new Source<number, string>(async function* () {
       yield 1;
       yield 2;
       yield 3;
@@ -874,9 +922,9 @@ Deno.test(
 );
 
 Deno.test(
-  "AnabranchStream integration - take limits output of a large source",
+  "Stream integration - take limits output of a large source",
   async () => {
-    const stream = new AnabranchSource<number, never>(async function* () {
+    const stream = new Source<number, never>(async function* () {
       let i = 0;
       while (true) yield i++;
     });
@@ -891,9 +939,9 @@ Deno.test(
 );
 
 Deno.test(
-  "AnabranchStream integration - takeWhile stops pipeline mid-stream",
+  "Stream integration - takeWhile stops pipeline mid-stream",
   async () => {
-    const stream = new AnabranchSource<number, string>(async function* () {
+    const stream = new Source<number, string>(async function* () {
       yield 1;
       yield 2;
       yield 3;
@@ -917,9 +965,9 @@ Deno.test(
 );
 
 Deno.test(
-  "AnabranchStream integration - concurrent map with error accumulation",
+  "Stream integration - concurrent map with error accumulation",
   async () => {
-    const stream = new AnabranchSource<number, Error>(async function* () {
+    const stream = new Source<number, Error>(async function* () {
       for (let i = 1; i <= 6; i++) yield i;
     }).withConcurrency(3);
 
@@ -940,7 +988,7 @@ Deno.test(
   },
 );
 
-Deno.test("AnabranchStream.throwOn - should throw matching errors", async () => {
+Deno.test("Stream.throwOn - should throw matching errors", async () => {
   const stream = streamFrom<number, "boom" | "other">([
     success(1),
     failure("boom"),
@@ -960,27 +1008,24 @@ Deno.test("AnabranchStream.throwOn - should throw matching errors", async () => 
   );
 });
 
-Deno.test(
-  "AnabranchStream.throwOn - should throw the same error instance",
-  async () => {
-    const expectedError = new Error("explode");
-    const stream = streamFrom<number, Error>([
-      success(1),
-      failure(expectedError),
-      success(2),
-    ]);
-    const throwsOn = stream.throwOn(
-      (error): error is Error => error === expectedError,
-    );
+Deno.test("Stream.throwOn - should throw the same error instance", async () => {
+  const expectedError = new Error("explode");
+  const stream = streamFrom<number, Error>([
+    success(1),
+    failure(expectedError),
+    success(2),
+  ]);
+  const throwsOn = stream.throwOn(
+    (error): error is Error => error === expectedError,
+  );
 
-    await assertRejects(
-      async () => {
-        for await (const _ of throwsOn.successes()) {
-          // iterate to trigger throw
-        }
-      },
-      Error,
-      "explode",
-    );
-  },
-);
+  await assertRejects(
+    async () => {
+      for await (const _ of throwsOn.successes()) {
+        // iterate to trigger throw
+      }
+    },
+    Error,
+    "explode",
+  );
+});

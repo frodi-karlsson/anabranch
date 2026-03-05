@@ -1,26 +1,18 @@
-import type {
-  AnabranchErrorResult,
-  AnabranchResult,
-  AnabranchSuccessResult,
-} from "./index.ts";
-import { _AnabranchStreamImpl } from "./streams/stream.ts";
+import type { ErrorResult, Result, SuccessResult } from "./index.ts";
+import { _StreamImpl } from "./streams/stream.ts";
 
-export const success = <T, E = never>(
-  value: T,
-): AnabranchSuccessResult<T, E> => ({
+export const success = <T, E = never>(value: T): SuccessResult<T, E> => ({
   type: "success",
   value,
 });
 
-export const failure = <T = never, E = never>(
-  error: E,
-): AnabranchErrorResult<T, E> => ({
+export const failure = <T = never, E = never>(error: E): ErrorResult<T, E> => ({
   type: "error",
   error,
 });
 
-export const streamFrom = <T, E>(items: AnabranchResult<T, E>[]) =>
-  new _AnabranchStreamImpl<T, E>(async function* () {
+export const streamFrom = <T, E>(items: Result<T, E>[]) =>
+  new _StreamImpl<T, E>(async function* () {
     for (const item of items) {
       yield item;
     }

@@ -1,41 +1,42 @@
 /**
- * Thrown by {@link AnabranchStream.collect} and {@link AnabranchStream.fold} when one or more error results were collected during stream processing.
+ * Thrown by {@link Stream.collect} and {@link Stream.fold} when one or more
+ * error results were collected during stream processing.
  */
-export class AnabranchAggregateError extends Error {
+export class AggregateError extends Error {
   /** The errors collected during stream processing. */
   constructor(public errors: unknown[]) {
     super(`AggregateError: ${errors.length} errors`);
 
-    this.name = "AnabranchAggregateError";
+    this.name = "AggregateError";
     this.errors = errors;
   }
 }
 
 /**
- * A result emitted by an {@link AnabranchStream}. Either a successful value or a collected error.
+ * A result emitted by a {@link Stream}. Either a successful value or a
+ * collected error.
  */
-export type AnabranchResult<T, E> = E extends never
-  ? AnabranchSuccessResult<T, E>
-  : T extends never ? AnabranchErrorResult<T, E>
-  : AnabranchSuccessResult<T, E> | AnabranchErrorResult<T, E>;
+export type Result<T, E> = E extends never ? SuccessResult<T, E>
+  : T extends never ? ErrorResult<T, E>
+  : SuccessResult<T, E> | ErrorResult<T, E>;
 
 /**
  * A value that is either already resolved or a `Promise` that resolves to it. Used throughout the API to allow callbacks to be synchronous or asynchronous.
  */
-export type AnabranchPromisable<T> = T | Promise<T>;
+export type Promisable<T> = T | Promise<T>;
 
 /**
- * An error result emitted by an {@link AnabranchStream}.
+ * An error result emitted by a {@link Stream}.
  */
-export type AnabranchErrorResult<_T, E> = {
+export type ErrorResult<_T, E> = {
   type: "error";
   error: E;
 };
 
 /**
- * A successful result emitted by an {@link AnabranchStream}.
+ * A successful result emitted by a {@link Stream}.
  */
-export type AnabranchSuccessResult<T, _E> = {
+export type SuccessResult<T, _E> = {
   type: "success";
   value: T;
 };

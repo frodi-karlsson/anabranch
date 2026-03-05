@@ -25,9 +25,9 @@ Anabranch wraps each item as either `{ type: "success", value }` or
 only on successes; errors pass through until you decide what to do with them.
 
 ```ts
-import { AnabranchSource } from "anabranch";
+import { Source } from "anabranch";
 
-const stream = new AnabranchSource<string, Error>(async function* () {
+const stream = new Source<string, Error>(async function* () {
   yield "https://example.com/1";
   yield "https://example.com/2";
   yield "https://example.com/3";
@@ -49,7 +49,7 @@ const { successes, errors } = await stream
 **Deno (JSR)**
 
 ```ts
-import { AnabranchSource } from "jsr:@anabranch/anabranch";
+import { Source } from "jsr:@anabranch/anabranch";
 ```
 
 **Node / Bun (npm)**
@@ -62,18 +62,72 @@ npm install anabranch
 
 ### Creating a stream
 
-Use `AnabranchSource` with an async generator, or `AnabranchSource.from()` for
-an existing `AsyncIterable`:
+Use `Source` with an async generator, or `Source.from()` for an existing
+`AsyncIterable`:
 
 ```ts
-const stream = new AnabranchSource<number, Error>(async function* () {
+const stream = new Source<number, Error>(async function* () {
   yield 1;
   yield 2;
   yield 3;
 });
 
-const stream2 = AnabranchSource.from<number, Error>(someAsyncIterable);
+const stream2 = Source.from<number, Error>(someAsyncIterable);
 ```
+
+### Single async operations with Task
+
+For single async operations with retries, timeouts, and signal handling, use
+`Task`:
+
+```ts
+import { Task } from "anabranch";
+
+const task = Task.of(async () => {
+  const res = await fetch("https://example.com");
+  if (!res.ok) throw new Error("Bad response");
+  return res.json();
+});
+
+const result = await task
+  .retry({ attempts: 3, delay: (attempt) => 200 * 2 ** attempt })
+  .timeout(5_000)
+  .result();
+```
+
+`Task` composes with `flatMap` for chaining, and `Task.allSettled` / `Task.race`
+for concurrency:
+
+```ts
+const combined = Task.of(() => Promise.resolve(2))
+  .flatMap((value) => Task.of(() => Promise.resolve(value * 3)))
+  .timeout(500);
+
+const results = await Task.allSettled([
+  Task.of(() => fetch("/api/users")),
+  Task.of(() => fetch("/api/posts")),
+]).run();
+
+const fastest = await Task.race([
+  Task.of(() => fetch("/fast")),
+  Task.of(() => fetch("/slow")),
+]).run();
+```
+
+Abort signals thread through the task lifecycle:
+
+```ts
+const controller = new AbortController();
+const task = Task.of(async (signal) => {
+  const res = await fetch("/long-request", { signal });
+  return res.json();
+}).withSignal(controller.signal);
+
+controller.abort();
+```
+
+`Task` error types are not runtime-checked; the `E` type is a hint for how you
+expect the task to fail.
 
 ### Transforming values
 
@@ -87,9 +141,21 @@ stream
   .filter((n) => n % 2 === 0);
 ```
 
-Unlike arrays, chaining operations does not create intermediate collections.
-Each item flows through the entire pipeline before the next one starts, so you
-can chain as many operations as you like without extra memory cost.
+Operations are applied lazily without creating intermediate collections. Items
+flow through the pipeline as they are processed, so you can chain as many
+operations as you like without extra memory cost.
+
+The stream itself is an `AsyncIterable`, so you can iterate directly:
+
+```ts
+for await (const result of stream) {
+  if (result.type === "success") {
+    console.log(result.value);
+  } else {
+    console.error(result.error);
+  }
+}
+```
 
 ### Handling errors
 
@@ -115,20 +181,20 @@ stream.throwOn((e): e is FatalError => e instanceof FatalError);
 ### Concurrency and backpressure
 
 ```ts
-new AnabranchSource(generator)
+new Source(generator)
   .withConcurrency(8) // up to 8 concurrent map/flatMap operations
   .withBufferSize(16); // pause the source if results pile up
 ```
 
 ### Collecting results
 
-| Method        | Returns                            | Throws?                                      |
-| ------------- | ---------------------------------- | -------------------------------------------- |
-| `collect()`   | `T[]` (successes only)             | Yes, `AnabranchAggregateError` if any errors |
-| `partition()` | `{ successes: T[], errors: E[] }`  | No                                           |
-| `toArray()`   | `AnabranchResult<T, E>[]` (tagged) | No                                           |
-| `successes()` | `AsyncIterable<T>`                 | No                                           |
-| `errors()`    | `AsyncIterable<E>`                 | No                                           |
+| Method        | Returns                           | Throws?                             |
+| ------------- | --------------------------------- | ----------------------------------- |
+| `collect()`   | `T[]` (successes only)            | Yes, `AggregateError` if any errors |
+| `partition()` | `{ successes: T[], errors: E[] }` | No                                  |
+| `toArray()`   | `Result<T, E>[]` (tagged)         | No                                  |
+| `successes()` | `AsyncIterable<T>`                | No                                  |
+| `errors()`    | `AsyncIterable<E>`                | No                                  |
 
 ### Other utilities
 
@@ -148,9 +214,11 @@ bookkeeping.
 
 **neverthrow** wraps values in `Result<T, E>` and gives you type-safe error
 handling with `map`, `andThen`, etc. It works well for discrete async operations
-but has no built-in concurrency or streaming. To process a list in parallel you
-still reach for `Promise.all`, and there is no equivalent to `flatMap` over an
-ongoing async source.
+but has no built-in concurrency, streaming, or retries. Anabranch's `Task`
+provides similar result-based error handling with the addition of retry/timeout
+utilities and signal support. To process a list in parallel you still reach for
+`Promise.all`, and there is no equivalent to `flatMap` over an ongoing async
+source.
 
 **RxJS** can do everything here via `mergeMap` with a concurrency argument and
 `catchError` placed inside the inner observable. The ergonomics are different:

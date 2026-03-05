@@ -5,19 +5,17 @@
  * successful values so you can process a stream to completion and deal with
  * failures at the end — or not at all.
  *
- * The entry point is {@link AnabranchSource}. Once you have a stream, chain
- * operations like {@link AnabranchStream.map map},
- * {@link AnabranchStream.filter filter},
- * {@link AnabranchStream.flatMap flatMap}, and
- * {@link AnabranchStream.fold fold} to transform it, then consume it with
- * {@link AnabranchStream.collect collect} or
- * {@link AnabranchStream.partition partition}.
+ * The entry point is {@link Source}. Once you have a stream, chain operations
+ * like {@link Stream.map map}, {@link Stream.filter filter},
+ * {@link Stream.flatMap flatMap}, and {@link Stream.fold fold} to transform it,
+ * then consume it with {@link Stream.collect collect} or
+ * {@link Stream.partition partition}.
  *
  * @example Fetch a list of URLs concurrently, collect results and failures separately
  * ```ts
- * import { AnabranchSource } from "anabranch";
+ * import { Source } from "anabranch";
  *
- * const { successes, errors } = await new AnabranchSource<string, Error>(
+ * const { successes, errors } = await new Source<string, Error>(
  *   async function* () {
  *     yield "https://example.com/1";
  *     yield "https://example.com/2";
@@ -37,12 +35,13 @@
  *
  * @module
  */
-export { AnabranchSource } from "./streams/source.ts";
-export type { AnabranchStream } from "./streams/stream.ts";
-export { AnabranchAggregateError } from "./streams/util.ts";
+export { Source } from "./streams/source.ts";
+export type { Stream } from "./streams/stream.ts";
+export { AggregateError } from "./streams/util.ts";
+export { Task } from "./streams/task.ts";
 export type {
-  AnabranchErrorResult,
-  AnabranchPromisable,
-  AnabranchResult,
-  AnabranchSuccessResult,
+  ErrorResult,
+  Promisable,
+  Result,
+  SuccessResult,
 } from "./streams/util.ts";

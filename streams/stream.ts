@@ -1,10 +1,6 @@
-import {
-  AnabranchAggregateError,
-  type AnabranchPromisable,
-  type AnabranchResult,
-} from "./util.ts";
+import { AggregateError, type Promisable, type Result } from "./util.ts";
 
-const isPromise = <T>(value: AnabranchPromisable<T>): value is Promise<T> =>
+const isPromise = <T>(value: Promisable<T>): value is Promise<T> =>
   value != null && typeof (value as Promise<T>).then === "function";
 
 const isAsyncIterable = <T>(value: unknown): value is AsyncIterable<T> => {
@@ -36,12 +32,17 @@ const toAsyncIterable = <T>(
 };
 
 /**
- * Anabranch is a TypeScript library that provides a powerful and flexible way to handle errors in asynchronous streams. It allows you to collect and manage errors alongside successful values in a stream, enabling you to process data while gracefully handling any issues that may arise.
+ * A TypeScript library that provides a powerful and flexible way to handle
+ * errors in asynchronous streams. It allows you to collect and manage errors
+ * alongside successful values in a stream, enabling you to process data while
+ * gracefully handling any issues that may arise.
  *
- * The core concept of Anabranch is the `AnabranchStream`, which is an asynchronous iterable that emits results as either successful values or errors. You can use various methods on the `AnabranchStream` to transform, filter, and reduce both successful values and errors in a way that suits your application's needs.
+ * The core concept is the `Stream`, which is an asynchronous iterable that
+ * emits results as either successful values or errors. You can use various
+ * methods on the `Stream` to transform, filter, and reduce both successful
+ * values and errors in a way that suits your application's needs.
  */
-export interface AnabranchStream<T, E>
-  extends AsyncIterable<AnabranchResult<T, E>> {
+export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
   /**
    * Similar to `Array.prototype.map`, but works on the stream of results. If the provided function throws an error or returns a rejected promise, the error will be collected and emitted as an error result in the stream.
    *
@@ -49,9 +50,9 @@ export interface AnabranchStream<T, E>
    *
    * @example
    * ```ts
-   * import { AnabranchStream } from "anabranch";
+   * import { Stream } from "anabranch";
    *
-   * const stream = new AnabranchSource<number, string>(async function* () {
+   * const stream = new Source<number, string>(async function* () {
    *   yield 1;
    *   yield 2;
    * });
@@ -63,9 +64,36 @@ export interface AnabranchStream<T, E>
    *   return value * 2;
    * });
    * ```
-   * @see {@link AnabranchStream.mapErr}
+   * @see {@link Stream.mapErr}
    */
-  map<U>(fn: (value: T) => AnabranchPromisable<U>): AnabranchStream<U, E>;
+  map<U>(fn: (value: T) => Promisable<U>): Stream<U, E>;
+  /**
+   * Maps successful values with `fn` and transforms errors with `errFn`. Both
+   * receive the original value so you can contextualize the mapping.
+   *
+   * @example
+   * ```ts
+   * import { Source } from "anabranch";
+   *
+   * const stream = new Source<number, Error>(async function* () {
+   *   yield 1;
+   *   throw new Error("failed");
+   *   yield 3;
+   * });
+   *
+   * const result = stream.tryMap(
+   *   (value) => value * 2,
+   *   (err, value) => new Error(`Failed on ${value}: ${err.message}`),
+   * );
+   * ```
+   *
+   * @see {@link Stream.map}
+   * @see {@link Stream.mapErr}
+   */
+  tryMap<U, F = never>(
+    fn: (value: T) => Promisable<U>,
+    errFn: (error: unknown, value: T) => Promisable<F>,
+  ): Stream<U, E | F>;
   /**
    * Similar to `Array.prototype.flatMap`, but works on the stream of results. If the provided function throws an error or returns a rejected promise, the error will be collected and emitted as an error result in the stream.
    *
@@ -73,9 +101,9 @@ export interface AnabranchStream<T, E>
    *
    * @example
    * ```ts
-   * import { AnabranchSource } from "anabranch";
+   * import { Source } from "anabranch";
    *
-   * const stream = new AnabranchSource<number, string>(async function* () {
+   * const stream = new Source<number, string>(async function* () {
    *   yield 1;
    *   yield 2;
    * });
@@ -84,18 +112,16 @@ export interface AnabranchStream<T, E>
    * ```
    */
   flatMap<U>(
-    fn: (
-      value: T,
-    ) => AnabranchPromisable<AsyncIterable<U> | Iterable<U>>,
-  ): AnabranchStream<U, E>;
+    fn: (value: T) => Promisable<AsyncIterable<U> | Iterable<U>>,
+  ): Stream<U, E>;
   /**
    * Similar to `Array.prototype.filter`, but works on the stream of results. If the provided function throws an error or returns a rejected promise, the error will be collected and emitted as an error result in the stream.
    *
    * @example
    * ```ts
-   * import { AnabranchStream } from "anabranch";
+   * import { Stream } from "anabranch";
    *
-   * const stream = new AnabranchSource<number, string>(async function* () {
+   * const stream = new Source<number, string>(async function* () {
    *   yield 1;
    *   yield 2;
    * });
@@ -108,12 +134,10 @@ export interface AnabranchStream<T, E>
    * });
    * ```
    *
-   * @see {@link AnabranchStream.filterErr}
+   * @see {@link Stream.filterErr}
    */
-  filter<U extends T>(
-    fn: (value: T) => value is U,
-  ): AnabranchStream<U, E>;
-  filter(fn: (value: T) => AnabranchPromisable<boolean>): AnabranchStream<T, E>;
+  filter<U extends T>(fn: (value: T) => value is U): Stream<U, E>;
+  filter(fn: (value: T) => Promisable<boolean>): Stream<T, E>;
   /**
    * Runs a side-effect function on each successful value without transforming it. If the provided function throws an error or returns a rejected promise, the error will be collected and emitted as an error result in place of the original value.
    *
@@ -122,7 +146,7 @@ export interface AnabranchStream<T, E>
    * const stream = source.tap((value) => console.log("Got:", value));
    * ```
    */
-  tap(fn: (value: T) => AnabranchPromisable<void>): AnabranchStream<T, E>;
+  tap(fn: (value: T) => Promisable<void>): Stream<T, E>;
   /**
    * Runs a side-effect function on each error without transforming it. If the provided function throws an error or returns a rejected promise, the new error replaces the original.
    *
@@ -131,16 +155,19 @@ export interface AnabranchStream<T, E>
    * const stream = source.tapErr((error) => console.error("Error:", error));
    * ```
    */
-  tapErr(fn: (error: E) => AnabranchPromisable<void>): AnabranchStream<T, E>;
+  tapErr(fn: (error: E) => Promisable<void>): Stream<T, E>;
   /**
-   * Limits the stream to at most `n` successful values. Errors pass through without counting against the limit.
+   * Limits the stream to at most `n` successful values. Errors pass through
+   * without counting against the limit. After `n` successes are yielded, the
+   * stream stops immediately (any pending errors from earlier in the pipeline
+   * may still be yielded before stopping).
    *
    * @example
    * ```ts
    * const first3 = source.take(3);
    * ```
    */
-  take(n: number): AnabranchStream<T, E>;
+  take(n: number): Stream<T, E>;
   /**
    * Yields successful values while the predicate returns true. Once the predicate returns false, iteration stops. Errors pass through until the stream is stopped. If the predicate throws, an error result is emitted and iteration stops.
    *
@@ -149,19 +176,19 @@ export interface AnabranchStream<T, E>
    * const belowTen = source.takeWhile((value) => value < 10);
    * ```
    */
-  takeWhile(
-    fn: (value: T) => AnabranchPromisable<boolean>,
-  ): AnabranchStream<T, E>;
+  takeWhile(fn: (value: T) => Promisable<boolean>): Stream<T, E>;
   /**
    * Similar to `Array.prototype.reduce`, but works on the stream of results. If the provided function throws an error or returns a rejected promise, the error will be collected and emitted as an error result in the stream.
    *
-   * If any error results are present in the stream, they will be thrown as an `AnabranchAggregateError` after the stream is exhausted. Use `filterErr(() => false)` upstream to explicitly drop errors if you want to fold only the successes.
+   * If any error results are present in the stream, they will be thrown as an
+   * `AggregateError` after the stream is exhausted. Use `filterErr(() => false)`
+   * upstream to explicitly drop errors if you want to fold only the successes.
    *
    * @example
    * ```ts
-   * import { AnabranchStream } from "anabranch";
+   * import { Stream } from "anabranch";
    *
-   * const stream = new AnabranchSource<number, string>(async function* () {
+   * const stream = new Source<number, string>(async function* () {
    *   yield 1;
    *   yield 2;
    * });
@@ -176,21 +203,18 @@ export interface AnabranchStream<T, E>
    * console.log("Sum:", sum);
    * ```
    *
-   * @throws {AnabranchAggregateError} If any error results were present in the stream.
-   * @see {@link AnabranchStream.foldErr}
+   * @throws {AggregateError} If any error results were present in the stream.
+   * @see {@link Stream.foldErr}
    */
-  fold<U>(
-    fn: (acc: U, value: T) => AnabranchPromisable<U>,
-    initialValue: U,
-  ): Promise<U>;
+  fold<U>(fn: (acc: U, value: T) => Promisable<U>, initialValue: U): Promise<U>;
   /**
    * Similar to `Array.prototype.map`, but works on the stream of errors. If the provided function throws an error or returns a rejected promise, the new error will be collected and emitted as an error result in the stream.
    *
    * @example
    * ```ts
-   * import { AnabranchStream } from "anabranch";
+   * import { Stream } from "anabranch";
    *
-   * const stream = new AnabranchSource<number, string>(async function* () {
+   * const stream = new Source<number, string>(async function* () {
    *   yield 1;
    *   yield 2;
    * });
@@ -200,17 +224,17 @@ export interface AnabranchStream<T, E>
    * });
    * ```
    *
-   * @see {@link AnabranchStream.map}
+   * @see {@link Stream.map}
    */
-  mapErr<F>(fn: (error: E) => AnabranchPromisable<F>): AnabranchStream<T, F>;
+  mapErr<F>(fn: (error: E) => Promisable<F>): Stream<T, F>;
   /**
    * Similar to `Array.prototype.filter`, but works on the stream of errors. If the provided function throws an error or returns a rejected promise, the error will be collected and emitted as an error result in the stream.
    *
    * @example
    * ```ts
-   * import { AnabranchStream } from "anabranch";
+   * import { Stream } from "anabranch";
    *
-   * const stream = new AnabranchSource<number, string>(async function* () {
+   * const stream = new Source<number, string>(async function* () {
    *   yield 1;
    *   yield 2;
    * });
@@ -219,22 +243,18 @@ export interface AnabranchStream<T, E>
    *   return error.includes("Value cannot be 2");
    * });
    * ```
-   * @see {@link AnabranchStream.filter}
+   * @see {@link Stream.filter}
    */
-  filterErr<F extends E>(
-    fn: (error: E) => error is F,
-  ): AnabranchStream<T, F>;
-  filterErr(
-    fn: (error: E) => AnabranchPromisable<boolean>,
-  ): AnabranchStream<T, E>;
+  filterErr<F extends E>(fn: (error: E) => error is F): Stream<T, F>;
+  filterErr(fn: (error: E) => Promisable<boolean>): Stream<T, E>;
   /**
    * Similar to `Array.prototype.reduce`, but works on the stream of errors. If the provided function throws an error or returns a rejected promise, the new error will be collected and emitted as an error result in the stream.
    *
    * @example
    * ```ts
-   * import { AnabranchStream } from "anabranch";
+   * import { Stream } from "anabranch";
    *
-   * const stream = new AnabranchSource<number, string>(async function* () {
+   * const stream = new Source<number, string>(async function* () {
    *   yield 1;
    *   yield 2;
    * });
@@ -245,19 +265,19 @@ export interface AnabranchStream<T, E>
    *
    * console.log("Concatenated Errors:", concatenatedErrors);
    * ```
-   * @see {@link AnabranchStream.fold}
+   * @see {@link Stream.fold}
    */
   foldErr<F>(
-    fn: (acc: F, error: E) => AnabranchPromisable<F>,
+    fn: (acc: F, error: E) => Promisable<F>,
     initialValue: F,
   ): Promise<F>;
   /**
    * Recovers from specific error types by applying the provided function to transform them into successful values. This allows you to handle specific errors gracefully while still collecting other errors in the stream.
    * @example
    * ```ts
-   * import { AnabranchStream } from "anabranch";
+   * import { Stream } from "anabranch";
    *
-   * const stream = new AnabranchSource<number, "aaaah!" | "eeeek!">(async function* () {
+   * const stream = new Source<number, "aaaah!" | "eeeek!">(async function* () {
    *   yield 1;
    *   yield 2;
    * });
@@ -267,15 +287,15 @@ export interface AnabranchStream<T, E>
    */
   recoverWhen<E2 extends E, U>(
     guard: (error: E) => error is E2,
-    fn: (error: E2) => AnabranchPromisable<U>,
-  ): AnabranchStream<T | U, Exclude<E, E2>>;
+    fn: (error: E2) => Promisable<U>,
+  ): Stream<T | U, Exclude<E, E2>>;
   /**
    * Recovers from all errors by applying the provided function to transform them into successful values. This allows you to handle all errors gracefully while still collecting successful values in the stream.
    * @example
    * ```ts
-   * import { AnabranchStream } from "anabranch";
+   * import { Stream } from "anabranch";
    *
-   * const stream = new AnabranchSource<number, string>(async function* () {
+   * const stream = new Source<number, string>(async function* () {
    *   yield 1;
    *   yield 2;
    * });
@@ -283,16 +303,14 @@ export interface AnabranchStream<T, E>
    * const recoveredStream = stream.recover(e => 0);
    * ```
    */
-  recover<U>(
-    fn: (error: E) => AnabranchPromisable<U>,
-  ): AnabranchStream<T | U, never>;
+  recover<U>(fn: (error: E) => Promisable<U>): Stream<T | U, never>;
   /**
    * Throws the specified error types if they are encountered in the stream. This allows you to handle specific errors immediately while continuing to process other errors.
    * @example
    * ```ts
-   * import { AnabranchStream } from "anabranch";
+   * import { Stream } from "anabranch";
    *
-   * const stream = new AnabranchSource<number, "aaaah!" | "eeeek!">(async function* () {
+   * const stream = new Source<number, "aaaah!" | "eeeek!">(async function* () {
    *   yield 1;
    *   yield 2;
    * });
@@ -310,15 +328,15 @@ export interface AnabranchStream<T, E>
    */
   throwOn<E2 extends E>(
     guard: (error: E) => error is E2,
-  ): AnabranchStream<T, Exclude<E, E2>>;
+  ): Stream<T, Exclude<E, E2>>;
   /**
    * Returns an async iterable of all successful values emitted by the stream. If any errors were collected during the stream processing, they will be ignored in this iterable.
    *
    * @example
    * ```ts
-   * import { AnabranchStream } from "anabranch";
+   * import { Stream } from "anabranch";
    *
-   * const stream = new AnabranchSource<number, string>(async function* () {
+   * const stream = new Source<number, string>(async function* () {
    *   yield 1;
    *   yield 2;
    * });
@@ -334,9 +352,9 @@ export interface AnabranchStream<T, E>
    *
    * @example
    * ```ts
-   * import { AnabranchStream } from "anabranch";
+   * import { Stream } from "anabranch";
    *
-   * const stream = new AnabranchSource<number, string>(async function* () {
+   * const stream = new Source<number, string>(async function* () {
    *   yield 1;
    *   yield 2;
    * });
@@ -348,9 +366,11 @@ export interface AnabranchStream<T, E>
    */
   errors(): AsyncIterable<E>;
   /**
-   * Collects all successful values emitted by the stream into an array. If any errors were collected during the stream processing, they will be thrown as an `AnabranchAggregateError` containing all collected errors.
+   * Collects all successful values emitted by the stream into an array. If any
+   * errors were collected during the stream processing, they will be thrown as
+   * an `AggregateError` containing all collected errors.
    *
-   * @throws {AnabranchAggregateError} If any errors were collected during the stream processing.
+   * @throws {AggregateError} If any errors were collected during the stream processing.
    */
   collect(): Promise<T[]>;
   /**
@@ -363,22 +383,25 @@ export interface AnabranchStream<T, E>
    */
   partition(): Promise<{ successes: T[]; errors: E[] }>;
   /**
-   * Collects all results emitted by the stream into an array of `AnabranchResult` objects, which can represent either successful values or errors. This method allows you to see the full outcome of the stream processing, including both successes and errors, without throwing an aggregate error.
+   * Collects all results emitted by the stream into an array of `Result`
+   * objects, which can represent either successful values or errors. This
+   * method allows you to see the full outcome of the stream processing,
+   * including both successes and errors, without throwing an aggregate error.
    */
-  toArray(): Promise<AnabranchResult<T, E>[]>;
+  toArray(): Promise<Result<T, E>[]>;
 
-  [Symbol.asyncIterator](): AsyncIterator<AnabranchResult<T, E>>;
+  [Symbol.asyncIterator](): AsyncIterator<Result<T, E>>;
 }
 
-export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
+export class _StreamImpl<T, E> implements Stream<T, E> {
   constructor(
-    protected readonly source: () => AsyncGenerator<AnabranchResult<T, E>>,
+    protected readonly source: () => AsyncGenerator<Result<T, E>>,
     protected readonly concurrency: number = Infinity,
     protected readonly bufferSize: number = Infinity,
   ) {}
 
-  async toArray(): Promise<AnabranchResult<T, E>[]> {
-    const results: AnabranchResult<T, E>[] = [];
+  async toArray(): Promise<Result<T, E>[]> {
+    const results: Result<T, E>[] = [];
     for await (const result of this.source()) {
       results.push(result);
     }
@@ -398,7 +421,7 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
     }
 
     if (errors.length) {
-      throw new AnabranchAggregateError(errors);
+      throw new AggregateError(errors);
     }
     return successes;
   }
@@ -429,19 +452,17 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
     };
   }
 
-  [Symbol.asyncIterator](): AsyncIterator<AnabranchResult<T, E>> {
+  [Symbol.asyncIterator](): AsyncIterator<Result<T, E>> {
     return this.source()[Symbol.asyncIterator]();
   }
 
   private transform<U, E2>(
-    handler: (
-      result: AnabranchResult<T, E>,
-    ) => AnabranchPromisable<AnabranchResult<U, E2>[]>,
-  ): AnabranchStream<U, E2> {
+    handler: (result: Result<T, E>) => Promisable<Result<U, E2>[]>,
+  ): Stream<U, E2> {
     const source = this.source;
     const concurrency = this.concurrency;
     const bufferSize = this.bufferSize;
-    return new _AnabranchStreamImpl<U, E2>(
+    return new _StreamImpl<U, E2>(
       async function* () {
         for await (const result of source()) {
           const outputs = await handler(result);
@@ -456,10 +477,32 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
   }
 
   private concurrentMap<U>(
-    fn: (value: T) => AnabranchPromisable<U>,
+    fn: (value: T) => Promisable<U>,
     concurrency: number,
     bufferSize: number,
-  ): AsyncGenerator<AnabranchResult<U, E>> {
+  ): AsyncGenerator<Result<U, E>> {
+    return this.concurrentTransform(
+      async (result) => {
+        if (result.type !== "success") {
+          return [result as unknown as Result<U, E>];
+        }
+        try {
+          const value = await fn(result.value);
+          return [{ type: "success", value } as Result<U, E>];
+        } catch (error) {
+          return [{ type: "error", error: error as E } as Result<U, E>];
+        }
+      },
+      concurrency,
+      bufferSize,
+    );
+  }
+
+  private concurrentTransform<U, E2>(
+    handler: (result: Result<T, E>) => Promise<Result<U, E2>[]>,
+    concurrency: number,
+    bufferSize: number,
+  ): AsyncGenerator<Result<U, E2>> {
     const source = this.source;
     const maxConcurrency = Number.isFinite(concurrency)
       ? Math.max(1, concurrency)
@@ -469,7 +512,7 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
       : Infinity;
 
     return (async function* () {
-      const queue: AnabranchResult<U, E>[] = [];
+      const queue: Result<U, E2>[] = [];
       let head = 0;
       let inFlight = 0;
       let done = false;
@@ -478,9 +521,7 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
       const wake = () => {
         while (waiters.length > 0) {
           const resolve = waiters.shift();
-          if (resolve) {
-            resolve();
-          }
+          if (resolve) resolve();
         }
       };
 
@@ -489,7 +530,7 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
           waiters.push(resolve);
         });
 
-      const push = (result: AnabranchResult<U, E>) => {
+      const push = (result: Result<U, E2>) => {
         queue.push(result);
         wake();
       };
@@ -503,29 +544,21 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
               await sleep();
             }
 
-            if (result.type === "error") {
-              push(result as unknown as AnabranchResult<U, E>);
-              continue;
-            }
-
             inFlight += 1;
             Promise.resolve()
-              .then(() => fn(result.value))
-              .then((value) =>
-                push({ type: "success", value } as AnabranchResult<U, E>)
-              )
-              .catch((error) =>
-                push(
-                  { type: "error", error: error as E } as AnabranchResult<U, E>,
-                )
-              )
+              .then(async () => {
+                const outputs = await handler(result);
+                for (const output of outputs) {
+                  push(output);
+                }
+              })
               .finally(() => {
                 inFlight -= 1;
                 wake();
               });
           }
         } catch (error) {
-          push({ type: "error", error: error as E } as AnabranchResult<U, E>);
+          push({ type: "error", error: error as E2 } as Result<U, E2>);
         }
         done = true;
         wake();
@@ -541,7 +574,7 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
         }
 
         const next = queue[head];
-        queue[head] = undefined as unknown as AnabranchResult<U, E>;
+        queue[head] = undefined as unknown as Result<U, E2>;
         head += 1;
         if (head > 256 && head * 2 >= queue.length) {
           queue.splice(0, head);
@@ -556,8 +589,8 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
   }
 
   private sequentialMap<U>(
-    fn: (value: T) => AnabranchPromisable<U>,
-  ): AsyncGenerator<AnabranchResult<U, E>> {
+    fn: (value: T) => Promisable<U>,
+  ): AsyncGenerator<Result<U, E>> {
     const source = this.source;
     return (async function* () {
       for await (const result of source()) {
@@ -568,70 +601,152 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
               yield {
                 type: "success",
                 value: await mappedValue,
-              } as AnabranchResult<U, E>;
+              } as Result<U, E>;
             } else {
               yield {
                 type: "success",
                 value: mappedValue,
-              } as AnabranchResult<U, E>;
+              } as Result<U, E>;
             }
           } catch (error) {
-            yield { type: "error", error: error as E } as AnabranchResult<U, E>;
+            yield { type: "error", error: error as E } as Result<U, E>;
           }
         } else {
-          yield result as unknown as AnabranchResult<U, E>;
+          yield result as unknown as Result<U, E>;
         }
       }
     })();
   }
 
-  map<U>(fn: (value: T) => AnabranchPromisable<U>): AnabranchStream<U, E> {
+  private concurrentTryMap<U, F>(
+    fn: (value: T) => Promisable<U>,
+    errFn: (error: unknown, value: T) => Promisable<F>,
+    concurrency: number,
+    bufferSize: number,
+  ): AsyncGenerator<Result<U, E | F>> {
+    return this.concurrentTransform(
+      async (result) => {
+        if (result.type !== "success") {
+          return [result as unknown as Result<U, E | F>];
+        }
+        try {
+          const value = await fn(result.value);
+          return [{ type: "success", value } as Result<U, E | F>];
+        } catch (error) {
+          const mappedError = await errFn(error, result.value);
+          return [{ type: "error", error: mappedError } as Result<U, E | F>];
+        }
+      },
+      concurrency,
+      bufferSize,
+    );
+  }
+
+  private concurrentFlatMap<U>(
+    fn: (value: T) => Promisable<AsyncIterable<U> | Iterable<U>>,
+    concurrency: number,
+    bufferSize: number,
+  ): AsyncGenerator<Result<U, E>> {
+    return this.concurrentTransform(
+      async (result) => {
+        if (result.type !== "success") {
+          return [result as unknown as Result<U, E>];
+        }
+        try {
+          const mapped = await fn(result.value);
+          const outputs: Result<U, E>[] = [];
+          for await (const value of toAsyncIterable<U>(mapped)) {
+            outputs.push({ type: "success", value } as Result<U, E>);
+          }
+          return outputs;
+        } catch (error) {
+          return [{ type: "error", error: error as E } as Result<U, E>];
+        }
+      },
+      concurrency,
+      bufferSize,
+    );
+  }
+
+  map<U>(fn: (value: T) => Promisable<U>): Stream<U, E> {
     const concurrency = this.concurrency;
     const bufferSize = this.bufferSize;
     if (Number.isFinite(concurrency) && concurrency > 1) {
-      return new _AnabranchStreamImpl<U, E>(
+      return new _StreamImpl<U, E>(
         () => this.concurrentMap(fn, concurrency, bufferSize),
         concurrency,
         bufferSize,
       );
     }
-    return new _AnabranchStreamImpl<U, E>(
+    return new _StreamImpl<U, E>(
       () => this.sequentialMap(fn),
       concurrency,
       bufferSize,
     );
   }
 
+  tryMap<U, F>(
+    fn: (value: T) => Promisable<U>,
+    errFn: (error: unknown, value: T) => Promisable<F>,
+  ): Stream<U, E | F> {
+    const concurrency = this.concurrency;
+    const bufferSize = this.bufferSize;
+    if (Number.isFinite(concurrency) && concurrency > 1) {
+      return new _StreamImpl<U, E | F>(
+        () => this.concurrentTryMap(fn, errFn, concurrency, bufferSize),
+        concurrency,
+        bufferSize,
+      );
+    }
+    return this.transform(async (result) => {
+      if (result.type === "success") {
+        try {
+          const value = await fn(result.value);
+          return [{ type: "success", value } as Result<U, E | F>];
+        } catch (error) {
+          const mappedError = await errFn(error, result.value);
+          return [{ type: "error", error: mappedError } as Result<U, E | F>];
+        }
+      }
+      return [result as unknown as Result<U, E | F>];
+    });
+  }
+
   flatMap<U>(
-    fn: (
-      value: T,
-    ) => AnabranchPromisable<AsyncIterable<U> | Iterable<U>>,
-  ): AnabranchStream<U, E> {
+    fn: (value: T) => Promisable<AsyncIterable<U> | Iterable<U>>,
+  ): Stream<U, E> {
+    const concurrency = this.concurrency;
+    const bufferSize = this.bufferSize;
+    if (Number.isFinite(concurrency) && concurrency > 1) {
+      return new _StreamImpl<U, E>(
+        () => this.concurrentFlatMap(fn, concurrency, bufferSize),
+        concurrency,
+        bufferSize,
+      );
+    }
     return this.transform(async (result) => {
       if (result.type !== "success") {
-        return [result as unknown as AnabranchResult<U, E>];
+        return [result as unknown as Result<U, E>];
       }
 
       try {
         const mapped = await fn(result.value);
-        const outputs: AnabranchResult<U, E>[] = [];
+        const outputs: Result<U, E>[] = [];
         for await (const value of toAsyncIterable<U>(mapped)) {
-          outputs.push({ type: "success", value } as AnabranchResult<U, E>);
+          outputs.push({ type: "success", value } as Result<U, E>);
         }
         return outputs;
       } catch (error) {
-        return [{ type: "error", error: error as E } as AnabranchResult<U, E>];
+        return [{ type: "error", error: error as E } as Result<U, E>];
       }
     });
   }
 
-  filter(
-    fn: (value: T) => AnabranchPromisable<boolean>,
-  ): AnabranchStream<T, E> {
+  filter(fn: (value: T) => Promisable<boolean>): Stream<T, E> {
     const source = this.source;
     const concurrency = this.concurrency;
     const bufferSize = this.bufferSize;
-    return new _AnabranchStreamImpl<T, E>(
+    return new _StreamImpl<T, E>(
       async function* () {
         for await (const result of source()) {
           if (result.type === "success") {
@@ -645,7 +760,7 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
                 yield result;
               }
             } catch (error) {
-              yield { type: "error", error: error as E } as AnabranchResult<
+              yield { type: "error", error: error as E } as Result<
                 T,
                 E
               >;
@@ -660,11 +775,11 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
     );
   }
 
-  tap(fn: (value: T) => AnabranchPromisable<void>): AnabranchStream<T, E> {
+  tap(fn: (value: T) => Promisable<void>): Stream<T, E> {
     const source = this.source;
     const concurrency = this.concurrency;
     const bufferSize = this.bufferSize;
-    return new _AnabranchStreamImpl<T, E>(
+    return new _StreamImpl<T, E>(
       async function* () {
         for await (const result of source()) {
           if (result.type === "success") {
@@ -673,7 +788,7 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
               if (isPromise(ret)) await ret;
               yield result;
             } catch (error) {
-              yield { type: "error", error: error as E } as AnabranchResult<
+              yield { type: "error", error: error as E } as Result<
                 T,
                 E
               >;
@@ -688,11 +803,11 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
     );
   }
 
-  tapErr(fn: (error: E) => AnabranchPromisable<void>): AnabranchStream<T, E> {
+  tapErr(fn: (error: E) => Promisable<void>): Stream<T, E> {
     const source = this.source;
     const concurrency = this.concurrency;
     const bufferSize = this.bufferSize;
-    return new _AnabranchStreamImpl<T, E>(
+    return new _StreamImpl<T, E>(
       async function* () {
         for await (const result of source()) {
           if (result.type === "error") {
@@ -701,7 +816,7 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
               if (isPromise(ret)) await ret;
               yield result;
             } catch (error) {
-              yield { type: "error", error: error as E } as AnabranchResult<
+              yield { type: "error", error: error as E } as Result<
                 T,
                 E
               >;
@@ -716,11 +831,11 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
     );
   }
 
-  take(n: number): AnabranchStream<T, E> {
+  take(n: number): Stream<T, E> {
     const source = this.source;
     const concurrency = this.concurrency;
     const bufferSize = this.bufferSize;
-    return new _AnabranchStreamImpl<T, E>(
+    return new _StreamImpl<T, E>(
       async function* () {
         let count = 0;
         for await (const result of source()) {
@@ -729,7 +844,6 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
             count += 1;
           }
           yield result;
-          if (result.type === "success" && count >= n) break;
         }
       },
       concurrency,
@@ -737,13 +851,11 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
     );
   }
 
-  takeWhile(
-    fn: (value: T) => AnabranchPromisable<boolean>,
-  ): AnabranchStream<T, E> {
+  takeWhile(fn: (value: T) => Promisable<boolean>): Stream<T, E> {
     const source = this.source;
     const concurrency = this.concurrency;
     const bufferSize = this.bufferSize;
-    return new _AnabranchStreamImpl<T, E>(
+    return new _StreamImpl<T, E>(
       async function* () {
         for await (const result of source()) {
           if (result.type === "success") {
@@ -758,7 +870,7 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
               }
               yield result;
             } catch (error) {
-              yield { type: "error", error: error as E } as AnabranchResult<
+              yield { type: "error", error: error as E } as Result<
                 T,
                 E
               >;
@@ -788,7 +900,7 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
   }
 
   async fold<U>(
-    fn: (acc: U, value: T) => AnabranchPromisable<U>,
+    fn: (acc: U, value: T) => Promisable<U>,
     initialValue: U,
   ): Promise<U> {
     let accumulator = initialValue;
@@ -801,32 +913,30 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
       }
     }
     if (errors.length) {
-      throw new AnabranchAggregateError(errors);
+      throw new AggregateError(errors);
     }
     return accumulator;
   }
 
-  mapErr<F>(fn: (error: E) => AnabranchPromisable<F>): AnabranchStream<T, F> {
+  mapErr<F>(fn: (error: E) => Promisable<F>): Stream<T, F> {
     return this.transform(async (result) => {
       if (result.type === "error") {
         try {
           const mappedError = await fn(result.error);
           return [
-            { type: "error", error: mappedError } as AnabranchResult<T, F>,
+            { type: "error", error: mappedError } as Result<T, F>,
           ];
         } catch (error) {
           return [
-            { type: "error", error: error as F } as AnabranchResult<T, F>,
+            { type: "error", error: error as F } as Result<T, F>,
           ];
         }
       }
-      return [result as unknown as AnabranchResult<T, F>];
+      return [result as unknown as Result<T, F>];
     });
   }
 
-  filterErr(
-    fn: (error: E) => AnabranchPromisable<boolean>,
-  ): AnabranchStream<T, E> {
+  filterErr(fn: (error: E) => Promisable<boolean>): Stream<T, E> {
     return this.transform(async (result) => {
       if (result.type === "error") {
         try {
@@ -836,9 +946,7 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
           }
           return [];
         } catch (error) {
-          return [
-            { type: "error", error: error as E } as AnabranchResult<T, E>,
-          ];
+          return [{ type: "error", error: error as E } as Result<T, E>];
         }
       }
       return [result];
@@ -846,7 +954,7 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
   }
 
   async foldErr<F>(
-    fn: (acc: F, error: E) => AnabranchPromisable<F>,
+    fn: (acc: F, error: E) => Promisable<F>,
     initialValue: F,
   ): Promise<F> {
     let accumulator = initialValue;
@@ -860,8 +968,8 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
 
   recoverWhen<E2 extends E, U>(
     guard: (error: E) => error is E2,
-    fn: (error: E2) => AnabranchPromisable<U>,
-  ): AnabranchStream<T | U, Exclude<E, E2>> {
+    fn: (error: E2) => Promisable<U>,
+  ): Stream<T | U, Exclude<E, E2>> {
     return this.transform(async (result) => {
       if (result.type === "error" && guard(result.error)) {
         try {
@@ -870,24 +978,22 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
             {
               type: "success",
               value: recoveredValue,
-            } as AnabranchResult<T | U, Exclude<E, E2>>,
+            } as Result<T | U, Exclude<E, E2>>,
           ];
         } catch (error) {
           return [
             {
               type: "error",
               error: error as Exclude<E, E2>,
-            } as AnabranchResult<T | U, Exclude<E, E2>>,
+            } as Result<T | U, Exclude<E, E2>>,
           ];
         }
       }
-      return [result as unknown as AnabranchResult<T | U, Exclude<E, E2>>];
+      return [result as unknown as Result<T | U, Exclude<E, E2>>];
     });
   }
 
-  recover<U>(
-    fn: (error: E) => AnabranchPromisable<U>,
-  ): AnabranchStream<T | U, never> {
+  recover<U>(fn: (error: E) => Promisable<U>): Stream<T | U, never> {
     return this.transform(async (result) => {
       if (result.type === "error") {
         try {
@@ -896,33 +1002,33 @@ export class _AnabranchStreamImpl<T, E> implements AnabranchStream<T, E> {
             {
               type: "success",
               value: recoveredValue,
-            } as AnabranchResult<T | U, never>,
+            } as Result<T | U, never>,
           ];
         } catch (error) {
           return [
-            { type: "error", error: error as never } as AnabranchResult<
+            { type: "error", error: error as never } as Result<
               T | U,
               never
             >,
           ];
         }
       }
-      return [result as unknown as AnabranchResult<T | U, never>];
+      return [result as unknown as Result<T | U, never>];
     });
   }
 
   throwOn<E2 extends E>(
     guard: (error: E) => error is E2,
-  ): AnabranchStream<T, Exclude<E, E2>> {
+  ): Stream<T, Exclude<E, E2>> {
     const source = this.source;
-    return new _AnabranchStreamImpl<T, Exclude<E, E2>>(
+    return new _StreamImpl<T, Exclude<E, E2>>(
       async function* () {
         for await (const result of source()) {
           if (result.type === "error" && guard(result.error)) {
             // throwOn intentionally terminates iteration instead of collecting.
             throw result.error;
           }
-          yield result as unknown as AnabranchResult<T, Exclude<E, E2>>;
+          yield result as unknown as Result<T, Exclude<E, E2>>;
         }
       },
       this.concurrency,

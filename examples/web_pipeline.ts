@@ -1,4 +1,4 @@
-import { AnabranchSource } from "../index.ts";
+import { Source } from "../index.ts";
 
 const urls = [
   "https://jsonplaceholder.typicode.com/todos/1",
@@ -7,7 +7,7 @@ const urls = [
   "https://jsonplaceholder.typicode.com/todos/4",
 ];
 
-const stream = new AnabranchSource<string, Error>(async function* () {
+const stream = new Source<string, Error>(async function* () {
   yield* urls;
 })
   .withConcurrency(4)

@@ -1,4 +1,4 @@
-import { AnabranchSource } from "../index.ts";
+import { Source } from "../index.ts";
 
 const dir = Deno.args[0] ?? ".";
 const filePaths = (async function* () {
@@ -9,7 +9,7 @@ const filePaths = (async function* () {
   }
 })();
 
-const { successes, errors } = await AnabranchSource.from(filePaths)
+const { successes, errors } = await Source.from(filePaths)
   .withConcurrency(4)
   .flatMap(async (path) => {
     const text = await Deno.readTextFile(path);
