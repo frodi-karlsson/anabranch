@@ -17,10 +17,10 @@ await build({
     license: "MIT",
     repository: {
       type: "git",
-      url: "git+https://github.com/frodiwe/anabranch.git",
+      url: "git+https://github.com/frodi-karlsson/anabranch.git",
     },
     bugs: {
-      url: "https://github.com/frodiwe/anabranch/issues",
+      url: "https://github.com/frodi-karlsson/anabranch/issues",
     },
   },
   postBuild() {

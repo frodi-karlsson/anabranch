@@ -78,5 +78,3 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: deno task build:npm
       - run: cd npm && npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
