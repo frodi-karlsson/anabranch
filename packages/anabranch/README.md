@@ -277,32 +277,7 @@ new Source(generator)
 - `takeWhile(fn)`: stop when the predicate returns false
 - `fold(fn, init)` / `foldErr(fn, init)`: reduce the stream to a single value
 
-## Alternatives
+## API reference
 
-**p-map** is the most direct alternative for concurrent async processing. It
-supports a concurrency limit and can collect all errors via
-`stopOnError: false`, which throws an `AggregateError` at the end. What it lacks
-is a pipeline model: you call `pMap` once over a flat list, so chaining
-transforms or handling errors mid-stream requires nesting calls or manual
-bookkeeping.
-
-**neverthrow** wraps values in `Result<T, E>` and gives you type-safe error
-handling with `map`, `andThen`, etc. It works well for discrete async operations
-but has no built-in concurrency, streaming, or retries. Anabranch's `Task`
-provides similar result-based error handling with the addition of retry/timeout
-utilities and signal support. To process a list in parallel you still reach for
-`Promise.all`, and there is no equivalent to `flatMap` over an ongoing async
-source.
-
-**RxJS** can do everything here via `mergeMap` with a concurrency argument and
-`catchError` placed inside the inner observable. The ergonomics are different:
-errors that escape the inner observable terminate the stream unless you
-explicitly handle them at every step, which is easy to get wrong. RxJS is also
-push-based and primarily designed for event streams, so the pull-based async
-generator model feels like a detour.
-
-**Effect** has a `Stream` module with typed errors, concurrency, and
-sophisticated recovery. If you are already using Effect throughout your codebase
-it is probably the right choice. As a standalone dependency for stream
-processing it is a large commitment: a steep learning curve, a significant
-bundle, and an unfamiliar execution model.
+See [generated documentation](https://frodi-karlsson.github.io/anabranch) for
+full API details.

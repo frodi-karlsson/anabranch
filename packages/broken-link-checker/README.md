@@ -15,7 +15,7 @@ const stream = new BrokenLinkChecker({
   retry: { attempts: 3, delay: (attempt) => 1000 * 2 ** attempt },
 })
   .filterUrls((url) => !url.pathname.endsWith(".pdf"))
-  .filterErrors((result) => result.status !== 401)
+  .keepBroken((result) => result.status !== 401) // keep all except 401s
   .check("https://my-site.com");
 
 for await (const result of stream.successes()) {
@@ -25,6 +25,20 @@ for await (const result of stream.successes()) {
     );
   }
 }
+```
+
+## Installation
+
+**Deno (JSR)**
+
+```ts
+import { BrokenLinkChecker } from "jsr:@anabranch/broken-link-checker";
+```
+
+**Node / Bun (npm)**
+
+```sh
+npm install @anabranch/broken-link-checker
 ```
 
 ## API
@@ -47,10 +61,11 @@ Adds a URL filter. URLs for which `fn` returns `false` are skipped entirely (not
 checked, not crawled). Multiple calls are AND'd. The seed URL always bypasses
 filters.
 
-### `.filterErrors(fn)` → `BrokenLinkChecker`
+### `.keepBroken(fn)` → `BrokenLinkChecker`
 
-Adds an error filter. Broken results (`ok === false`) for which `fn` returns
-`false` are excluded from the output stream. Multiple calls are AND'd.
+Adds a predicate for which broken results (`ok === false`) to keep in the
+output. Broken results for which `fn` returns `false` are filtered out. Multiple
+calls are AND'd.
 
 ### `.check(startUrl)` → `Stream<CheckResult, Error>`
 
@@ -60,16 +75,8 @@ all discovered URLs are checked. Returns a stream where:
 - **success channel** — `CheckResult` values for every checked URL
 - **error channel** — unexpected internal errors
 
-### `CheckResult`
+## API reference
 
-```ts
-interface CheckResult {
-  url: URL;
-  parent: URL | undefined; // page this link was found on; undefined for seed
-  ok: boolean;
-  status: number | undefined; // undefined for network-level failures
-  reason: string | undefined; // human-readable error description
-  isPath: boolean; // true if same-host (crawled), false if external
-  durationMs: number;
-}
-```
+See
+[generated documentation](https://frodi-karlsson.github.io/anabranch/broken-link-checker)
+for full API details.
