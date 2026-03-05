@@ -559,6 +559,7 @@ Deno.test("Stream.mapErr - should transform errors", async () => {
 Deno.test("Stream.mapErr - should emit error when callback throws", async () => {
   const stream = streamFrom<number, string>([failure("bad"), success(1)]);
   const mapped = stream.mapErr((error) => {
+    // deno-lint-ignore no-throw-literal
     if (error === "bad") throw "mapped-error";
     return error;
   });
@@ -646,6 +647,7 @@ Deno.test(
     const recovered = stream.recoverWhen(
       (error): error is "recoverable" => error === "recoverable",
       () => {
+        // deno-lint-ignore no-throw-literal
         throw "recovery failed";
       },
     );
@@ -983,7 +985,9 @@ Deno.test(
 
     const { successes, errors } = await stream
       .map((n) => {
+        // deno-lint-ignore no-throw-literal
         if (n === 1) throw "minor error";
+        // deno-lint-ignore no-throw-literal
         if (n === 2) throw "CRITICAL error";
         return n * 10;
       })
@@ -1010,6 +1014,7 @@ Deno.test(
 
     const { successes, errors } = await stream
       .map((n) => {
+        // deno-lint-ignore no-throw-literal
         if (n === 2) throw "bad";
         return n * 10;
       })
@@ -1059,6 +1064,7 @@ Deno.test(
 
     const { successes, errors } = await stream
       .map((n) => {
+        // deno-lint-ignore no-throw-literal
         if (n === 2) throw "oops";
         return n;
       })
@@ -1192,6 +1198,7 @@ Deno.test("Stream.scan - should emit error when callback throws", async () => {
     success(3),
   ]);
   const scanned = stream.scan((sum, n) => {
+    // deno-lint-ignore no-throw-literal
     if (n === 2) throw "scan failed";
     return sum + n;
   }, 0);

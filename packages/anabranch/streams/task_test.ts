@@ -163,6 +163,7 @@ Deno.test("Task.race - should resolve success after error", async () => {
 Deno.test("Task.race - should resolve errors when all fail", async () => {
   const slow = Task.of<number, string>(async () => {
     await Promise.resolve();
+    // deno-lint-ignore no-throw-literal
     throw "slow";
   });
   const fast = Task.of<number, string>(() => Promise.reject("boom"));

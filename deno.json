@@ -4,6 +4,37 @@
     "./packages/broken-link-checker",
     "./packages/web-client"
   ],
+  "lint": {
+    "rules": {
+      "tags": ["recommended"],
+      "include": [
+        "no-unused-vars",
+        "no-unused-parameters",
+        "no-floating-promises",
+        "require-await",
+        "no-async-promise-executor",
+        "no-base-to-string",
+        "no-conditional-assignment",
+        "no-debugger",
+        "no-empty",
+        "no-eval",
+        "no-fallthrough",
+        "no-new-wrappers",
+        "no-octal",
+        "no-regex-spaces",
+        "no-self-assign",
+        "no-sparse-arrays",
+        "no-throw-literal",
+        "no-unreachable",
+        "no-unsafe-finally",
+        "no-unused-expressions",
+        "use-isnan",
+        "ban-types",
+        "no-namespace",
+        "no-empty-interface"
+      ]
+    }
+  },
   "tasks": {
     "check": "deno fmt --check && deno lint && deno test",
     "doc": "deno task doc:anabranch && cp docs-src/index.html docs/index.html",
