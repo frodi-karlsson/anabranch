@@ -75,8 +75,8 @@ const stream = new Source<number, Error>(async function* () {
 const stream2 = Source.from<number, Error>(someAsyncIterable);
 ```
 
-For push-based streams where external producers send values as they arrive,
-use `Channel`:
+For push-based streams where external producers send values as they arrive, use
+`Channel`:
 
 ```ts
 import { Channel } from "anabranch";
@@ -98,8 +98,7 @@ for await (const result of channel) {
 channel.close(); // signals no more items
 ```
 
-`Channel.fail` bypasses the buffer and injects errors directly into the
-stream:
+`Channel.fail` bypasses the buffer and injects errors directly into the stream:
 
 ```ts
 channel.send({ symbol: "AAPL", price: 150 });
