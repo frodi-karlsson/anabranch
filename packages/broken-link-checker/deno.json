@@ -1,5 +1,10 @@
 {
   "name": "@anabranch/broken-link-checker",
   "version": "0.1.0",
-  "exports": "./index.ts"
+  "exports": "./index.ts",
+  "imports": {
+    "@anabranch/anabranch": "jsr:@anabranch/anabranch@^0.4.2",
+    "@b-fuze/deno-dom": "jsr:@b-fuze/deno-dom@0.1.56",
+    "@std/assert": "jsr:@std/assert@1"
+  }
 }
