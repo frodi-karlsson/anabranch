@@ -2,7 +2,8 @@
 node_modules
 **/local-*
 docs/
-coverage/
-npm/
+packages/*/coverage/
+packages/*/coverage.lcov
+packages/*/npm/
 .claude/
 .DS_Store

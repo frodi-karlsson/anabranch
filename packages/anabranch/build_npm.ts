@@ -1,12 +1,13 @@
 import { build, emptyDir } from "@deno/dnt";
 
-const { version } = JSON.parse(await Deno.readTextFile("deno.json"));
+const dir = import.meta.dirname!;
+const { version } = JSON.parse(await Deno.readTextFile(`${dir}/deno.json`));
 
-await emptyDir("./npm");
+await emptyDir(`${dir}/npm`);
 
 await build({
-  entryPoints: ["./index.ts"],
-  outDir: "./npm",
+  entryPoints: [`${dir}/index.ts`],
+  outDir: `${dir}/npm`,
   shims: { deno: false },
   scriptModule: false,
   test: false,
@@ -24,7 +25,7 @@ await build({
     },
   },
   postBuild() {
-    Deno.copyFileSync("LICENSE", "npm/LICENSE");
-    Deno.copyFileSync("README.md", "npm/README.md");
+    Deno.copyFileSync(`${dir}/../../LICENSE`, `${dir}/npm/LICENSE`);
+    Deno.copyFileSync(`${dir}/README.md`, `${dir}/npm/README.md`);
   },
 });

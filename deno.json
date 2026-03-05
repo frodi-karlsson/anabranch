@@ -1,28 +1,13 @@
 {
-  "name": "@anabranch/anabranch",
-  "version": "0.4.0",
-  "description": "Async stream processing with error collection and single-task utilities",
-  "exports": "./index.ts",
-  "publish": {
-    "exclude": [
-      "build_npm.ts",
-      "npm/",
-      "examples/",
-      "test_utils.ts",
-      "**/*_test.ts"
-    ]
-  },
+  "workspace": ["./packages/anabranch"],
   "tasks": {
     "check": "deno fmt --check && deno lint && deno test",
-    "doc": "deno doc --html --name=anabranch --output=docs ./index.ts",
-    "doc:lint": "deno doc --lint ./index.ts",
-    "coverage": "deno test --coverage --clean && deno coverage ./coverage",
-    "coverage:html": "deno test --coverage --clean && deno coverage --html ./coverage",
-    "coverage:lcov": "deno test --coverage --clean && deno coverage --lcov --output=coverage.lcov ./coverage",
-    "build:npm": "deno run -A build_npm.ts"
-  },
-  "imports": {
-    "@deno/dnt": "jsr:@deno/dnt@0.42.3",
-    "@std/assert": "jsr:@std/assert@1"
+    "doc": "deno task doc:anabranch",
+    "doc:anabranch": "mkdir -p docs/anabranch && deno doc --html --name=anabranch --output=docs/anabranch ./packages/anabranch/index.ts",
+    "doc:lint": "deno doc --lint ./packages/anabranch/index.ts",
+    "coverage": "deno test --coverage=packages/anabranch/coverage --clean && deno coverage ./packages/anabranch/coverage",
+    "coverage:html": "deno test --coverage=packages/anabranch/coverage --clean && deno coverage --html ./packages/anabranch/coverage",
+    "coverage:lcov": "deno test --coverage=packages/anabranch/coverage --clean && deno coverage --lcov --output=packages/anabranch/coverage.lcov ./packages/anabranch/coverage",
+    "build:npm": "deno run -A ./packages/anabranch/build_npm.ts"
   }
 }

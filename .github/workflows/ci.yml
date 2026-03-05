@@ -58,7 +58,7 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - run: deno publish
+      - run: cd packages/anabranch && deno publish
 
   publish-npm:
     needs: check
@@ -81,4 +81,4 @@ jobs:
       - name: Update npm
         run: npm install -g npm@latest
       - run: deno task build:npm
-      - run: cd npm && npm publish --access public
+      - run: cd packages/anabranch/npm && npm publish --access public
