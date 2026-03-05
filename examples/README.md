@@ -6,6 +6,12 @@ Read and process files (uses flatMap to emit multiple metrics per file):
 deno run --allow-read examples/read_process_files.ts ./some-directory
 ```
 
+Push-based stream source (Channel for external producers):
+
+```bash
+deno run examples/ticker.ts
+```
+
 Make web requests:
 
 ```bash

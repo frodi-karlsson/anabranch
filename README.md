@@ -75,6 +75,38 @@ const stream = new Source<number, Error>(async function* () {
 const stream2 = Source.from<number, Error>(someAsyncIterable);
 ```
 
+For push-based streams where external producers send values as they arrive,
+use `Channel`:
+
+```ts
+import { Channel } from "anabranch";
+
+const channel = new Channel<PriceUpdate, Error>({
+  bufferSize: 100,
+  onDrop: (update) => console.log("dropped:", update),
+});
+
+// External producer sends values:
+channel.send({ symbol: "AAPL", price: 150 });
+channel.send({ symbol: "GOOGL", price: 2750 });
+
+// Consumer reads from the channel like any stream:
+for await (const result of channel) {
+  // result is { type: "success", value } or { type: "error", error }
+}
+
+channel.close(); // signals no more items
+```
+
+`Channel.fail` bypasses the buffer and injects errors directly into the
+stream:
+
+```ts
+channel.send({ symbol: "AAPL", price: 150 });
+channel.fail(new Error("feed disconnected")); // goes straight to consumer
+channel.send({ symbol: "GOOGL", price: 2750 }); // still processes
+```
+
 ### Single async operations with Task
 
 For single async operations with retries, timeouts, and signal handling, use
