@@ -79,11 +79,12 @@ export class BrokenLinkChecker {
 
     log(
       logLevel,
+      "info",
       `Starting crawl of ${seeds.length} entrypoints (hosts: ${
         Array.from(hosts).join(", ")
       })`,
     );
-    log(logLevel, `Concurrency: ${concurrency}`);
+    log(logLevel, "info", `Concurrency: ${concurrency}`);
 
     function enqueue(
       url: URL,
@@ -123,6 +124,7 @@ export class BrokenLinkChecker {
               if (links.length > 0) {
                 log(
                   logLevel,
+                  "info",
                   `Found ${links.length} links on ${finalUrl.href}`,
                 );
               }
@@ -139,6 +141,7 @@ export class BrokenLinkChecker {
               if (links.length > 0) {
                 log(
                   logLevel,
+                  "info",
                   `Found ${links.length} URLs in sitemap ${finalUrl.href}`,
                 );
               }
@@ -170,6 +173,7 @@ export class BrokenLinkChecker {
         const status = result.status ?? "NETWORK_ERROR";
         log(
           logLevel,
+          "debug",
           `[${
             result.ok ? "OK" : "FAIL"
           }] ${status} ${result.url.href} (${result.durationMs}ms)`,
@@ -177,13 +181,14 @@ export class BrokenLinkChecker {
       }
       if (!result.ok) {
         brokenCount++;
-        log(logLevel, `BROKEN: ${result.url.href} (${result.reason})`);
+        log(logLevel, "warn", `BROKEN: ${result.url.href} (${result.reason})`);
       }
 
       pending--;
       if (pending === 0) {
         log(
           logLevel,
+          "info",
           `Crawl complete. Checked: ${checkedCount}, Broken: ${brokenCount}`,
         );
         channel.close();
@@ -204,16 +209,22 @@ export class BrokenLinkChecker {
   }
 }
 
-function log(level: LogLevel, message: string): void {
-  if (level === "none") return;
-  const prefix = level === "debug"
-    ? "DEBUG"
-    : level === "info"
-    ? "INFO"
-    : level === "warn"
-    ? "WARN"
-    : "ERROR";
-  console[`${level}`](`[BrokenLinkChecker] ${prefix}: ${message}`);
+const LEVEL_ORDER: LogLevel[] = ["debug", "info", "warn", "error", "none"];
+
+function log(configLevel: LogLevel, level: LogLevel, message: string): void {
+  if (LEVEL_ORDER.indexOf(level) >= LEVEL_ORDER.indexOf(configLevel)) {
+    const prefix = level === "debug"
+      ? "DEBUG"
+      : level === "info"
+      ? "INFO"
+      : level === "warn"
+      ? "WARN"
+      : "ERROR";
+    const msg = `[BrokenLinkChecker] ${prefix}: ${message}`;
+    if (level === "debug" || level === "info") console.log(msg);
+    else if (level === "warn") console.warn(msg);
+    else if (level === "error") console.error(msg);
+  }
 }
 
 interface WorkItem {
