@@ -57,6 +57,7 @@ export function writeJson(
   });
 }
 
+/** Errors that can occur when writing files. */
 export type WriteFileError =
   | NotFound
   | IsDirectory

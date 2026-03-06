@@ -114,4 +114,5 @@ export function glob(
   return walk(root, { ...options, match: [regex] });
 }
 
+/** Errors that can occur when reading directories. */
 export type DirError = NotFound | NotDirectory | PermissionDenied | Unknown;

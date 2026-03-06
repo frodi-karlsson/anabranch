@@ -31,42 +31,49 @@ export class NotFound extends FSError {
   }
 }
 
+/** File already exists when it should not. */
 export class AlreadyExists extends FSError {
   constructor(path: string | URL, message: string) {
     super("AlreadyExists", path, message);
   }
 }
 
+/** Path is a directory when a file was expected. */
 export class IsDirectory extends FSError {
   constructor(path: string | URL, message: string) {
     super("IsDirectory", path, message);
   }
 }
 
+/** Path is not a directory when a directory was expected. */
 export class NotDirectory extends FSError {
   constructor(path: string | URL, message: string) {
     super("NotDirectory", path, message);
   }
 }
 
+/** Permission denied accessing the file system. */
 export class PermissionDenied extends FSError {
   constructor(path: string | URL, message: string) {
     super("PermissionDenied", path, message);
   }
 }
 
+/** Error reading from the file system. */
 export class ReadError extends FSError {
   constructor(path: string | URL, message: string) {
     super("ReadError", path, message);
   }
 }
 
+/** Error writing to the file system. */
 export class WriteError extends FSError {
   constructor(path: string | URL, message: string) {
     super("WriteError", path, message);
   }
 }
 
+/** File content is invalid (e.g., malformed JSON). */
 export class InvalidData extends FSError {
   override readonly cause?: unknown;
 
@@ -76,6 +83,7 @@ export class InvalidData extends FSError {
   }
 }
 
+/** Unknown file system error. */
 export class Unknown extends FSError {
   override readonly cause?: unknown;
 
@@ -85,6 +93,7 @@ export class Unknown extends FSError {
   }
 }
 
+/** Registry of file-system error constructors for `instanceof` checks. */
 export const FSErrors = {
   NotFound,
   AlreadyExists,

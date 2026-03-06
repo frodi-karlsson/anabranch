@@ -10,6 +10,7 @@ import {
   type PermissionDenied,
 } from "./errors.ts";
 
+/** Errors that can occur when watching the file system. */
 export type WatchError = NotFound | PermissionDenied;
 
 /**

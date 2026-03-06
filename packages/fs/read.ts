@@ -88,8 +88,10 @@ export function readJson<T>(path: string | URL): Task<T, ReadJsonError> {
   });
 }
 
+/** Errors that can occur when reading files. */
 export type ReadFileError = NotFound | PermissionDenied | ReadError | Unknown;
 
+/** Errors that can occur when reading JSON files. */
 export type ReadJsonError =
   | NotFound
   | PermissionDenied
