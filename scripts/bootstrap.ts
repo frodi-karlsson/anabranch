@@ -165,7 +165,12 @@ Deno.test({
   log(`format created files`);
   if (!dryRun) {
     const fmt = new Deno.Command("deno", {
-      args: ["fmt", `${pkgDir}/deno.json`, `${pkgDir}/build_npm.ts`, `${pkgDir}/${pkgName}_test.ts`],
+      args: [
+        "fmt",
+        `${pkgDir}/deno.json`,
+        `${pkgDir}/build_npm.ts`,
+        `${pkgDir}/${pkgName}_test.ts`,
+      ],
     });
     await fmt.output();
   }
