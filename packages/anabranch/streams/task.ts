@@ -11,15 +11,18 @@ export class Task<T, E> {
   }
 
   /**
-   * Creates a {@link Task} from an async function.
+   * Creates a {@link Task} from a sync or async function.
    * The function receives an optional AbortSignal that is active when
    * the task is run with a signal via {@link withSignal} or {@link run}.
    *
    * Note: the error type `E` is unchecked and represents the expected error
    * shape rather than a runtime guarantee.
    */
-  static of<R, E>(task: (signal?: AbortSignal) => Promise<R>): Task<R, E> {
-    return new Task(task);
+  static of<R, E>(task: (signal?: AbortSignal) => Promisable<R>): Task<R, E> {
+    return new Task((signal) => {
+      const result = task(signal);
+      return result instanceof Promise ? result : Promise.resolve(result);
+    });
   }
 
   /**

@@ -3,11 +3,14 @@
     "./packages/anabranch",
     "./packages/broken-link-checker",
     "./packages/fs",
-    "./packages/web-client"
+    "./packages/web-client",
+    "./packages/db"
   ],
   "lint": {
     "rules": {
-      "tags": ["recommended"],
+      "tags": [
+        "recommended"
+      ],
       "include": [
         "no-unused-vars",
         "no-unused-parameters",

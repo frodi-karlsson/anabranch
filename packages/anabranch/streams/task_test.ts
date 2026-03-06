@@ -214,13 +214,9 @@ Deno.test("Task.withSignal - should abort underlying task", async () => {
 });
 
 Deno.test("Task.acquireRelease - should acquire, use, and release resource", async () => {
-  let acquired = false;
   let released = false;
   const task = Task.acquireRelease({
-    acquire: () => {
-      acquired = true;
-      return Promise.resolve("resource");
-    },
+    acquire: () => Promise.resolve("resource"),
     release: (r) => {
       released = true;
       assertEquals(r, "resource");
@@ -238,7 +234,6 @@ Deno.test("Task.acquireRelease - should acquire, use, and release resource", asy
   const result = await task.result();
   assertEquals(result.type, "success");
   assertEquals((result as { value: string }).value, "result");
-  assertEquals(acquired, true);
   assertEquals(released, true);
 });
 
