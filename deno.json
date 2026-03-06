@@ -47,6 +47,7 @@
     "coverage:html": "deno test --allow-read --allow-write --allow-sys --coverage=packages/anabranch/coverage --clean && deno coverage --html ./packages/anabranch/coverage",
     "coverage:lcov": "deno test --allow-read --allow-write --allow-sys --coverage=packages/anabranch/coverage --clean && deno coverage --lcov --output=packages/anabranch/coverage.lcov ./packages/anabranch/coverage",
     "build:npm": "deno run -A ./packages/anabranch/build_npm.ts",
+    "build:npm:anabranch": "deno run -A ./packages/anabranch/build_npm.ts",
     "build:npm:web-client": "deno run -A ./packages/web-client/build_npm.ts",
     "build:npm:broken-link-checker": "deno run -A ./packages/broken-link-checker/build_npm.ts",
     "doc:fs": "mkdir -p docs/fs && deno doc --html --name=fs --output=docs/fs ./packages/fs/index.ts",
