@@ -1,9 +1,13 @@
 {
   "name": "@anabranch/fs",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "exports": "./index.ts",
   "publish": {
-    "exclude": ["examples/", "build_npm.ts", "npm/"]
+    "exclude": [
+      "examples/",
+      "build_npm.ts",
+      "npm/"
+    ]
   },
   "imports": {
     "@anabranch/anabranch": "jsr:@anabranch/anabranch@^0",
