@@ -20,7 +20,10 @@ async function main(): Promise<void> {
     const data = JSON.parse(await Deno.readTextFile(path));
     const next = bumpVersion(data.version, spec.type);
     versions[spec.package] = { current: data.version, next };
-    log(dryRun, `Bump ${spec.package}: ${data.version} -> ${next} (${spec.type})`);
+    log(
+      dryRun,
+      `Bump ${spec.package}: ${data.version} -> ${next} (${spec.type})`,
+    );
     if (!dryRun) {
       data.version = next;
       await Deno.writeTextFile(path, JSON.stringify(data, null, 2) + "\n");
@@ -65,7 +68,10 @@ function parseArgs(args: string[]): { specs: BumpSpec[]; dryRun: boolean } {
       else if (typeChar === "m" || typeChar === "minor") type = "minor";
     }
 
-    specs.push({ package: colonIdx === -1 ? val : val.slice(0, colonIdx), type });
+    specs.push({
+      package: colonIdx === -1 ? val : val.slice(0, colonIdx),
+      type,
+    });
   }
 
   return { specs, dryRun };
@@ -74,9 +80,12 @@ function parseArgs(args: string[]): { specs: BumpSpec[]; dryRun: boolean } {
 function bumpVersion(current: string, type: BumpSpec["type"]): string {
   const [major, minor, patch] = current.split(".").map(Number);
   switch (type) {
-    case "major": return `${major + 1}.0.0`;
-    case "minor": return `${major}.${minor + 1}.0`;
-    case "patch": return `${major}.${minor}.${patch + 1}`;
+    case "major":
+      return `${major + 1}.0.0`;
+    case "minor":
+      return `${major}.${minor + 1}.0`;
+    case "patch":
+      return `${major}.${minor}.${patch + 1}`;
   }
 }
 
@@ -86,7 +95,7 @@ async function runGit(...args: string[]): Promise<void> {
 }
 
 function log(dryRun: boolean, ...msg: unknown[]): void {
-  console.log((dryRun ? "[DRY-RUN] " : ""), ...msg);
+  console.log(dryRun ? "[DRY-RUN] " : "", ...msg);
 }
 
 interface BumpSpec {
