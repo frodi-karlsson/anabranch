@@ -184,7 +184,7 @@ Deno.test(
       deferred<void>(),
       deferred<void>(),
     ];
-    const stream = new Source<number, string>(async function* () {
+    const stream = Source.from<number, string>(async function* () {
       yield 1;
       yield 2;
       yield 3;
@@ -228,7 +228,7 @@ Deno.test(
       deferred<void>(),
       deferred<void>(),
     ];
-    const stream = new Source<number, string>(async function* () {
+    const stream = Source.from<number, string>(async function* () {
       yield 1;
       yield 2;
       yield 3;
@@ -261,7 +261,7 @@ Deno.test(
 Deno.test(
   "Stream.map - should preserve order with concurrency 1",
   async () => {
-    const stream = new Source<number, string>(async function* () {
+    const stream = Source.from<number, string>(async function* () {
       yield 1;
       yield 2;
       yield 3;
@@ -289,7 +289,7 @@ Deno.test(
     let maxObserved = 0;
     const started = deferred<void>();
     const gate = deferred<void>();
-    const stream = new Source<number, string>(async function* () {
+    const stream = Source.from<number, string>(async function* () {
       yield 1;
       yield 2;
       yield 3;
@@ -320,7 +320,7 @@ Deno.test(
   "Stream.map - should propagate errors from mapped tasks",
   async () => {
     const expectedError = new Error("map failed");
-    const stream = new Source<number, Error>(async function* () {
+    const stream = Source.from<number, Error>(async function* () {
       yield 1;
       yield 2;
     }).withConcurrency(2);
@@ -345,7 +345,7 @@ Deno.test(
   "Stream.map - should surface source generator errors",
   async () => {
     const expectedError = new Error("source failed");
-    const stream = new Source<number, Error>(async function* () {
+    const stream = Source.from<number, Error>(async function* () {
       yield 1;
       throw expectedError;
     }).withConcurrency(1);
@@ -372,7 +372,7 @@ Deno.test(
   "Stream.map - should emit generator errors before completion",
   async () => {
     const expectedError = new Error("source race");
-    const stream = new Source<number, Error>(async function* () {
+    const stream = Source.from<number, Error>(async function* () {
       yield 1;
       await Promise.resolve();
       throw expectedError;
@@ -403,7 +403,7 @@ Deno.test(
     let maxObserved = 0;
     const started = deferred<void>();
     const gates = [deferred<void>(), deferred<void>(), deferred<void>()];
-    const stream = new Source<number, "boom">(async function* () {
+    const stream = Source.from<number, "boom">(async function* () {
       yield 1;
       yield 2;
       yield 3;
@@ -789,7 +789,7 @@ Deno.test(
       deferred<void>(),
       deferred<void>(),
     ];
-    const stream = new Source<number, string>(async function* () {
+    const stream = Source.from<number, string>(async function* () {
       yield 1;
       yield 2;
       yield 3;
@@ -925,7 +925,7 @@ Deno.test("Stream.partition - should handle stream with only errors", async () =
 });
 
 Deno.test("Stream integration - should compose multiple operations", async () => {
-  const stream = new Source<number, Error>(async function* () {
+  const stream = Source.from<number, Error>(async function* () {
     yield 1;
     yield 2;
     yield 3;
@@ -951,7 +951,7 @@ Deno.test(
   "Stream integration - partial recovery: recoverWhen leaves unmatched errors intact",
   async () => {
     type Err = "retryable" | "fatal";
-    const stream = new Source<number, Err>(async function* () {
+    const stream = Source.from<number, Err>(async function* () {
       yield 1;
       yield 2;
       yield 3;
@@ -977,7 +977,7 @@ Deno.test(
 Deno.test(
   "Stream integration - error transformation chain: mapErr then filterErr",
   async () => {
-    const stream = new Source<number, string>(async function* () {
+    const stream = Source.from<number, string>(async function* () {
       yield 1;
       yield 2;
       yield 3;
@@ -1006,7 +1006,7 @@ Deno.test(
     const successLog: number[] = [];
     const errorLog: string[] = [];
 
-    const stream = new Source<number, string>(async function* () {
+    const stream = Source.from<number, string>(async function* () {
       yield 1;
       yield 2;
       yield 3;
@@ -1037,7 +1037,7 @@ Deno.test(
 Deno.test(
   "Stream integration - take limits output of a large source",
   async () => {
-    const stream = new Source<number, never>(async function* () {
+    const stream = Source.from<number, never>(async function* () {
       let i = 0;
       while (true) yield i++;
     });
@@ -1054,7 +1054,7 @@ Deno.test(
 Deno.test(
   "Stream integration - takeWhile stops pipeline mid-stream",
   async () => {
-    const stream = new Source<number, string>(async function* () {
+    const stream = Source.from<number, string>(async function* () {
       yield 1;
       yield 2;
       yield 3;
@@ -1081,7 +1081,7 @@ Deno.test(
 Deno.test(
   "Stream integration - concurrent map with error accumulation",
   async () => {
-    const stream = new Source<number, Error>(async function* () {
+    const stream = Source.from<number, Error>(async function* () {
       for (let i = 1; i <= 6; i++) yield i;
     }).withConcurrency(3);
 

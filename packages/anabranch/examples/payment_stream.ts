@@ -6,7 +6,7 @@ interface Payment {
   status: "pending" | "completed" | "failed";
 }
 
-const payments = new Source<Payment, Error>(async function* () {
+const payments = Source.from<Payment, Error>(async function* () {
   yield { id: "1", amount: 100, status: "completed" };
   yield { id: "2", amount: 50, status: "completed" };
   yield { id: "3", amount: 200, status: "failed" };

@@ -6,15 +6,15 @@ import type { Result } from "./util.ts";
  * that yielded values become success results and any thrown error becomes a
  * single error result.
  *
- * Use {@link Source.from} to create a source from an existing `AsyncIterable`.
- * Use {@link Source.withConcurrency} and {@link Source.withBufferSize} to
- * configure parallel execution.
+ * Use {@link Source.from} to create a source from an existing `AsyncIterable`
+ * or generator function. Use {@link Source.withConcurrency} and
+ * {@link Source.withBufferSize} to configure parallel execution.
  *
  * @example
  * ```ts
  * import { Source } from "anabranch";
  *
- * const stream = new Source<number, Error>(async function* () {
+ * const stream = Source.from<number, Error>(async function* () {
  *   yield 1;
  *   yield 2;
  *   yield 3;
@@ -33,7 +33,7 @@ export class Source<T, E> extends _StreamImpl<T, E> {
    * @param concurrency Maximum number of concurrent operations. Defaults to `Infinity`.
    * @param bufferSize Maximum number of buffered results before backpressure is applied. Defaults to `Infinity`.
    */
-  constructor(
+  private constructor(
     source: () => AsyncGenerator<T>,
     concurrency: number = Infinity,
     bufferSize: number = Infinity,
@@ -53,23 +53,36 @@ export class Source<T, E> extends _StreamImpl<T, E> {
   }
 
   /**
-   * Creates a {@link Source} from an existing `AsyncIterable`. Each value
-   * emitted by the iterable becomes a success result; any thrown error becomes
-   * an error result.
+   * Creates a {@link Source} from an existing `AsyncIterable` or async
+   * generator function. Each value emitted becomes a success result; any
+   * thrown error becomes an error result.
    *
    * @example
    * ```ts
    * import { Source } from "anabranch";
    *
+   * // From a generator function
+   * const stream = Source.from<number, Error>(async function* () {
+   *   yield 1;
+   *   yield 2;
+   * });
+   *
+   * // From an AsyncIterable
    * async function* generate() {
    *   yield 1;
    *   yield 2;
    * }
-   *
-   * const stream = Source.from<number, Error>(generate());
+   * const stream2 = Source.from<number, Error>(generate());
    * ```
    */
-  static from<T, E>(source: AsyncIterable<T>): Source<T, E> {
+  static from<T, E>(source: AsyncIterable<T>): Source<T, E>;
+  static from<T, E>(fn: () => AsyncGenerator<T>): Source<T, E>;
+  static from<T, E>(
+    source: AsyncIterable<T> | (() => AsyncGenerator<T>),
+  ): Source<T, E> {
+    if (typeof source === "function") {
+      return new Source(source);
+    }
     return new Source(
       async function* () {
         yield* source;

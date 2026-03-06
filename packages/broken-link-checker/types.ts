@@ -1,4 +1,4 @@
-import type { RequestOptions, WebClientOptions } from "@anabranch/web-client";
+import type { RequestOptions } from "@anabranch/web-client";
 
 /** Log level for output verbosity. */
 export type LogLevel = "debug" | "info" | "warn" | "error" | "none";
@@ -33,7 +33,7 @@ export interface BrokenLinkCheckerOptions {
   /** Retry configuration for failed requests. */
   retry?: RetryOptions;
   /** Custom fetch function. */
-  fetch?: WebClientOptions["fetch"];
+  fetch?: typeof globalThis.fetch;
   /** User-Agent header for requests. */
   userAgent?: string;
   /** Log level for output verbosity. @default "warn" */

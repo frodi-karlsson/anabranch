@@ -15,7 +15,7 @@ const urls = [
   "https://jsonplaceholder.typicode.com/todos/5",
 ];
 
-const stream = new Source<string, Error>(async function* () {
+const stream = Source.from<string, Error>(async function* () {
   yield* urls;
 })
   .withConcurrency(3)

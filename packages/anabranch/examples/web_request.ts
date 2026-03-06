@@ -7,7 +7,7 @@ const urls = Deno.args.length ? Deno.args : [
   "https://jsonplaceholder.typicode.com/todos/4",
 ];
 
-const { successes, errors } = await new Source<string, Error>(
+const { successes, errors } = await Source.from<string, Error>(
   async function* () {
     yield* urls;
   },

@@ -52,7 +52,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * ```ts
    * import { Stream } from "anabranch";
    *
-   * const stream = new Source<number, string>(async function* () {
+   * const stream = Source.from<number, string>(async function* () {
    *   yield 1;
    *   yield 2;
    * });
@@ -75,7 +75,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * ```ts
    * import { Source } from "anabranch";
    *
-   * const stream = new Source<number, Error>(async function* () {
+   * const stream = Source.from<number, Error>(async function* () {
    *   yield 1;
    *   throw new Error("failed");
    *   yield 3;
@@ -103,7 +103,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * ```ts
    * import { Source } from "anabranch";
    *
-   * const stream = new Source<number, string>(async function* () {
+   * const stream = Source.from<number, string>(async function* () {
    *   yield 1;
    *   yield 2;
    * });
@@ -121,7 +121,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * ```ts
    * import { Stream } from "anabranch";
    *
-   * const stream = new Source<number, string>(async function* () {
+   * const stream = Source.from<number, string>(async function* () {
    *   yield 1;
    *   yield 2;
    * });
@@ -188,7 +188,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * ```ts
    * import { Stream } from "anabranch";
    *
-   * const stream = new Source<number, string>(async function* () {
+   * const stream = Source.from<number, string>(async function* () {
    *   yield 1;
    *   yield 2;
    * });
@@ -215,7 +215,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * ```ts
    * import { Source } from "anabranch";
    *
-   * const stream = new Source<number, Error>(async function* () {
+   * const stream = Source.from<number, Error>(async function* () {
    *   yield 1;
    *   yield 2;
    *   yield 3;
@@ -237,7 +237,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * ```ts
    * import { Stream } from "anabranch";
    *
-   * const stream = new Source<number, string>(async function* () {
+   * const stream = Source.from<number, string>(async function* () {
    *   yield 1;
    *   yield 2;
    * });
@@ -257,7 +257,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * ```ts
    * import { Stream } from "anabranch";
    *
-   * const stream = new Source<number, string>(async function* () {
+   * const stream = Source.from<number, string>(async function* () {
    *   yield 1;
    *   yield 2;
    * });
@@ -277,7 +277,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * ```ts
    * import { Stream } from "anabranch";
    *
-   * const stream = new Source<number, string>(async function* () {
+   * const stream = Source.from<number, string>(async function* () {
    *   yield 1;
    *   yield 2;
    * });
@@ -300,7 +300,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * ```ts
    * import { Stream } from "anabranch";
    *
-   * const stream = new Source<number, "aaaah!" | "eeeek!">(async function* () {
+   * const stream = Source.from<number, "aaaah!" | "eeeek!">(async function* () {
    *   yield 1;
    *   yield 2;
    * });
@@ -318,7 +318,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * ```ts
    * import { Stream } from "anabranch";
    *
-   * const stream = new Source<number, string>(async function* () {
+   * const stream = Source.from<number, string>(async function* () {
    *   yield 1;
    *   yield 2;
    * });
@@ -333,7 +333,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * ```ts
    * import { Stream } from "anabranch";
    *
-   * const stream = new Source<number, "aaaah!" | "eeeek!">(async function* () {
+   * const stream = Source.from<number, "aaaah!" | "eeeek!">(async function* () {
    *   yield 1;
    *   yield 2;
    * });
@@ -359,7 +359,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * ```ts
    * import { Stream } from "anabranch";
    *
-   * const stream = new Source<number, string>(async function* () {
+   * const stream = Source.from<number, string>(async function* () {
    *   yield 1;
    *   yield 2;
    * });
@@ -377,7 +377,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * ```ts
    * import { Stream } from "anabranch";
    *
-   * const stream = new Source<number, string>(async function* () {
+   * const stream = Source.from<number, string>(async function* () {
    *   yield 1;
    *   yield 2;
    * });
@@ -420,7 +420,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * ```ts
    * import { Source } from "anabranch";
    *
-   * const stream = new Source<number, Error>(async function* () {
+   * const stream = Source.from<number, Error>(async function* () {
    *   yield 1;
    *   yield 2;
    *   yield 3;

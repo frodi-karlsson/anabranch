@@ -14,7 +14,7 @@ const mockDb = {
   },
 };
 
-const userStream = new Source<UserRecord, Error>(async function* () {
+const userStream = Source.from<UserRecord, Error>(async function* () {
   for (let i = 1; i <= 23; i++) {
     yield {
       id: String(i),

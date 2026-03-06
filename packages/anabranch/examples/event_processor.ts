@@ -9,7 +9,7 @@ interface Event {
 class FatalError extends Error {}
 
 function createEventStream() {
-  return new Source<Event, Error>(async function* () {
+  return Source.from<Event, Error>(async function* () {
     yield { type: "info", message: "System started" };
     yield { type: "info", message: "Cache initialized" };
     yield { type: "metric", message: "cpu_usage", value: 45 };

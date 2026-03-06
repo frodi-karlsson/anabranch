@@ -30,12 +30,14 @@ export class BrokenLinkChecker {
     this.concurrency = options?.concurrency ?? 10;
     this.timeout = options?.timeout ?? 30_000;
     this.logLevel = options?.logLevel ?? "warn";
-    this.client = new WebClient({
-      timeout: this.timeout,
-      retry: options?.retry,
-      fetch: options?.fetch,
-      headers: { "User-Agent": options?.userAgent ?? "BrokenLinkChecker/1.0" },
-    });
+    let client = WebClient.create()
+      .withTimeout(this.timeout)
+      .withHeaders({
+        "User-Agent": options?.userAgent ?? "BrokenLinkChecker/1.0",
+      });
+    if (options?.retry) client = client.withRetry(options.retry);
+    if (options?.fetch) client = client.withFetch(options.fetch);
+    this.client = client;
     this.urlFilters = [];
     this.keepBrokenPredicates = [];
   }

@@ -11,30 +11,6 @@ export type Method =
   | "OPTIONS";
 
 /**
- * Configuration options for creating a WebClient instance.
- * @example
- * ```ts
- * new WebClient({ baseUrl: "https://api.example.com/v1" })
- * ```
- */
-export interface WebClientOptions {
-  /** @default undefined */
-  baseUrl?: string | URL;
-
-  /** @default {} */
-  headers?: Record<string, string>;
-
-  /** @default 30000 */
-  timeout?: number;
-
-  /** @default { attempts: 3, delay: (n) => 1000 * 2 ** n, when: retries on 408/429/5xx } */
-  retry?: RetryOptions;
-
-  /** @default globalThis.fetch */
-  fetch?: typeof globalThis.fetch;
-}
-
-/**
  * Options for an individual request, overriding client defaults.
  */
 export interface RequestOptions {

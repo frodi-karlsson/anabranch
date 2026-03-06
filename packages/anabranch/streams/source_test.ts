@@ -19,7 +19,7 @@ Deno.test("Source.from - should create a stream", async () => {
 Deno.test(
   "Source.withConcurrency - should clone with updated concurrency",
   async () => {
-    const stream = new Source<number, string>(async function* () {
+    const stream = Source.from<number, string>(async function* () {
       yield 1;
     });
     const withConcurrency = stream.withConcurrency(2);
@@ -33,7 +33,7 @@ Deno.test(
 Deno.test(
   "Source.withBufferSize - should clone with updated buffer size",
   async () => {
-    const stream = new Source<number, string>(async function* () {
+    const stream = Source.from<number, string>(async function* () {
       yield 1;
     });
     const withBufferSize = stream.withBufferSize(4);

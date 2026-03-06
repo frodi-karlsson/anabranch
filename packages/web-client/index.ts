@@ -2,9 +2,10 @@
  * A lightweight HTTP client built on `fetch` with automatic retries,
  * configurable timeouts, and rate-limit handling via `Retry-After`.
  *
- * The entry point is {@link WebClient}. Construct it once with shared defaults
- * (base URL, headers, timeout, retry policy) and call
- * {@link WebClient.get get}, {@link WebClient.post post}, etc. Each method
+ * The entry point is {@link WebClient}. Call {@link WebClient.create} to get a
+ * client with defaults, then chain {@link WebClient.withBaseUrl withBaseUrl},
+ * {@link WebClient.withHeaders withHeaders}, {@link WebClient.withTimeout withTimeout},
+ * and {@link WebClient.withRetry withRetry} to configure it. Each HTTP method
  * returns a {@link Task} so you can chain `.map`, `.recover`, and `.retry`
  * before calling `.run()`.
  *
@@ -12,11 +13,10 @@
  * ```ts
  * import { WebClient } from "@anabranch/web-client";
  *
- * const client = new WebClient({
- *   baseUrl: "https://api.example.com",
- *   timeout: 10_000,
- *   retry: { attempts: 3 },
- * });
+ * const client = WebClient.create()
+ *   .withBaseUrl("https://api.example.com")
+ *   .withTimeout(10_000)
+ *   .withRetry({ attempts: 3 });
  *
  * const user = await client.get("/users/1").map(r => r.data).run();
  * ```
@@ -29,5 +29,5 @@ export type {
   Method,
   RequestOptions,
   ResponseResult,
-  WebClientOptions,
+  RetryOptions,
 } from "./types.ts";

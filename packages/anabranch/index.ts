@@ -15,7 +15,7 @@
  * ```ts
  * import { Source } from "anabranch";
  *
- * const { successes, errors } = await new Source<string, Error>(
+ * const { successes, errors } = await Source.from<string, Error>(
  *   async function* () {
  *     yield "https://example.com/1";
  *     yield "https://example.com/2";

@@ -27,7 +27,7 @@ only on successes; errors pass through until you decide what to do with them.
 ```ts
 import { Source } from "anabranch";
 
-const stream = new Source<string, Error>(async function* () {
+const stream = Source.from<string, Error>(async function* () {
   yield "https://example.com/1";
   yield "https://example.com/2";
   yield "https://example.com/3";
@@ -66,7 +66,7 @@ Use `Source` with an async generator, or `Source.from()` for an existing
 `AsyncIterable`:
 
 ```ts
-const stream = new Source<number, Error>(async function* () {
+const stream = Source.from<number, Error>(async function* () {
   yield 1;
   yield 2;
   yield 3;
@@ -230,7 +230,7 @@ stream.throwOn((e): e is FatalError => e instanceof FatalError);
 `scan` is like `fold` but emits the running accumulator after each value:
 
 ```ts
-const payments = new Source<Payment, Error>(async function* () {
+const payments = Source.from<Payment, Error>(async function* () {
   /* stream of payment events */
 });
 
@@ -242,7 +242,7 @@ payments
 `chunks` groups consecutive successes into fixed-size arrays:
 
 ```ts
-const records = new Source<Record, Error>(async function* () {
+const records = Source.from<Record, Error>(async function* () {
   /* stream of database records */
 });
 
@@ -255,7 +255,7 @@ records
 ### Concurrency and backpressure
 
 ```ts
-new Source(generator)
+Source.from(generator)
   .withConcurrency(8) // up to 8 concurrent map/flatMap operations
   .withBufferSize(16); // pause the source if results pile up
 ```
