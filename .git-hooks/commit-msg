@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# Commit message format: type(scope): description
+# - type: feat, fix, chore, docs, refactor, etc.
+# - scope: package name (fs, anabranch, web-client) or project
+# - description: short lowercase summary
+
+MSG_FILE="$1"
+
+# Skip if this is a merge commit
+if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
+    exit 0
+fi
+
+MSG=$(cat "$MSG_FILE")
+
+# Pattern: type(scope): description
+# Examples:
+#   chore(fs): add new function
+#   fix(anabranch): channel race condition
+#   chore(project): update ci
+if ! echo "$MSG" | grep -EqE '^[a-z]+\([^)]+\): .+'; then
+    echo "ERROR: Invalid commit message format."
+    echo ""
+    echo "Expected: type(scope): description"
+    echo "Examples:"
+    echo "  chore(fs): add new function"
+    echo "  fix(anabranch): channel race condition"
+    echo "  chore(project): update ci"
+    echo ""
+    echo "For management tasks, use 'project' as scope."
+    exit 1
+fi
+
+exit 0

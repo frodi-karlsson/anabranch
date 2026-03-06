@@ -17,3 +17,9 @@
 - All exported symbols must have JSDoc with a one-line summary. Use `@default`
   for default values and `@example` for usage examples. Avoid `@param`,
   `@returns`, and redundant type information in documentation.
+- Commit messages use the format `type(scope): description`. For management
+  tasks use `project` as the scope. Multiple scopes can be comma-separated:
+  - `feat(fs): add readLines function`
+  - `fix(anabranch): channel race condition`
+  - `chore(project): update ci workflows`
+  - `feat(fs,broken-link-checker): add new shared utils`
