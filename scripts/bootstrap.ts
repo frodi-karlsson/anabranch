@@ -202,6 +202,47 @@ Deno.test({
     );
   }
 
+  // Update .github/workflows/ci.yml
+  const ciPath = `${repoRoot}/.github/workflows/ci.yml`;
+  log(`update ${ciPath}`);
+  if (dryRun) {
+    log(`  + tag trigger: "${pkgName}@*"`);
+    log(`  + job: publish-jsr-${pkgName}`);
+    log(`  + job: publish-npm-${pkgName}`);
+  } else {
+    let ciContent = await Deno.readTextFile(ciPath);
+    // Add tag trigger
+    if (!ciContent.includes(`"${pkgName}@*"`)) {
+      ciContent = ciContent.replace(
+        /("fs@\*"\s*\n\s*pull_request:)/,
+        `  - "${pkgName}@*"\n$1`,
+      );
+    }
+    // Add publish jobs before the closing brace
+    const publishJobs = `
+  publish-jsr-${pkgName}:
+    needs: check
+    if: startsWith(github.ref, 'refs/tags/${pkgName}@')
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-jsr.yml
+    with:
+      package: ${pkgName}
+
+  publish-npm-${pkgName}:
+    needs: check
+    if: startsWith(github.ref, 'refs/tags/${pkgName}@')
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-npm.yml
+    with:
+      package: ${pkgName}`;
+    ciContent = ciContent.replace(/\n\}$/, `${publishJobs}\n}`);
+    await Deno.writeTextFile(ciPath, ciContent);
+  }
+
   // Format created files
   log(`format created files`);
   if (!dryRun) {
