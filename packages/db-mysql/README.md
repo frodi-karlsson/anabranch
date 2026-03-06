@@ -2,7 +2,8 @@
 
 MySQL database connector for the @anabranch/db package using `mysql2`.
 
-Provides a `DBConnector` implementation with connection pooling for MySQL databases.
+Provides a `DBConnector` implementation with connection pooling for MySQL
+databases.
 
 ## Usage
 
@@ -100,5 +101,6 @@ npm install @anabranch/db-mysql @anabranch/db mysql2
 See [@anabranch/db](https://jsr.io/@anabranch/db) for the core database
 abstraction.
 
-See [generated documentation](https://frodi-karlsson.github.io/anabranch/db-mysql) for
-full API details.
+See
+[generated documentation](https://frodi-karlsson.github.io/anabranch/db-mysql)
+for full API details.

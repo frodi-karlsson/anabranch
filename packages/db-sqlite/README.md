@@ -1,6 +1,7 @@
 # @anabranch/db-sqlite
 
-SQLite database connector for the @anabranch/db package using Node.js built-in `node:sqlite`.
+SQLite database connector for the @anabranch/db package using Node.js built-in
+`node:sqlite`.
 
 Provides a `DBConnector` implementation using SQLite's synchronous database for
 in-memory or file-based databases.
@@ -55,7 +56,8 @@ No environment variables are used. All options must be passed explicitly.
 ## Requirements
 
 - Node.js 22.5+ or Deno 2.x+
-- For file-based databases, ensure the process has write access to the parent directory
+- For file-based databases, ensure the process has write access to the parent
+  directory
 
 ## Installation
 
@@ -74,5 +76,6 @@ npm install @anabranch/db-sqlite @anabranch/db
 See [@anabranch/db](https://jsr.io/@anabranch/db) for the core database
 abstraction.
 
-See [generated documentation](https://frodi-karlsson.github.io/anabranch/db-sqlite) for
-full API details.
+See
+[generated documentation](https://frodi-karlsson.github.io/anabranch/db-sqlite)
+for full API details.
