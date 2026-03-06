@@ -2,6 +2,7 @@
   "workspace": [
     "./packages/anabranch",
     "./packages/broken-link-checker",
+    "./packages/fs",
     "./packages/web-client"
   ],
   "lint": {
@@ -36,17 +37,19 @@
     }
   },
   "tasks": {
-    "check": "deno fmt --check && deno lint && deno test",
-    "doc": "deno task doc:anabranch && deno task doc:web-client && deno task doc:broken-link-checker && cp docs-src/index.html docs/index.html",
+    "check": "deno fmt --check && deno lint && deno test --allow-read --allow-write --allow-sys",
+    "doc": "deno task doc:anabranch && deno task doc:web-client && deno task doc:broken-link-checker && deno task doc:fs && cp docs-src/index.html docs/index.html",
     "doc:anabranch": "mkdir -p docs/anabranch && deno doc --html --name=anabranch --output=docs/anabranch ./packages/anabranch/index.ts",
     "doc:web-client": "mkdir -p docs/web-client && deno doc --html --name=web-client --output=docs/web-client ./packages/web-client/index.ts",
     "doc:broken-link-checker": "mkdir -p docs/broken-link-checker && deno doc --html --name=broken-link-checker --output=docs/broken-link-checker ./packages/broken-link-checker/index.ts",
     "doc:lint": "deno doc --lint ./packages/anabranch/index.ts",
-    "coverage": "deno test --coverage=packages/anabranch/coverage --clean && deno coverage ./packages/anabranch/coverage",
-    "coverage:html": "deno test --coverage=packages/anabranch/coverage --clean && deno coverage --html ./packages/anabranch/coverage",
-    "coverage:lcov": "deno test --coverage=packages/anabranch/coverage --clean && deno coverage --lcov --output=packages/anabranch/coverage.lcov ./packages/anabranch/coverage",
+    "coverage": "deno test --allow-read --allow-write --allow-sys --coverage=packages/anabranch/coverage --clean && deno coverage ./packages/anabranch/coverage",
+    "coverage:html": "deno test --allow-read --allow-write --allow-sys --coverage=packages/anabranch/coverage --clean && deno coverage --html ./packages/anabranch/coverage",
+    "coverage:lcov": "deno test --allow-read --allow-write --allow-sys --coverage=packages/anabranch/coverage --clean && deno coverage --lcov --output=packages/anabranch/coverage.lcov ./packages/anabranch/coverage",
     "build:npm": "deno run -A ./packages/anabranch/build_npm.ts",
     "build:npm:web-client": "deno run -A ./packages/web-client/build_npm.ts",
-    "build:npm:broken-link-checker": "deno run -A ./packages/broken-link-checker/build_npm.ts"
+    "build:npm:broken-link-checker": "deno run -A ./packages/broken-link-checker/build_npm.ts",
+    "doc:fs": "mkdir -p docs/fs && deno doc --html --name=fs --output=docs/fs ./packages/fs/index.ts",
+    "build:npm:fs": "deno run -A ./packages/fs/build_npm.ts"
   }
 }

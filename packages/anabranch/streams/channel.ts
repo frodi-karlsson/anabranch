@@ -4,6 +4,7 @@ import type { Result } from "./util.ts";
 interface ChannelOptions<T> {
   bufferSize?: number;
   onDrop?: (value: T) => void;
+  onClose?: () => void;
 }
 
 class ChannelSource<T, E> {
@@ -12,12 +13,14 @@ class ChannelSource<T, E> {
   private consumers: Array<() => void> = [];
   private readonly bufferSize: number;
   private readonly onDrop?: (value: T) => void;
+  private readonly onClose?: () => void;
 
   constructor(options: ChannelOptions<T> = {}) {
     this.bufferSize = Number.isFinite(options.bufferSize)
       ? Math.max(1, options.bufferSize!)
       : Infinity;
     this.onDrop = options.onDrop;
+    this.onClose = options.onClose;
   }
 
   send(value: T): void {
@@ -38,6 +41,7 @@ class ChannelSource<T, E> {
     if (this.closed) {
       return;
     }
+
     this.queue.push({ type: "error", error } as Result<T, E>);
     this.wake();
   }
@@ -58,20 +62,25 @@ class ChannelSource<T, E> {
   }
 
   async *generator(): AsyncGenerator<Result<T, E>> {
-    while (true) {
-      while (this.queue.length > 0) {
-        yield this.queue.shift()!;
-      }
+    try {
+      while (true) {
+        while (this.queue.length > 0) {
+          yield this.queue.shift()!;
+        }
 
-      if (this.closed && this.queue.length === 0) {
-        return;
-      }
+        if (this.closed && this.queue.length === 0) {
+          return;
+        }
 
-      if (this.queue.length === 0) {
-        await new Promise<void>((resolve) => {
-          this.consumers.push(resolve);
-        });
+        if (this.queue.length === 0) {
+          await new Promise<void>((resolve) => {
+            this.consumers.push(resolve);
+          });
+          if (this.queue.length > 0) continue;
+        }
       }
+    } finally {
+      this.onClose?.();
     }
   }
 }

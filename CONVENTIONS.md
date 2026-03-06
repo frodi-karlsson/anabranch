@@ -9,6 +9,10 @@
 - No default values for internal parameters where the caller can always be
   explicit; use destructured objects for boolean flags (e.g.
   `{ skipFilter }: { skipFilter: boolean }`).
+- Configurable classes use a private constructor, a static `create()` factory,
+  and immutable `with*()` chaining methods instead of a public constructor with
+  an options bag. Each `with*()` method returns a new instance. The options
+  interface is internal — do not export it.
 - Test names follow the pattern `Container.method - should description`.
 - All exported symbols must have JSDoc with a one-line summary. Use `@default`
   for default values and `@example` for usage examples. Avoid `@param`,

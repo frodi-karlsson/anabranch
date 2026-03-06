@@ -881,13 +881,18 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
     const bufferSize = this.bufferSize;
     return new _StreamImpl<T, E>(
       async function* () {
-        let count = 0;
-        for await (const result of source()) {
-          if (result.type === "success") {
-            if (count >= n) break;
-            count += 1;
+        const gen = source();
+        try {
+          let count = 0;
+          for await (const result of gen) {
+            if (result.type === "success") {
+              if (count >= n) break;
+              count += 1;
+            }
+            yield result;
           }
-          yield result;
+        } finally {
+          await gen.return(undefined);
         }
       },
       concurrency,
@@ -901,28 +906,30 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
     const bufferSize = this.bufferSize;
     return new _StreamImpl<T, E>(
       async function* () {
-        for await (const result of source()) {
-          if (result.type === "success") {
-            try {
-              const shouldContinue = fn(result.value);
-              if (
-                isPromise(shouldContinue)
-                  ? !(await shouldContinue)
-                  : !shouldContinue
-              ) {
+        const gen = source();
+        try {
+          for await (const result of gen) {
+            if (result.type === "success") {
+              try {
+                const shouldContinue = fn(result.value);
+                if (
+                  isPromise(shouldContinue)
+                    ? !(await shouldContinue)
+                    : !shouldContinue
+                ) {
+                  break;
+                }
+                yield result;
+              } catch (error) {
+                yield { type: "error", error: error as E } as Result<T, E>;
                 break;
               }
+            } else {
               yield result;
-            } catch (error) {
-              yield { type: "error", error: error as E } as Result<
-                T,
-                E
-              >;
-              break;
             }
-          } else {
-            yield result;
           }
+        } finally {
+          await gen.return(undefined);
         }
       },
       concurrency,
@@ -1072,7 +1079,7 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
     return accumulator;
   }
 
-  recoverWhen<E2 extends E, U>(
+  recoverWhen<E2 extends E, U = T>(
     guard: (error: E) => error is E2,
     fn: (error: E2) => Promisable<U>,
   ): Stream<T | U, Exclude<E, E2>> {

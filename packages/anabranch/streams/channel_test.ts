@@ -209,3 +209,53 @@ Deno.test("Channel.fail - should preserve error type", async () => {
   assertEquals(errors.length, 1);
   assertEquals(errors[0].message, "oops");
 });
+
+Deno.test("Channel.onClose - should call onClose when stream is exhausted", async () => {
+  let closed = false;
+  const ch = new Channel<number, string>({
+    onClose: () => {
+      closed = true;
+    },
+  });
+
+  ch.send(1);
+  ch.send(2);
+  ch.close();
+
+  await ch.toArray();
+  assertEquals(closed, true);
+});
+
+Deno.test("Channel.onClose - should call onClose when stream is cancelled early", async () => {
+  let closeCount = 0;
+  const ch = new Channel<number, string>({
+    onClose: () => {
+      closeCount++;
+    },
+  });
+
+  ch.send(1);
+  ch.send(2);
+  ch.send(3);
+
+  const taken = ch.take(1);
+  await taken.toArray();
+
+  assertEquals(closeCount, 1);
+});
+
+Deno.test("Channel.onClose - should call onClose once per consumer", async () => {
+  let closeCount = 0;
+  const ch = new Channel<number, string>({
+    onClose: () => {
+      closeCount++;
+    },
+  });
+
+  ch.send(1);
+  ch.close();
+
+  await ch.toArray();
+  await ch.toArray();
+  assertEquals(closeCount, 2);
+});
