@@ -146,19 +146,33 @@ Deno.test({
     );
   }
 
-  // Update root deno.json workspace
-  log(`update ${repoRoot}/deno.json workspace`);
+  // Update root deno.json workspace and tasks
+  log(`update ${repoRoot}/deno.json`);
   if (!dryRun) {
     const rootDeno = JSON.parse(
       await Deno.readTextFile(`${repoRoot}/deno.json`),
     );
     if (!rootDeno.workspace.includes(`./packages/${pkgName}`)) {
       rootDeno.workspace.push(`./packages/${pkgName}`);
-      await Deno.writeTextFile(
-        `${repoRoot}/deno.json`,
-        JSON.stringify(rootDeno, null, 2) + "\n",
+    }
+    // Add build:npm task for this package
+    rootDeno.tasks[`build:npm:${pkgName}`] =
+      `deno run -A ./packages/${pkgName}/build_npm.ts`;
+    // Add doc task for this package
+    rootDeno.tasks[`doc:${pkgName}`] =
+      `mkdir -p docs/${pkgName} && deno doc --html --name=${pkgName} --output=docs/${pkgName} ./packages/${pkgName}/index.ts`;
+    // Update main build:npm task to include this package
+    const existingBuildNpm = rootDeno.tasks["build:npm"];
+    if (existingBuildNpm && !existingBuildNpm.includes(pkgName)) {
+      rootDeno.tasks["build:npm"] = existingBuildNpm.replace(
+        /(\.\/packages\/[^/]+\/build_npm\.ts)(?!.*\1)/,
+        `$1 && deno run -A ./packages/${pkgName}/build_npm.ts`,
       );
     }
+    await Deno.writeTextFile(
+      `${repoRoot}/deno.json`,
+      JSON.stringify(rootDeno, null, 2) + "\n",
+    );
   }
 
   // Format created files
