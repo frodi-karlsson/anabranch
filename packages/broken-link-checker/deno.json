@@ -1,6 +1,6 @@
 {
   "name": "@anabranch/broken-link-checker",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "exports": "./index.ts",
   "imports": {
     "@anabranch/anabranch": "jsr:@anabranch/anabranch@^0",
