@@ -11,67 +11,6 @@ import {
   TransactionFailed,
 } from "./errors.ts";
 
-/** Database transaction with Task semantics. */
-export class DBTransaction {
-  constructor(private readonly adapter: DBTransactionAdapter) {}
-
-  query<T>(sql: string, params?: unknown[]): Task<T[], QueryFailed> {
-    return Task.of(async () => {
-      try {
-        return await this.adapter.query(sql, params) as T[];
-      } catch (error) {
-        if (error instanceof Error && error.message.includes("constraint")) {
-          throw new ConstraintViolation(sql, error.message);
-        }
-        throw new QueryFailed(
-          sql,
-          error instanceof Error ? error.message : String(error),
-        );
-      }
-    });
-  }
-
-  execute(sql: string, params?: unknown[]): Task<number, QueryFailed> {
-    return Task.of(async () => {
-      try {
-        return await this.adapter.execute(sql, params);
-      } catch (error) {
-        if (error instanceof Error && error.message.includes("constraint")) {
-          throw new ConstraintViolation(sql, error.message);
-        }
-        throw new QueryFailed(
-          sql,
-          error instanceof Error ? error.message : String(error),
-        );
-      }
-    });
-  }
-
-  commit(): Task<void, TransactionFailed> {
-    return Task.of(async () => {
-      try {
-        await this.adapter.commit();
-      } catch (error) {
-        throw new TransactionFailed(
-          error instanceof Error ? error.message : String(error),
-        );
-      }
-    });
-  }
-
-  rollback(): Task<void, TransactionFailed> {
-    return Task.of(async () => {
-      try {
-        await this.adapter.rollback();
-      } catch (error) {
-        throw new TransactionFailed(
-          error instanceof Error ? error.message : String(error),
-        );
-      }
-    });
-  }
-}
-
 /**
  * Database wrapper with Task/Stream semantics.
  *
@@ -237,5 +176,66 @@ export class DB {
         error instanceof Error ? error.message : String(error),
       )
     );
+  }
+}
+
+/** Database transaction with Task semantics. */
+export class DBTransaction {
+  constructor(private readonly adapter: DBTransactionAdapter) {}
+
+  query<T>(sql: string, params?: unknown[]): Task<T[], QueryFailed> {
+    return Task.of(async () => {
+      try {
+        return await this.adapter.query(sql, params) as T[];
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("constraint")) {
+          throw new ConstraintViolation(sql, error.message);
+        }
+        throw new QueryFailed(
+          sql,
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    });
+  }
+
+  execute(sql: string, params?: unknown[]): Task<number, QueryFailed> {
+    return Task.of(async () => {
+      try {
+        return await this.adapter.execute(sql, params);
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("constraint")) {
+          throw new ConstraintViolation(sql, error.message);
+        }
+        throw new QueryFailed(
+          sql,
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    });
+  }
+
+  commit(): Task<void, TransactionFailed> {
+    return Task.of(async () => {
+      try {
+        await this.adapter.commit();
+      } catch (error) {
+        throw new TransactionFailed(
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    });
+  }
+
+  rollback(): Task<void, TransactionFailed> {
+    return Task.of(async () => {
+      try {
+        await this.adapter.rollback();
+      } catch (error) {
+        throw new TransactionFailed(
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    });
   }
 }
