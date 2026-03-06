@@ -10,12 +10,12 @@ await build({
   outDir: `${dir}/npm`,
   shims: { deno: false },
   compilerOptions: {
-    lib: ["ESNext"],
+    lib: ["ESNext", "DOM"],
   },
   scriptModule: false,
   test: false,
   package: {
-    name: "@anabranch/db",
+    name: "@anabranch/db-postgres",
     version,
     description: "TODO: Add description",
     license: "MIT",
@@ -26,14 +26,14 @@ await build({
     bugs: {
       url: "https://github.com/frodi-karlsson/anabranch/issues",
     },
-    engines: {
-      node: ">=24.0.0",
+    dependencies: {
+      "@anabranch/db": "^0",
+      pg: "^8",
+      "pg-cursor": "^2",
     },
     devDependencies: {
-      "@types/node": "^24",
-    },
-    dependencies: {
-      anabranch: "^0",
+      "@types/pg": "^8",
+      "@types/pg-cursor": "^2",
     },
   },
   postBuild() {
