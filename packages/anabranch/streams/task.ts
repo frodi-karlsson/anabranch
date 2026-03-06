@@ -379,17 +379,17 @@ export class Task<T, E> {
     let onAbort: (() => void) | undefined;
     const abortPromise = new Promise<T>((_, reject) => {
       onAbort = () => {
-        signal.removeEventListener("abort", onAbort as EventListener);
+        signal.removeEventListener("abort", onAbort!);
         reject(signal.reason ?? (new Error("Task aborted") as E));
       };
-      signal.addEventListener("abort", onAbort as EventListener, {
+      signal.addEventListener("abort", onAbort, {
         once: true,
       });
     });
 
     return Promise.race([this.runTask(signal), abortPromise]).finally(() => {
       if (onAbort) {
-        signal.removeEventListener("abort", onAbort as EventListener);
+        signal.removeEventListener("abort", onAbort);
       }
     });
   }
@@ -413,17 +413,17 @@ export class Task<T, E> {
         if (timeoutId !== undefined) {
           clearTimeout(timeoutId);
         }
-        signal.removeEventListener("abort", onAbort as EventListener);
+        signal.removeEventListener("abort", onAbort!);
         reject(signal.reason ?? (new Error("Task aborted") as E));
       };
-      signal.addEventListener("abort", onAbort as EventListener, {
+      signal.addEventListener("abort", onAbort, {
         once: true,
       });
     });
 
     return Promise.race([sleepPromise, abortPromise]).finally(() => {
       if (onAbort) {
-        signal.removeEventListener("abort", onAbort as EventListener);
+        signal.removeEventListener("abort", onAbort);
       }
       if (timeoutId !== undefined) {
         clearTimeout(timeoutId);

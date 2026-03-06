@@ -29,6 +29,9 @@ await build({
     dependencies: {
       anabranch: "^0",
     },
+    devDependencies: {
+      "@types/node": "^20",
+    },
   },
   postBuild() {
     Deno.copyFileSync(`${dir}/../../LICENSE`, `${dir}/npm/LICENSE`);
