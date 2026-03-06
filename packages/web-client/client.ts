@@ -9,18 +9,6 @@ import type {
 
 const RETRYABLE_STATUS_CODES = [408, 429, 500, 502, 503, 504];
 
-interface ResolvedConfig {
-  baseUrl: URL | undefined;
-  headers: Record<string, string>;
-  timeout: number;
-  retry: {
-    attempts: number;
-    delay: number | ((attempt: number, error: HttpError) => number);
-    when: (error: HttpError) => boolean;
-  };
-  fetch: typeof globalThis.fetch;
-}
-
 /**
  * An HTTP client built on fetch with automatic retries and error handling.
  *
@@ -309,6 +297,18 @@ export class WebClient {
   ): Task<ResponseResult, HttpError> {
     return this.request(path, "DELETE", options);
   }
+}
+
+interface ResolvedConfig {
+  baseUrl: URL | undefined;
+  headers: Record<string, string>;
+  timeout: number;
+  retry: {
+    attempts: number;
+    delay: number | ((attempt: number, error: HttpError) => number);
+    when: (error: HttpError) => boolean;
+  };
+  fetch: typeof globalThis.fetch;
 }
 
 function parseRetryAfter(header: string | null): number | undefined {

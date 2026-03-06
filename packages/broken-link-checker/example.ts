@@ -18,12 +18,11 @@ async function main() {
 
   const startTime = Date.now();
 
-  const checker = new BrokenLinkChecker({
-    concurrency: 5,
-    timeout: 10_000,
-    retry: { attempts: 2, delay: (attempt) => 500 * 2 ** attempt },
-    logLevel: "debug",
-  })
+  const checker = BrokenLinkChecker.create()
+    .withConcurrency(5)
+    .withTimeout(10_000)
+    .withRetry({ attempts: 2, delay: (attempt) => 500 * 2 ** attempt })
+    .withLogLevel("debug")
     .filterUrls((url) => {
       const path = url.pathname;
       if (

@@ -7,11 +7,10 @@ Deno.test("BrokenLinkChecker.check - should report seed URL as ok when it return
   const fetch = mockFetch({
     "https://example.com/": makeResponse(200, "<html></html>"),
   });
-  const checker = new BrokenLinkChecker({
-    fetch,
-    retry: { attempts: 1, delay: () => 0 },
-  });
-  const { ok, broken } = await collectResults(checker, "https://example.com/");
+  const { ok, broken } = await collectResults(
+    baseChecker(fetch),
+    "https://example.com/",
+  );
   assertEquals(ok, [200]);
   assertEquals(broken, []);
 });
@@ -20,11 +19,10 @@ Deno.test("BrokenLinkChecker.check - should report seed URL as broken when it re
   const fetch = mockFetch({
     "https://example.com/": makeResponse(404, ""),
   });
-  const checker = new BrokenLinkChecker({
-    fetch,
-    retry: { attempts: 1, delay: () => 0 },
-  });
-  const { broken } = await collectResults(checker, "https://example.com/");
+  const { broken } = await collectResults(
+    baseChecker(fetch),
+    "https://example.com/",
+  );
   assertEquals(broken, ["https://example.com/"]);
 });
 
@@ -37,11 +35,10 @@ Deno.test("BrokenLinkChecker.check - should crawl discovered links from HTML", a
     "https://example.com/about": makeResponse(200, "<html></html>"),
     "https://example.com/contact": makeResponse(200, "<html></html>"),
   });
-  const checker = new BrokenLinkChecker({
-    fetch,
-    retry: { attempts: 1, delay: () => 0 },
-  });
-  const { ok, broken } = await collectResults(checker, "https://example.com/");
+  const { ok, broken } = await collectResults(
+    baseChecker(fetch),
+    "https://example.com/",
+  );
   assertEquals(broken, []);
   assertEquals(ok.length, 3);
 });
@@ -51,11 +48,10 @@ Deno.test("BrokenLinkChecker.check - should report broken links found during cra
     "https://example.com/": makeResponse(200, `<a href="/missing">missing</a>`),
     "https://example.com/missing": makeResponse(404, ""),
   });
-  const checker = new BrokenLinkChecker({
-    fetch,
-    retry: { attempts: 1, delay: () => 0 },
-  });
-  const { broken } = await collectResults(checker, "https://example.com/");
+  const { broken } = await collectResults(
+    baseChecker(fetch),
+    "https://example.com/",
+  );
   assertEquals(broken.includes("https://example.com/missing"), true);
 });
 
@@ -70,11 +66,10 @@ Deno.test("BrokenLinkChecker.check - should not crawl external links", async () 
       `<a href="/other">other</a>`,
     ),
   });
-  const checker = new BrokenLinkChecker({
-    fetch,
-    retry: { attempts: 1, delay: () => 0 },
-  });
-  const { ok } = await collectResults(checker, "https://example.com/");
+  const { ok } = await collectResults(
+    baseChecker(fetch),
+    "https://example.com/",
+  );
   // Only seed + external link, not /other (because external.com is not crawled)
   assertEquals(ok.length, 2);
 });
@@ -91,11 +86,7 @@ Deno.test("BrokenLinkChecker.check - should not visit the same URL twice", async
     }
     return Promise.resolve(makeResponse(200, "<html></html>"));
   };
-  const checker = new BrokenLinkChecker({
-    fetch,
-    retry: { attempts: 1, delay: () => 0 },
-  });
-  await collectResults(checker, "https://example.com/");
+  await collectResults(baseChecker(fetch), "https://example.com/");
   assertEquals(callCount, 2);
 });
 
@@ -107,11 +98,10 @@ Deno.test("BrokenLinkChecker.check - should report network errors as broken link
     }
     return Promise.reject(new TypeError("connection refused"));
   };
-  const checker = new BrokenLinkChecker({
-    fetch,
-    retry: { attempts: 1, delay: () => 0 },
-  });
-  const { broken } = await collectResults(checker, "https://example.com/");
+  const { broken } = await collectResults(
+    baseChecker(fetch),
+    "https://example.com/",
+  );
   assertEquals(broken, ["https://example.com/down"]);
 });
 
@@ -124,13 +114,10 @@ Deno.test("BrokenLinkChecker.check - should set isPath true for same-host and fa
     "https://example.com/local": makeResponse(200, "<html></html>"),
     "https://other.com/": makeResponse(200, "<html></html>"),
   });
-  const checker = new BrokenLinkChecker({
-    fetch,
-    retry: { attempts: 1, delay: () => 0 },
-  });
   const results: Array<{ url: string; isPath: boolean }> = [];
   for await (
-    const result of checker.check(["https://example.com/"]).successes()
+    const result of baseChecker(fetch).check(["https://example.com/"])
+      .successes()
   ) {
     results.push({ url: result.url.href, isPath: result.isPath });
   }
@@ -145,13 +132,10 @@ Deno.test("BrokenLinkChecker.check - should set parent to undefined for seed and
     "https://example.com/": makeResponse(200, `<a href="/child">child</a>`),
     "https://example.com/child": makeResponse(200, "<html></html>"),
   });
-  const checker = new BrokenLinkChecker({
-    fetch,
-    retry: { attempts: 1, delay: () => 0 },
-  });
   const results: Array<{ url: string; parent: string | undefined }> = [];
   for await (
-    const result of checker.check(["https://example.com/"]).successes()
+    const result of baseChecker(fetch).check(["https://example.com/"])
+      .successes()
   ) {
     results.push({ url: result.url.href, parent: result.parent?.href });
   }
@@ -169,10 +153,8 @@ Deno.test("BrokenLinkChecker.filterUrls - should prevent matching URLs from bein
     ),
     "https://example.com/public": makeResponse(200, "<html></html>"),
   });
-  const checker = new BrokenLinkChecker({
-    fetch,
-    retry: { attempts: 1, delay: () => 0 },
-  }).filterUrls((url) => !url.pathname.startsWith("/admin"));
+  const checker = baseChecker(fetch)
+    .filterUrls((url) => !url.pathname.startsWith("/admin"));
   const { ok } = await collectResults(checker, "https://example.com/");
   assertEquals(ok.length, 2);
 });
@@ -181,10 +163,8 @@ Deno.test("BrokenLinkChecker.filterUrls - should not apply to seed URL", async (
   const fetch = mockFetch({
     "https://example.com/admin": makeResponse(200, "<html></html>"),
   });
-  const checker = new BrokenLinkChecker({
-    fetch,
-    retry: { attempts: 1, delay: () => 0 },
-  }).filterUrls((url) => !url.pathname.startsWith("/admin"));
+  const checker = baseChecker(fetch)
+    .filterUrls((url) => !url.pathname.startsWith("/admin"));
   const { ok } = await collectResults(checker, "https://example.com/admin");
   assertEquals(ok, [200]);
 });
@@ -198,10 +178,8 @@ Deno.test("BrokenLinkChecker.keepBroken - should keep matching broken results in
     "https://example.com/auth": makeResponse(401, ""),
     "https://example.com/broken": makeResponse(404, ""),
   });
-  const checker = new BrokenLinkChecker({
-    fetch,
-    retry: { attempts: 1, delay: () => 0 },
-  }).keepBroken((result) => result.status !== 401);
+  const checker = baseChecker(fetch)
+    .keepBroken((result) => result.status !== 401);
   const { broken } = await collectResults(checker, "https://example.com/");
   assertEquals(broken, ["https://example.com/broken"]);
 });
@@ -216,11 +194,7 @@ Deno.test("BrokenLinkChecker.check - should support multiple entrypoints", async
     ),
     "https://example.com/page2": makeResponse(200, "<html></html>"),
   });
-  const checker = new BrokenLinkChecker({
-    fetch,
-    retry: { attempts: 1, delay: () => 0 },
-  });
-  const urls = await checker
+  const urls = await baseChecker(fetch)
     .check(["https://example.com/", "https://example.com/sitemap.xml"])
     .map((r) => r.url.href)
     .collect();
@@ -230,6 +204,12 @@ Deno.test("BrokenLinkChecker.check - should support multiple entrypoints", async
   assert(urls.includes("https://example.com/page2"));
   assert(urls.includes("https://example.com/sitemap.xml"));
 });
+
+function baseChecker(fetch: FetchFn): BrokenLinkChecker {
+  return BrokenLinkChecker.create()
+    .withFetch(fetch)
+    .withRetry({ attempts: 1, delay: () => 0 });
+}
 
 async function collectResults(
   checker: BrokenLinkChecker,

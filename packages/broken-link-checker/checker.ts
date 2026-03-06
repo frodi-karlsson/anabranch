@@ -1,57 +1,92 @@
 import { Channel, Source } from "@anabranch/anabranch";
 import type { Stream, Task } from "@anabranch/anabranch";
 import { WebClient } from "@anabranch/web-client";
-import type { HttpError, ResponseResult } from "@anabranch/web-client";
-import { _extractLinks, _extractLinksFromXml } from "./extract.ts";
 import type {
-  BrokenLinkCheckerOptions,
-  CheckResult,
-  LogLevel,
-} from "./types.ts";
+  HttpError,
+  ResponseResult,
+  RetryOptions,
+} from "@anabranch/web-client";
+import { _extractLinks, _extractLinksFromXml } from "./extract.ts";
+import type { CheckResult, LogLevel } from "./types.ts";
 
-function getText(data: unknown): Promise<string> {
-  if (typeof data === "string") return Promise.resolve(data);
-  if (data instanceof Blob) return data.text();
-  return Promise.resolve("");
-}
-
-/** A concurrent website crawler that finds broken links. */
+/**
+ * A concurrent website crawler that finds broken links.
+ *
+ * @example
+ * ```ts
+ * const { successes } = await BrokenLinkChecker.create()
+ *   .withConcurrency(20)
+ *   .withTimeout(10_000)
+ *   .keepBroken((r) => r.reason !== "Forbidden")
+ *   .check(["https://example.com", "https://example.com/sitemap.xml"])
+ *   .partition();
+ * ```
+ */
 export class BrokenLinkChecker {
-  private readonly concurrency: number;
-  private readonly timeout: number;
-  private readonly logLevel: LogLevel;
-  private readonly client: WebClient;
-  private readonly urlFilters: Array<(url: URL) => boolean>;
-  private readonly keepBrokenPredicates: Array<
-    (result: CheckResult) => boolean
-  >;
+  private readonly config: ResolvedConfig;
 
-  constructor(options?: BrokenLinkCheckerOptions) {
-    this.concurrency = options?.concurrency ?? 10;
-    this.timeout = options?.timeout ?? 30_000;
-    this.logLevel = options?.logLevel ?? "warn";
-    let client = WebClient.create()
-      .withTimeout(this.timeout)
-      .withHeaders({
-        "User-Agent": options?.userAgent ?? "BrokenLinkChecker/1.0",
-      });
-    if (options?.retry) client = client.withRetry(options.retry);
-    if (options?.fetch) client = client.withFetch(options.fetch);
-    this.client = client;
-    this.urlFilters = [];
-    this.keepBrokenPredicates = [];
+  private constructor(config: ResolvedConfig) {
+    this.config = config;
   }
 
-  /** Filter URLs before checking them. */
+  /** Creates a new BrokenLinkChecker with all defaults. */
+  static create(): BrokenLinkChecker {
+    return new BrokenLinkChecker({
+      concurrency: 10,
+      timeout: 30_000,
+      logLevel: "warn",
+      retry: undefined,
+      fetch: undefined,
+      userAgent: "BrokenLinkChecker/1.0",
+      urlFilters: [],
+      keepBrokenPredicates: [],
+    });
+  }
+
+  /** Returns a new BrokenLinkChecker with the given concurrency limit. */
+  withConcurrency(n: number): BrokenLinkChecker {
+    return new BrokenLinkChecker({ ...this.config, concurrency: n });
+  }
+
+  /** Returns a new BrokenLinkChecker with the given request timeout in milliseconds. */
+  withTimeout(ms: number): BrokenLinkChecker {
+    return new BrokenLinkChecker({ ...this.config, timeout: ms });
+  }
+
+  /** Returns a new BrokenLinkChecker with the given log level. */
+  withLogLevel(level: LogLevel): BrokenLinkChecker {
+    return new BrokenLinkChecker({ ...this.config, logLevel: level });
+  }
+
+  /** Returns a new BrokenLinkChecker with retry options merged into existing ones. */
+  withRetry(retry: RetryOptions): BrokenLinkChecker {
+    return new BrokenLinkChecker({ ...this.config, retry });
+  }
+
+  /** Returns a new BrokenLinkChecker using the given fetch function. */
+  withFetch(fetch: typeof globalThis.fetch): BrokenLinkChecker {
+    return new BrokenLinkChecker({ ...this.config, fetch });
+  }
+
+  /** Returns a new BrokenLinkChecker with the given User-Agent header. */
+  withUserAgent(ua: string): BrokenLinkChecker {
+    return new BrokenLinkChecker({ ...this.config, userAgent: ua });
+  }
+
+  /** Returns a new BrokenLinkChecker that filters URLs before checking them. */
   filterUrls(fn: (url: URL) => boolean): BrokenLinkChecker {
-    this.urlFilters.push(fn);
-    return this;
+    return new BrokenLinkChecker({
+      ...this.config,
+      urlFilters: [...this.config.urlFilters, fn],
+    });
   }
 
-  /** Keep broken links in results that match the predicate. */
+  /** Returns a new BrokenLinkChecker that keeps broken links matching the predicate in results. */
   keepBroken(fn: (result: CheckResult) => boolean): BrokenLinkChecker {
-    this.keepBrokenPredicates.push(fn);
-    return this;
+    return new BrokenLinkChecker({
+      ...this.config,
+      keepBrokenPredicates: [...this.config.keepBrokenPredicates, fn],
+    });
   }
 
   /**
@@ -60,18 +95,30 @@ export class BrokenLinkChecker {
    * (successes) from stream errors (errors).
    * @example
    * ```ts
-   * const { successes } = await new BrokenLinkChecker()
+   * const { successes } = await BrokenLinkChecker.create()
    *   .check(["https://example.com", "https://example.com/sitemap.xml"])
    *   .partition();
    * ```
    */
   check(startUrls: (string | URL)[]): Stream<CheckResult, Error> {
-    const seeds = startUrls.map((
-      u,
-    ) => (typeof u === "string" ? new URL(u) : u));
+    const seeds = startUrls.map((u) => typeof u === "string" ? new URL(u) : u);
     const hosts = new Set(seeds.map((s) => s.hostname));
-    const { concurrency, client, urlFilters, keepBrokenPredicates, logLevel } =
-      this;
+    const {
+      concurrency,
+      timeout,
+      logLevel,
+      retry,
+      fetch,
+      userAgent,
+      urlFilters,
+      keepBrokenPredicates,
+    } = this.config;
+
+    let client = WebClient.create()
+      .withTimeout(timeout)
+      .withHeaders({ "User-Agent": userAgent });
+    if (retry) client = client.withRetry(retry);
+    if (fetch) client = client.withFetch(fetch);
 
     const channel = new Channel<WorkItem>();
     const visited = new Set<string>();
@@ -209,6 +256,23 @@ export class BrokenLinkChecker {
         result.ok || keepBrokenPredicates.every((f) => f(result))
       );
   }
+}
+
+interface ResolvedConfig {
+  concurrency: number;
+  timeout: number;
+  logLevel: LogLevel;
+  retry: RetryOptions | undefined;
+  fetch: typeof globalThis.fetch | undefined;
+  userAgent: string;
+  urlFilters: ReadonlyArray<(url: URL) => boolean>;
+  keepBrokenPredicates: ReadonlyArray<(result: CheckResult) => boolean>;
+}
+
+function getText(data: unknown): Promise<string> {
+  if (typeof data === "string") return Promise.resolve(data);
+  if (data instanceof Blob) return data.text();
+  return Promise.resolve("");
 }
 
 const LEVEL_ORDER: LogLevel[] = ["debug", "info", "warn", "error", "none"];

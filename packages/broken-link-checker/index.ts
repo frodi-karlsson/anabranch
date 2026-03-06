@@ -12,10 +12,10 @@
  * ```ts
  * import { BrokenLinkChecker } from "@anabranch/broken-link-checker";
  *
- * const checker = new BrokenLinkChecker({ concurrency: 20, timeout: 10_000 });
- *
- * const { successes } = await checker
- *   .keepBroken(r => r.reason !== "Forbidden")
+ * const { successes } = await BrokenLinkChecker.create()
+ *   .withConcurrency(20)
+ *   .withTimeout(10_000)
+ *   .keepBroken((r) => r.reason !== "Forbidden")
  *   .check(["https://example.com", "https://example.com/sitemap.xml"])
  *   .partition();
  *
@@ -26,9 +26,4 @@
  * @module
  */
 export { BrokenLinkChecker } from "./checker.ts";
-export type {
-  BrokenLinkCheckerOptions,
-  CheckResult,
-  LogLevel,
-  RetryOptions,
-} from "./types.ts";
+export type { CheckResult, LogLevel, RetryOptions } from "./types.ts";
