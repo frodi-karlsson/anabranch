@@ -152,7 +152,8 @@ Deno.test({
   );
   const workspaceChange = !rootDeno.workspace.includes(`./packages/${pkgName}`);
   const existingBuildNpm = rootDeno.tasks["build:npm"] || "";
-  const buildNpmChanges = existingBuildNpm && !existingBuildNpm.includes(pkgName);
+  const buildNpmChanges = existingBuildNpm &&
+    !existingBuildNpm.includes(pkgName);
   const buildNpmTaskNew = !rootDeno.tasks[`build:npm:${pkgName}`];
   const docTaskNew = !rootDeno.tasks[`doc:${pkgName}`];
 
@@ -162,10 +163,14 @@ Deno.test({
       log(`  + workspace: "./packages/${pkgName}"`);
     }
     if (buildNpmTaskNew) {
-      log(`  + task: build:npm:${pkgName} = "deno run -A ./packages/${pkgName}/build_npm.ts"`);
+      log(
+        `  + task: build:npm:${pkgName} = "deno run -A ./packages/${pkgName}/build_npm.ts"`,
+      );
     }
     if (docTaskNew) {
-      log(`  + task: doc:${pkgName} = "mkdir -p docs/${pkgName} && deno doc --html ..."`);
+      log(
+        `  + task: doc:${pkgName} = "mkdir -p docs/${pkgName} && deno doc --html ..."`,
+      );
     }
     if (buildNpmChanges) {
       log(`  ~ task: build:npm (append build step for ${pkgName})`);
@@ -186,11 +191,10 @@ Deno.test({
     }
     // Update main build:npm task to include this package
     if (buildNpmChanges) {
-      rootDeno.tasks["build:npm"] =
-        existingBuildNpm.replace(
-          /(\.\/packages\/[^/]+\/build_npm\.ts)(?!.*\1)/,
-          `$1 && deno run -A ./packages/${pkgName}/build_npm.ts`,
-        );
+      rootDeno.tasks["build:npm"] = existingBuildNpm.replace(
+        /(\.\/packages\/[^/]+\/build_npm\.ts)(?!.*\1)/,
+        `$1 && deno run -A ./packages/${pkgName}/build_npm.ts`,
+      );
     }
     await Deno.writeTextFile(
       `${repoRoot}/deno.json`,
