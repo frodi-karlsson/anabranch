@@ -1,7 +1,58 @@
 import type { DBAdapter, DBConnector } from "@anabranch/db";
 import process from "node:process";
 
-/** Creates a MySQL connector with connection pooling. */
+/**
+ * Creates a MySQL connector with connection pooling.
+ *
+ * Uses mysql2 with promise API for MySQL databases. The connection pool
+ * manages multiple connections for concurrent operations. Each adapter
+ * acquisition gets a connection from the pool; releasing returns it.
+ *
+ * @example Connect with connection string
+ * ```ts
+ * import { DB } from "@anabranch/db";
+ * import { createMySQL } from "@anabranch/db-mysql";
+ *
+ * const users = await DB.withConnection(
+ *   createMySQL({ connectionString: "mysql://user:pass@localhost:3306/mydb" }),
+ *   (db) => db.query("SELECT * FROM users")
+ * ).run();
+ * ```
+ *
+ * @example Concurrent processing with retry on failure
+ * ```ts
+ * import { DB } from "@anabranch/db";
+ * import { createMySQL } from "@anabranch/db-mysql";
+ *
+ * const { successes, errors } = await DB.withConnection(createMySQL(), (db) =>
+ *   db.stream("SELECT * FROM users")
+ *     .withConcurrency(5)
+ *     .map(async (user) => {
+ *       const profile = await fetchProfile(user.id);
+ *       return enrichUser(user, profile);
+ *     })
+ *     .retry({ attempts: 3, delay: 100 })
+ *     .partition()
+ * ).run();
+ * ```
+ *
+ * @example Transactions with error handling
+ * ```ts
+ * import { DB, ConstraintViolation } from "@anabranch/db";
+ * import { createMySQL } from "@anabranch/db-mysql";
+ *
+ * const result = await DB.withConnection(createMySQL(), (db) =>
+ *   db.withTransaction(async (tx) => {
+ *     await tx.execute("INSERT INTO orders (user_id, total) VALUES (?, ?)", [userId, total]);
+ *     await tx.execute("UPDATE users SET order_count = order_count + 1 WHERE id = ?", [userId]);
+ *     return tx.query("SELECT LAST_INSERT_ID()");
+ *   })
+ * ).recoverWhen(
+ *   (e) => e instanceof ConstraintViolation,
+ *   (e) => ({ id: 0, error: e.message })
+ * ).run();
+ * ```
+ */
 export function createMySQL(options: MySQLOptions = {}): MySQLConnector {
   let mysql2: typeof import("npm:mysql2@^3");
   let pool: null | ReturnType<typeof mysql2.createPool> = null;

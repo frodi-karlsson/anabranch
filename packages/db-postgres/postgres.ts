@@ -5,7 +5,50 @@ import process from "node:process";
 
 const { Pool } = pg;
 
-/** Creates a PostgreSQL connector with connection pooling. */
+/**
+ * Creates a PostgreSQL connector with connection pooling.
+ *
+ * Returns a connector that can be used with {@link DB.withConnection} to
+ * acquire connections. Each call to `connect()` returns a new adapter with
+ * query, execute, and stream methods. The stream method uses pg-cursor for
+ * memory-efficient streaming of large result sets.
+ *
+ * @example Connect and query with error handling
+ * ```ts
+ * import { DB } from "@anabranch/db";
+ * import { createPostgres } from "@anabranch/db-postgres";
+ *
+ * const users = await DB.withConnection(createPostgres(), (db) =>
+ *   db.query("SELECT * FROM users WHERE active = ?", [true])
+ * ).run();
+ * ```
+ *
+ * @example Stream large result sets with concurrency
+ * ```ts
+ * import { DB } from "@anabranch/db";
+ * import { createPostgres } from "@anabranch/db-postgres";
+ *
+ * const { successes, errors } = await DB.withConnection(createPostgres(), (db) =>
+ *   db.stream("SELECT * FROM large_table")
+ *     .withConcurrency(10)
+ *     .map(row => processRow(row))
+ *     .partition()
+ * ).run();
+ * ```
+ *
+ * @example Transactions with automatic rollback
+ * ```ts
+ * import { DB } from "@anabranch/db";
+ * import { createPostgres } from "@anabranch/db-postgres";
+ *
+ * const result = await DB.withConnection(createPostgres(), (db) =>
+ *   db.withTransaction(async (tx) => {
+ *     await tx.execute("INSERT INTO orders (user_id) VALUES (?)", [userId]);
+ *     return tx.query("SELECT last_insert_rowid()");
+ *   })
+ * ).run();
+ * ```
+ */
 export function createPostgres(
   options: PostgresOptions = {},
 ): PostgresConnector {

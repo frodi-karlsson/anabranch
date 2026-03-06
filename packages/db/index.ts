@@ -2,22 +2,79 @@
  * @anabranch/db
  *
  * Database primitives with Task/Stream semantics for error-tolerant async operations.
+ * Integrates with anabranch's {@link Task}, {@link Stream}, {@link Source}, and
+ * {@link Channel} types for composable error handling and concurrent processing.
+ *
+ * ## Adapters vs Connectors
  *
  * A **DBConnector** produces connected **DBAdapter** instances. Use connectors for
- * production code to properly manage connection lifecycles.
+ * production code to properly manage connection lifecycles:
  *
- * @example
+ * - **Connector**: Manages connection pool/lifecycle, produces adapters
+ * - **Adapter**: Low-level query/execute/close interface
+ * - **DB**: Wrapper providing Task/Stream semantics over an adapter
+ *
+ * ## Core Types
+ *
+ * - {@link DBConnector} - Interface for connection factories
+ * - {@link DBAdapter} - Low-level database operations interface
+ * - {@link DB} - High-level wrapper with Task/Stream methods
+ * - {@link DBTransaction} - Transaction scope with commit/rollback
+ *
+ * ## Error Types
+ *
+ * All errors are typed for catchable handling:
+ * - {@link ConnectionFailed} - Connection establishment failed
+ * - {@link QueryFailed} - Query execution error
+ * - {@link ConstraintViolation} - Constraint violation (UNIQUE, FOREIGN KEY, etc.)
+ * - {@link TransactionFailed} - Transaction error
+ *
+ * @example Basic query with Task semantics
  * ```ts
  * import { DB, createInMemory } from "@anabranch/db";
  *
- * // Idiomatic usage with connector (recommended)
- * const result = await DB.withConnection(createInMemory(), (db) =>
- *   db.query("SELECT * FROM users")
+ * const users = await DB.withConnection(createInMemory(), (db) =>
+ *   db.query("SELECT * FROM users WHERE active = ?", [true])
  * ).run();
+ * ```
  *
- * // Bare adapter for testing or custom lifecycle management
- * const adapter = await createInMemory().connect();
- * const db = new DB(adapter);
+ * @example Streaming large result sets with error collection
+ * ```ts
+ * import { DB, createInMemory } from "@anabranch/db";
+ *
+ * const { successes, errors } = await DB.withConnection(createInMemory(), (db) =>
+ *   db.stream("SELECT * FROM large_table")
+ *     .withConcurrency(10)
+ *     .map(row => processRow(row))
+ *     .partition()
+ * ).run();
+ * ```
+ *
+ * @example Transactions with automatic rollback on error
+ * ```ts
+ * import { DB, ConstraintViolation, createInMemory } from "@anabranch/db";
+ *
+ * const result = await DB.withConnection(createInMemory(), (db) =>
+ *   db.withTransaction(async (tx) => {
+ *     await tx.execute("INSERT INTO orders (user_id) VALUES (?)", [userId]);
+ *     await tx.execute("UPDATE users SET order_count = order_count + 1 WHERE id = ?", [userId]);
+ *     return tx.query("SELECT last_insert_rowid()");
+ *   })
+ * ).recoverWhen(
+ *   (e) => e instanceof ConstraintViolation,
+ *   (e) => ({ id: 0, error: e.message })
+ * ).run();
+ * ```
+ *
+ * @example Retry with exponential backoff
+ * ```ts
+ * import { DB, createPostgres } from "@anabranch/db";
+ * import { createPostgres } from "@anabranch/db-postgres";
+ *
+ * const users = await DB.withConnection(createPostgres(), (db) =>
+ *   db.query("SELECT * FROM users")
+ *     .retry({ attempts: 3, delay: (attempt) => 100 * Math.pow(2, attempt) })
+ * ).run();
  * ```
  *
  * @module
