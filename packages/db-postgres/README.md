@@ -111,3 +111,6 @@ npm install @anabranch/db-postgres @anabranch/db pg pg-cursor
 
 See [@anabranch/db](https://jsr.io/@anabranch/db) for the core database
 abstraction.
+
+See [generated documentation](https://frodi-karlsson.github.io/anabranch/db-postgres) for
+full API details.
