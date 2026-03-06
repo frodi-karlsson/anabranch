@@ -1,6 +1,7 @@
 import type { DBAdapter, DBConnector } from "@anabranch/db";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 
+/** Creates a SQLite connector with a shared database instance. */
 export function createSqlite(options: SQLiteOptions = {}): SQLiteConnector {
   const filename = options.filename ?? ":memory:";
 
@@ -49,10 +50,14 @@ export function createSqlite(options: SQLiteOptions = {}): SQLiteConnector {
   };
 }
 
+/** SQLite database connector. */
 export interface SQLiteConnector extends DBConnector {
+  /** Closes the database connection. */
   end(): Promise<void>;
 }
 
+/** Connection options for SQLite. */
 export interface SQLiteOptions {
+  /** @default ":memory:" */
   filename?: string;
 }

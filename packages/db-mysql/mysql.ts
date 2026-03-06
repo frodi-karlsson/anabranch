@@ -1,6 +1,7 @@
 import type { DBAdapter, DBConnector } from "@anabranch/db";
 import process from "node:process";
 
+/** Creates a MySQL connector with connection pooling. */
 export function createMySQL(options: MySQLOptions = {}): MySQLConnector {
   let mysql2: typeof import("npm:mysql2@^3");
   let pool: null | ReturnType<typeof mysql2.createPool> = null;
@@ -75,15 +76,23 @@ export function createMySQL(options: MySQLOptions = {}): MySQLConnector {
   };
 }
 
+/** MySQL database connector. */
 export interface MySQLConnector extends DBConnector {
+  /** Closes the connection pool. */
   end(): Promise<void>;
 }
 
+/** Connection options for MySQL. */
 export interface MySQLOptions {
+  /** @default "localhost" */
   host?: string;
+  /** @default 3306 */
   port?: number;
+  /** @default "root" */
   user?: string;
+  /** @default "" */
   password?: string;
+  /** @default "mysql" */
   database?: string;
   connectionString?: string;
   connectionLimit?: number;

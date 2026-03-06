@@ -5,6 +5,7 @@ import process from "node:process";
 
 const { Pool } = pg;
 
+/** Creates a PostgreSQL connector with connection pooling. */
 export function createPostgres(
   options: PostgresOptions = {},
 ): PostgresConnector {
@@ -53,17 +54,31 @@ export function createPostgres(
   };
 }
 
-type PostgresOptions = {
+/** Connection options for PostgreSQL. */
+export type PostgresOptions = {
+  /** @default "localhost" */
   host?: string;
+  /** @default 5432 */
   port?: number;
+  /** @default "postgres" */
   user?: string;
+  /** @default "" */
   password?: string;
+  /** @default "postgres" */
   database?: string;
   connectionString?: string;
   max?: number;
   idleTimeoutMillis?: number;
   connectionTimeoutMillis?: number;
 };
+
+/** PostgreSQL database connector. */
+export interface PostgresConnector {
+  /** Connects and returns a DBAdapter for query execution. */
+  connect(signal?: AbortSignal): Promise<DBAdapter>;
+  /** Closes the connection pool. */
+  end(): Promise<void>;
+}
 
 function toPoolConfig(options: PostgresOptions) {
   if (options.connectionString) {
@@ -85,10 +100,3 @@ function toPoolConfig(options: PostgresOptions) {
     connectionTimeoutMillis: options.connectionTimeoutMillis,
   };
 }
-
-export interface PostgresConnector {
-  connect(signal?: AbortSignal): Promise<DBAdapter>;
-  end(): Promise<void>;
-}
-
-export type { PostgresOptions };
