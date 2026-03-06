@@ -2,9 +2,20 @@
 
 - Private class members have no `_` prefix.
 - Exported symbols not exposed in `index.ts` get a `_` prefix.
-- Newsletter ordering: things that consume go above things they consume —
-  interfaces below the classes that use them, helper functions at the bottom of
-  test files.
+- Newsletter ordering: things that consume go above things they consume. Public
+  exports first, then helpers, then interfaces. Example:
+  ```ts
+  // Public exports (things that consume)
+  export function createXxx(options: XxxOptions): XxxConnector { ... }
+  export class DB { ... }
+
+  // Helpers (internal utilities)
+  function toConfig(options: XxxOptions): Config { ... }
+
+  // Interfaces
+  export interface XxxConnector { ... }
+  export interface XxxOptions { ... }
+  ```
 - Prefer function declarations over `const` arrow functions.
 - No default values for internal parameters where the caller can always be
   explicit; use destructured objects for boolean flags (e.g.

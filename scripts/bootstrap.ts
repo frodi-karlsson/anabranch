@@ -268,6 +268,15 @@ Deno.test({
     console.log(`  1. Add functionality to ${pkgName}.ts`);
     console.log(`  2. Write tests in ${pkgName}_test.ts`);
     console.log("  3. Update README.md with usage examples");
-    console.log(`  4. Run: deno run -A scripts/bump.ts -p=${pkgName}`);
+    console.log(`  4. Add doc:${pkgName} to the "doc" task in deno.json`);
+    console.log(
+      `  5. Add publish jobs for ${pkgName} to .github/workflows/ci.yml`,
+    );
+    console.log("  6. Manually publish to npm");
+    console.log("  7. Set up OIDC");
+    console.log(
+      "  8. Create package in JSR and set up GitHub Actions connector",
+    );
+    console.log(`  9. Run: deno run -A scripts/bump.ts -p=${pkgName}`);
   }
 }
