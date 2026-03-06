@@ -10,7 +10,7 @@ await build({
   outDir: `${dir}/npm`,
   shims: { deno: false },
   compilerOptions: {
-    lib: ["ESNext", "DOM"],
+    lib: ["ESNext"],
   },
   scriptModule: false,
   test: false,
@@ -25,6 +25,12 @@ await build({
     },
     bugs: {
       url: "https://github.com/frodi-karlsson/anabranch/issues",
+    },
+    engines: {
+      node: ">=24.0.0",
+    },
+    devDependencies: {
+      "@types/node": "^24.0.0",
     },
     dependencies: {
       anabranch: "^0",
