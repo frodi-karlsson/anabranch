@@ -12,6 +12,24 @@ jobs:
   check:
     name: Check
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/deno
+          key: deno-${{ hashFiles('deno.lock') }}
+          restore-keys: deno-
+      - name: Format, lint, test
+        run: deno task check
+      - name: Coverage summary
+        run: deno task coverage
+
+  integration:
+    name: Integration
+    runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:16
@@ -48,13 +66,11 @@ jobs:
           path: ~/.cache/deno
           key: deno-${{ hashFiles('deno.lock') }}
           restore-keys: deno-
-      - name: Format, lint, test
-        run: deno task check
+      - name: Integration tests
+        run: deno task test:integration
         env:
           POSTGRES_URL: postgresql://postgres:postgres@localhost:5432/postgres
           MYSQL_URL: mysql://root:mysql@localhost:3306/mysql
-      - name: Coverage summary
-        run: deno task coverage
 
   docs:
     name: Deploy docs
@@ -82,7 +98,7 @@ jobs:
         uses: actions/deploy-pages@v4
 
   publish-jsr:
-    needs: check
+    needs: [check, integration]
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: read
@@ -92,7 +108,7 @@ jobs:
       tag: ${{ github.ref_name }}
 
   publish-npm:
-    needs: check
+    needs: [check, integration]
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: read
