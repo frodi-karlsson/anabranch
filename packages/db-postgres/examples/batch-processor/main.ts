@@ -7,7 +7,22 @@
  * - Partition to collect successes and errors separately
  * - Proper cleanup with try/finally
  *
- * Run: deno run -A examples/batch-processor/main.ts
+ * ## Setup
+ *
+ * Start PostgreSQL:
+ * ```
+ * docker run -d --name anabranch-postgres -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=postgres -p 5432:5432 postgres:16
+ * ```
+ *
+ * Run:
+ * ```
+ * deno run -A examples/batch-processor/main.ts
+ * ```
+ *
+ * Clean up:
+ * ```
+ * docker rm -f anabranch-postgres
+ * ```
  */
 
 import { DB } from "@anabranch/db";
