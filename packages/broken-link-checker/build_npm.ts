@@ -28,6 +28,7 @@ await build({
     },
     dependencies: {
       anabranch: "^0",
+      "@anabranch/web-client": "^0",
       linkedom: "^0",
     },
   },

@@ -36,7 +36,7 @@ async function main(): Promise<void> {
   log(`mkdir ${pkgDir}`);
   if (!dryRun) Deno.mkdirSync(pkgDir);
 
-  // Create deno.json
+  // Create deno.json with mappings for jsr dependencies
   const denoJson = {
     name: `@anabranch/${pkgName}`,
     version: "0.1.0",
@@ -48,6 +48,12 @@ async function main(): Promise<void> {
       "@anabranch/anabranch": "jsr:@anabranch/anabranch@^0",
       "@deno/dnt": "jsr:@deno/dnt@^0",
       "@std/assert": "jsr:@std/assert@^1",
+    },
+    mappings: {
+      "jsr:@anabranch/anabranch": {
+        name: "anabranch",
+        version: "^0",
+      },
     },
   };
   log(`write ${pkgDir}/deno.json`);
@@ -151,10 +157,6 @@ Deno.test({
     await Deno.readTextFile(`${repoRoot}/deno.json`),
   );
   const workspaceChange = !rootDeno.workspace.includes(`./packages/${pkgName}`);
-  const existingBuildNpm = rootDeno.tasks["build:npm"] || "";
-  const buildNpmChanges = existingBuildNpm &&
-    !existingBuildNpm.includes(pkgName);
-  const buildNpmTaskNew = !rootDeno.tasks[`build:npm:${pkgName}`];
   const docTaskNew = !rootDeno.tasks[`doc:${pkgName}`];
 
   log(`update ${repoRoot}/deno.json`);
@@ -162,85 +164,24 @@ Deno.test({
     if (workspaceChange) {
       log(`  + workspace: "./packages/${pkgName}"`);
     }
-    if (buildNpmTaskNew) {
-      log(
-        `  + task: build:npm:${pkgName} = "deno run -A ./packages/${pkgName}/build_npm.ts"`,
-      );
-    }
     if (docTaskNew) {
       log(
         `  + task: doc:${pkgName} = "mkdir -p docs/${pkgName} && deno doc --html ..."`,
       );
     }
-    if (buildNpmChanges) {
-      log(`  ~ task: build:npm (append build step for ${pkgName})`);
-    }
   } else {
     if (workspaceChange) {
       rootDeno.workspace.push(`./packages/${pkgName}`);
-    }
-    // Add build:npm task for this package
-    if (buildNpmTaskNew) {
-      rootDeno.tasks[`build:npm:${pkgName}`] =
-        `deno run -A ./packages/${pkgName}/build_npm.ts`;
     }
     // Add doc task for this package
     if (docTaskNew) {
       rootDeno.tasks[`doc:${pkgName}`] =
         `mkdir -p docs/${pkgName} && deno doc --html --name=${pkgName} --output=docs/${pkgName} ./packages/${pkgName}/index.ts`;
     }
-    // Update main build:npm task to include this package
-    if (buildNpmChanges) {
-      rootDeno.tasks["build:npm"] = existingBuildNpm.replace(
-        /(\.\/packages\/[^/]+\/build_npm\.ts)(?!.*\1)/,
-        `$1 && deno run -A ./packages/${pkgName}/build_npm.ts`,
-      );
-    }
     await Deno.writeTextFile(
       `${repoRoot}/deno.json`,
       JSON.stringify(rootDeno, null, 2) + "\n",
     );
-  }
-
-  // Update .github/workflows/ci.yml
-  const ciPath = `${repoRoot}/.github/workflows/ci.yml`;
-  log(`update ${ciPath}`);
-  if (dryRun) {
-    log(`  + tag trigger: "${pkgName}@*"`);
-    log(`  + job: publish-jsr-${pkgName}`);
-    log(`  + job: publish-npm-${pkgName}`);
-  } else {
-    let ciContent = await Deno.readTextFile(ciPath);
-    // Add tag trigger
-    if (!ciContent.includes(`"${pkgName}@*"`)) {
-      ciContent = ciContent.replace(
-        /("fs@\*"\s*\n\s*pull_request:)/,
-        `  - "${pkgName}@*"\n$1`,
-      );
-    }
-    // Add publish jobs before the closing brace
-    const publishJobs = `
-  publish-jsr-${pkgName}:
-    needs: check
-    if: startsWith(github.ref, 'refs/tags/${pkgName}@')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-jsr.yml
-    with:
-      package: ${pkgName}
-
-  publish-npm-${pkgName}:
-    needs: check
-    if: startsWith(github.ref, 'refs/tags/${pkgName}@')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-npm.yml
-    with:
-      package: ${pkgName}`;
-    ciContent = ciContent.replace(/\n\}$/, `${publishJobs}\n}`);
-    await Deno.writeTextFile(ciPath, ciContent);
   }
 
   // Format created files
@@ -269,9 +210,7 @@ Deno.test({
     console.log(`  2. Write tests in ${pkgName}_test.ts`);
     console.log("  3. Update README.md with usage examples");
     console.log(`  4. Add doc:${pkgName} to the "doc" task in deno.json`);
-    console.log(
-      `  5. Add publish jobs for ${pkgName} to .github/workflows/ci.yml`,
-    );
+    console.log("  5. CI is automatic - just tag to publish (see workflows)");
     console.log("  6. Manually publish to npm");
     console.log("  7. Set up OIDC");
     console.log(

@@ -16,5 +16,15 @@
     "npm:pg-cursor": "^2",
     "@deno/dnt": "jsr:@deno/dnt@^0",
     "@std/assert": "jsr:@std/assert@^1"
+  },
+  "mappings": {
+    "jsr:@anabranch/anabranch": {
+      "name": "anabranch",
+      "version": "^0"
+    },
+    "jsr:@anabranch/db": {
+      "name": "@anabranch/db",
+      "version": "^0"
+    }
   }
 }
