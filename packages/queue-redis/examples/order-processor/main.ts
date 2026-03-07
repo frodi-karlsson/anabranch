@@ -27,6 +27,7 @@
 
 import { Queue } from "@anabranch/queue";
 import { createRedis } from "../../index.ts";
+import process from "node:process";
 
 async function main() {
   const connector = createRedis({
@@ -54,7 +55,7 @@ async function main() {
 
     const results: OrderResult[] = [];
 
-    const { successes, errors } = await queue
+    const { errors } = await queue
       .stream<Order>("orders", { count: 10, concurrency: 5 })
       .map(async (msg) => {
         const order = msg.data;
@@ -64,7 +65,7 @@ async function main() {
           }] Order ${order.orderId} (${order.items.length} items, $${order.total})`,
         );
 
-        const result = await processOrder(order, msg.attempt);
+        const result = await processOrder(order);
         return { msg, result };
       })
       .tap(async ({ msg, result }) => {
@@ -106,7 +107,7 @@ async function main() {
       );
       dlqMessages.forEach((msg) => {
         console.log(
-          `  - ${msg.data.originalId}: attempt ${msg.data.attempt}, $${msg.data.data.total}`,
+          `  - ${msg.data.originalId}: $${msg.data.data.total}`,
         );
       });
     }
@@ -130,10 +131,7 @@ function generateTestOrders(count: number): Order[] {
   }));
 }
 
-async function processOrder(
-  order: Order,
-  attempt: number,
-): Promise<OrderResult> {
+async function processOrder(order: Order): Promise<OrderResult> {
   const orderNum = parseInt(order.orderId.split("-")[1]);
 
   if (orderNum % 11 === 0) {
@@ -179,6 +177,5 @@ interface DlqOrder {
   originalId: string;
   originalQueue: string;
   data: Order;
-  attempt: number;
   timestamp: number;
 }
