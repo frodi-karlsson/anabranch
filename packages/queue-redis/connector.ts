@@ -6,19 +6,7 @@ import type {
   QueueOptions,
 } from "@anabranch/queue";
 import { RedisAdapter } from "./adapter.ts";
-
-export interface RedisQueueOptions {
-  connection: string | RedisOptions;
-  prefix?: string;
-  queues?: Record<string, QueueOptions>;
-  defaultVisibilityTimeout?: number;
-  defaultMaxAttempts?: number;
-}
-
-export interface RedisConnector extends QueueConnector {
-  connect(): Promise<QueueAdapter>;
-  end(): Promise<void>;
-}
+import process from "node:process";
 
 export function createRedis(
   options?: string | RedisQueueOptions,
@@ -26,7 +14,7 @@ export function createRedis(
   const opts = typeof options === "string"
     ? { connection: options }
     : (options ?? {
-      connection: Deno.env.get("REDIS_URL") ?? "redis://localhost:6379",
+      connection: process.env["REDIS_URL"] ?? "redis://localhost:6379",
     });
   const prefix = opts.prefix ?? "abq";
   const queueConfigs = opts.queues ?? {};
@@ -58,4 +46,17 @@ export function createRedis(
       }
     },
   };
+}
+
+export interface RedisQueueOptions {
+  connection: string | RedisOptions;
+  prefix?: string;
+  queues?: Record<string, QueueOptions>;
+  defaultVisibilityTimeout?: number;
+  defaultMaxAttempts?: number;
+}
+
+export interface RedisConnector extends QueueConnector {
+  connect(): Promise<QueueAdapter>;
+  end(): Promise<void>;
 }

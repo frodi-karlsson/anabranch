@@ -12,7 +12,7 @@
     "jsr:@std/path@^1.1.4": "1.1.4",
     "jsr:@ts-morph/bootstrap@0.27": "0.27.0",
     "jsr:@ts-morph/common@0.27": "0.27.0",
-    "npm:@types/amqplib@0.10": "0.10.8",
+    "npm:@types/amqplib@0": "0.10.8",
     "npm:amqplib@0.10": "0.10.9",
     "npm:ioredis@5": "5.10.0",
     "npm:ioredis@^5.10.0": "5.10.0",
@@ -437,17 +437,14 @@
       },
       "packages/queue-rabbitmq": {
         "dependencies": [
-          "jsr:@anabranch/anabranch@0",
           "jsr:@anabranch/queue@0",
           "jsr:@deno/dnt@0",
           "jsr:@std/assert@1",
-          "npm:@types/amqplib@0.10",
-          "npm:amqplib@0.10"
+          "npm:@types/amqplib@0"
         ]
       },
       "packages/queue-redis": {
         "dependencies": [
-          "jsr:@anabranch/anabranch@0",
           "jsr:@anabranch/queue@0",
           "jsr:@deno/dnt@0",
           "jsr:@std/assert@1",

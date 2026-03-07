@@ -8,31 +8,6 @@ import type {
 } from "@anabranch/queue";
 import { QueueReceiveFailed, QueueSendFailed } from "@anabranch/queue";
 
-interface StoredMessage<T> {
-  id: string;
-  data: T;
-  attempt: number;
-  timestamp: number;
-  metadata?: {
-    headers?: Record<string, string>;
-    [key: string]: unknown;
-  };
-}
-
-interface AdapterOptions {
-  redis: RedisClient;
-  prefix: string;
-  queueConfigs: Record<string, QueueOptions>;
-  defaultVisibility: number;
-  defaultMaxAttempts: number;
-}
-
-interface QueueConfig {
-  maxAttempts: number;
-  visibilityTimeout: number;
-  deadLetterQueue: string;
-}
-
 export class RedisAdapter implements QueueAdapter {
   private readonly redis: RedisClient;
   private readonly prefix: string;
@@ -55,21 +30,6 @@ export class RedisAdapter implements QueueAdapter {
         deadLetterQueue: config.deadLetterQueue ?? "",
       });
     }
-  }
-
-  private getConfig(queue: string): QueueConfig {
-    if (!this.configs.has(queue)) {
-      this.configs.set(queue, {
-        maxAttempts: this.defaultMaxAttempts,
-        visibilityTimeout: this.defaultVisibility,
-        deadLetterQueue: "",
-      });
-    }
-    return this.configs.get(queue)!;
-  }
-
-  private key(queue: string, suffix: string): string {
-    return `${this.prefix}:${queue}:${suffix}`;
   }
 
   async send<T>(
@@ -239,8 +199,21 @@ export class RedisAdapter implements QueueAdapter {
     await this.redis.hdel(dataKey, id);
   }
 
-  async close(): Promise<void> {
-    // Connection is managed by the connector
+  async close(): Promise<void> {}
+
+  private getConfig(queue: string): QueueConfig {
+    if (!this.configs.has(queue)) {
+      this.configs.set(queue, {
+        maxAttempts: this.defaultMaxAttempts,
+        visibilityTimeout: this.defaultVisibility,
+        deadLetterQueue: "",
+      });
+    }
+    return this.configs.get(queue)!;
+  }
+
+  private key(queue: string, suffix: string): string {
+    return `${this.prefix}:${queue}:${suffix}`;
   }
 
   private async expireInflight(queue: string): Promise<void> {
@@ -270,10 +243,7 @@ export class RedisAdapter implements QueueAdapter {
 
   /**
    * Routes a message to the dead letter queue when attempt > maxAttempts.
-   * This mirrors the in-memory adapter behavior: messages are only DLQ'd
-   * after exceeding maxAttempts, not when equal to it. This means a message
-   * with maxAttempts=2 will be delivered 2 times before being DLQ'd on the
-   * 3rd delivery attempt.
+   * Mirrors in-memory adapter: messages DLQ'd after exceeding maxAttempts.
    */
   private async routeToDlq(
     sourceQueue: string,
@@ -308,4 +278,29 @@ export class RedisAdapter implements QueueAdapter {
       .hdel(dataKey, id)
       .exec();
   }
+}
+
+interface StoredMessage<T> {
+  id: string;
+  data: T;
+  attempt: number;
+  timestamp: number;
+  metadata?: {
+    headers?: Record<string, string>;
+    [key: string]: unknown;
+  };
+}
+
+interface AdapterOptions {
+  redis: RedisClient;
+  prefix: string;
+  queueConfigs: Record<string, QueueOptions>;
+  defaultVisibility: number;
+  defaultMaxAttempts: number;
+}
+
+interface QueueConfig {
+  maxAttempts: number;
+  visibilityTimeout: number;
+  deadLetterQueue: string;
 }

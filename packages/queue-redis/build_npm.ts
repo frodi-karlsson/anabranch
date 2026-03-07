@@ -6,7 +6,6 @@ const { version } = JSON.parse(await Deno.readTextFile(`${dir}/deno.json`));
 
 await emptyDir(`${dir}/npm`);
 
-const anabranchPath = resolve(dir, "../anabranch/index.ts");
 const queuePath = resolve(dir, "../queue/index.ts");
 
 await build({
@@ -14,7 +13,7 @@ await build({
   outDir: `${dir}/npm`,
   shims: { deno: false },
   compilerOptions: {
-    lib: ["ESNext", "DOM"],
+    lib: ["ESNext"],
   },
   scriptModule: false,
   test: false,
@@ -31,16 +30,11 @@ await build({
       url: "https://github.com/frodi-karlsson/anabranch/issues",
     },
     dependencies: {
-      anabranch: "^0",
       "@anabranch/queue": "^0",
       ioredis: "^5",
     },
   },
   mappings: {
-    [new URL(`file://${anabranchPath}`).href]: {
-      name: "anabranch",
-      version: "^0",
-    },
     [new URL(`file://${queuePath}`).href]: {
       name: "@anabranch/queue",
       version: "^0",

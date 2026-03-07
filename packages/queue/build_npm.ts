@@ -13,7 +13,7 @@ await build({
   outDir: `${dir}/npm`,
   shims: { deno: false },
   compilerOptions: {
-    lib: ["ESNext", "DOM"],
+    lib: ["ESNext"],
   },
   scriptModule: false,
   test: false,

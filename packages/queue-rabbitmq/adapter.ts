@@ -9,26 +9,6 @@ import type {
 } from "@anabranch/queue";
 import { QueueReceiveFailed, QueueSendFailed } from "@anabranch/queue";
 
-interface StoredEnvelope<T> {
-  id: string;
-  data: T;
-  timestamp: number;
-  attempt: number;
-  headers?: Record<string, string>;
-}
-
-interface QueueConfig {
-  maxAttempts: number;
-  deadLetterQueue: string;
-}
-
-interface AdapterOptions {
-  channel: Channel;
-  prefix: string;
-  queueConfigs: Record<string, QueueOptions>;
-  defaultPrefetch: number;
-}
-
 export class RabbitMQAdapter implements StreamAdapter {
   private readonly channel: Channel;
   private readonly prefix: string;
@@ -47,71 +27,6 @@ export class RabbitMQAdapter implements StreamAdapter {
     this.prefix = options.prefix;
     this.queueConfigs = options.queueConfigs;
     this.defaultPrefetch = options.defaultPrefetch;
-  }
-
-  private key(queue: string): string {
-    return `${this.prefix}.${queue}`;
-  }
-
-  private getConfig(queue: string): QueueConfig {
-    if (!this.configs.has(queue)) {
-      const raw = this.queueConfigs[queue] ?? {};
-      const dlqName = raw.deadLetterQueue
-        ? this.key(raw.deadLetterQueue)
-        : `${this.key(queue)}.failed`;
-      this.dlqNames.add(dlqName);
-      this.configs.set(queue, {
-        maxAttempts: raw.maxAttempts ?? 3,
-        deadLetterQueue: dlqName,
-      });
-    }
-    return this.configs.get(queue)!;
-  }
-
-  private async assertQueue(queue: string): Promise<void> {
-    const queueName = this.key(queue);
-    if (this.assertedQueues.has(queueName)) return;
-
-    const pending = this.pendingAssertions.get(queueName);
-    if (pending) {
-      return pending;
-    }
-
-    const isDlq = this.dlqNames.has(queueName);
-
-    let assertionPromise: Promise<void>;
-    if (isDlq) {
-      assertionPromise = (async () => {
-        await this.channel.assertQueue(queueName, { durable: true });
-        this.assertedQueues.add(queueName);
-      })();
-    } else {
-      const config = this.getConfig(queue);
-      const dlqName = config.deadLetterQueue;
-
-      assertionPromise = (async () => {
-        if (!this.assertedQueues.has(dlqName)) {
-          await this.channel.assertQueue(dlqName, { durable: true });
-          this.assertedQueues.add(dlqName);
-        }
-
-        await this.channel.assertQueue(queueName, {
-          durable: true,
-          arguments: {
-            "x-dead-letter-exchange": "",
-            "x-dead-letter-routing-key": dlqName,
-          },
-        });
-        this.assertedQueues.add(queueName);
-      })();
-    }
-
-    this.pendingAssertions.set(queueName, assertionPromise);
-    try {
-      await assertionPromise;
-    } finally {
-      this.pendingAssertions.delete(queueName);
-    }
   }
 
   async send<T>(
@@ -375,4 +290,89 @@ export class RabbitMQAdapter implements StreamAdapter {
       },
     };
   }
+
+  private key(queue: string): string {
+    return `${this.prefix}.${queue}`;
+  }
+
+  private getConfig(queue: string): QueueConfig {
+    if (!this.configs.has(queue)) {
+      const raw = this.queueConfigs[queue] ?? {};
+      const dlqName = raw.deadLetterQueue
+        ? this.key(raw.deadLetterQueue)
+        : `${this.key(queue)}.failed`;
+      this.dlqNames.add(dlqName);
+      this.configs.set(queue, {
+        maxAttempts: raw.maxAttempts ?? 3,
+        deadLetterQueue: dlqName,
+      });
+    }
+    return this.configs.get(queue)!;
+  }
+
+  private async assertQueue(queue: string): Promise<void> {
+    const queueName = this.key(queue);
+    if (this.assertedQueues.has(queueName)) return;
+
+    const pending = this.pendingAssertions.get(queueName);
+    if (pending) {
+      return pending;
+    }
+
+    const isDlq = this.dlqNames.has(queueName);
+
+    let assertionPromise: Promise<void>;
+    if (isDlq) {
+      assertionPromise = (async () => {
+        await this.channel.assertQueue(queueName, { durable: true });
+        this.assertedQueues.add(queueName);
+      })();
+    } else {
+      const config = this.getConfig(queue);
+      const dlqName = config.deadLetterQueue;
+
+      assertionPromise = (async () => {
+        if (!this.assertedQueues.has(dlqName)) {
+          await this.channel.assertQueue(dlqName, { durable: true });
+          this.assertedQueues.add(dlqName);
+        }
+
+        await this.channel.assertQueue(queueName, {
+          durable: true,
+          arguments: {
+            "x-dead-letter-exchange": "",
+            "x-dead-letter-routing-key": dlqName,
+          },
+        });
+        this.assertedQueues.add(queueName);
+      })();
+    }
+
+    this.pendingAssertions.set(queueName, assertionPromise);
+    try {
+      await assertionPromise;
+    } finally {
+      this.pendingAssertions.delete(queueName);
+    }
+  }
+}
+
+interface StoredEnvelope<T> {
+  id: string;
+  data: T;
+  timestamp: number;
+  attempt: number;
+  headers?: Record<string, string>;
+}
+
+interface QueueConfig {
+  maxAttempts: number;
+  deadLetterQueue: string;
+}
+
+interface AdapterOptions {
+  channel: Channel;
+  prefix: string;
+  queueConfigs: Record<string, QueueOptions>;
+  defaultPrefetch: number;
 }

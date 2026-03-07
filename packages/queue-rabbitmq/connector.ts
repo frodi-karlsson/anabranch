@@ -6,18 +6,7 @@ import type {
   QueueOptions,
 } from "@anabranch/queue";
 import { RabbitMQAdapter } from "./adapter.ts";
-
-export interface RabbitMQQueueOptions {
-  connection: string | object;
-  prefix?: string;
-  queues?: Record<string, QueueOptions>;
-  defaultPrefetch?: number;
-}
-
-export interface RabbitMQConnector extends QueueConnector {
-  connect(signal?: AbortSignal): Promise<QueueAdapter>;
-  end(): Promise<void>;
-}
+import process from "node:process";
 
 export function createRabbitMQ(
   options?: string | RabbitMQQueueOptions,
@@ -26,7 +15,7 @@ export function createRabbitMQ(
   const explicit = isString ? null : options;
   const connection = isString
     ? options
-    : explicit?.connection ?? Deno.env.get("RABBITMQ_URL") ??
+    : explicit?.connection ?? process.env["RABBITMQ_URL"] ??
       "amqp://localhost:5672";
   const prefix = explicit?.prefix ?? "abq";
   const queueConfigs = explicit?.queues ?? {};
@@ -65,4 +54,16 @@ export function createRabbitMQ(
       }
     },
   };
+}
+
+export interface RabbitMQQueueOptions {
+  connection: string | object;
+  prefix?: string;
+  queues?: Record<string, QueueOptions>;
+  defaultPrefetch?: number;
+}
+
+export interface RabbitMQConnector extends QueueConnector {
+  connect(signal?: AbortSignal): Promise<QueueAdapter>;
+  end(): Promise<void>;
 }
