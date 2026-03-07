@@ -1,9 +1,12 @@
 import { build, emptyDir } from "@deno/dnt";
+import { resolve } from "node:path";
 
 const dir = import.meta.dirname!;
 const { version } = JSON.parse(await Deno.readTextFile(`${dir}/deno.json`));
 
 await emptyDir(`${dir}/npm`);
+
+const anabranchPath = resolve(dir, "../anabranch/index.ts");
 
 await build({
   entryPoints: [`${dir}/index.ts`],
@@ -29,6 +32,12 @@ await build({
     },
     dependencies: {
       anabranch: "^0",
+    },
+  },
+  mappings: {
+    [new URL(`file://${anabranchPath}`).href]: {
+      name: "anabranch",
+      version: "^0",
     },
   },
   postBuild() {

@@ -1,9 +1,12 @@
 import { build, emptyDir } from "@deno/dnt";
+import { resolve } from "node:path";
 
 const dir = import.meta.dirname!;
 const { version } = JSON.parse(await Deno.readTextFile(`${dir}/deno.json`));
 
 await emptyDir(`${dir}/npm`);
+
+const webClientPath = resolve(dir, "../web-client/index.ts");
 
 await build({
   entryPoints: [`${dir}/index.ts`],
@@ -30,6 +33,12 @@ await build({
       anabranch: "^0",
       "@anabranch/web-client": "^0",
       linkedom: "^0",
+    },
+  },
+  mappings: {
+    [new URL(`file://${webClientPath}`).href]: {
+      name: "@anabranch/web-client",
+      version: "^0",
     },
   },
   postBuild() {

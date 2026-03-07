@@ -36,7 +36,7 @@ async function main(): Promise<void> {
   log(`mkdir ${pkgDir}`);
   if (!dryRun) Deno.mkdirSync(pkgDir);
 
-  // Create deno.json with mappings for jsr dependencies
+  // Create deno.json with mappings for npm dependencies
   const denoJson = {
     name: `@anabranch/${pkgName}`,
     version: "0.1.0",
@@ -50,7 +50,7 @@ async function main(): Promise<void> {
       "@std/assert": "jsr:@std/assert@^1",
     },
     mappings: {
-      "jsr:@anabranch/anabranch": {
+      "@anabranch/anabranch": {
         name: "anabranch",
         version: "^0",
       },
@@ -95,11 +95,14 @@ import { } from "@anabranch/${pkgName}";
 
   // Create build_npm.ts
   const buildNpm = `import { build, emptyDir } from "@deno/dnt";
+import { resolve } from "node:path";
 
 const dir = import.meta.dirname!;
 const { version } = JSON.parse(await Deno.readTextFile(\`\${dir}/deno.json\`));
 
 await emptyDir(\`\${dir}/npm\`);
+
+const anabranchPath = resolve(dir, "../anabranch/index.ts");
 
 await build({
   entryPoints: [\`\${dir}/index.ts\`],
@@ -120,10 +123,16 @@ await build({
       url: "git+https://github.com/frodi-karlsson/anabranch.git",
     },
     bugs: {
-      url: "https://github.com/frodi-karlsson/anabranch/issues",
+      url: "https://github.com/frodi-karlsson/anabranch.git",
     },
     dependencies: {
       anabranch: "^0",
+    },
+  },
+  mappings: {
+    [new URL(\`file://\${anabranchPath}\`).href]: {
+      name: "anabranch",
+      version: "^0",
     },
   },
   postBuild() {
