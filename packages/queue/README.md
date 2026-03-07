@@ -36,23 +36,28 @@ deno add @anabranch/queue
 import { createInMemory, Queue } from "@anabranch/queue";
 
 const connector = createInMemory();
+const queue = await Queue.connect(connector).run();
 
 // Send a message
-const id = await Queue.withConnection(
-  connector,
-  (queue) => queue.send("notifications", { type: "welcome", userId: 123 }),
-).run();
+const id = await queue
+  .send("notifications", { type: "welcome", userId: 123 })
+  .run();
 
 // Process messages with error collection
-const { successes, errors } = await Queue.withConnection(
-  connector,
-  (queue) =>
-    Task.of(() =>
-      queue.stream("notifications", { concurrency: 5 })
-        .map(async (msg) => await sendNotification(msg.data))
-        .tapErr((err) => logError(err))
-    ),
-).partition();
+const { successes, errors } = await queue
+  .stream("notifications", { concurrency: 5 })
+  .map(async (msg) => await sendNotification(msg.data))
+  .tapErr((err) => logError(err))
+  .collect()
+  .then((results) => {
+    const successes: typeof results = [];
+    const errors: typeof results = [];
+    for (const r of results) {
+      if (r.type === "success") successes.push(r);
+      else errors.push(r);
+    }
+    return { successes, errors };
+  });
 ```
 
 ## API
@@ -62,10 +67,7 @@ const { successes, errors } = await Queue.withConnection(
 Send a message to a queue with optional delay:
 
 ```ts
-await Queue.withConnection(
-  connector,
-  (queue) => queue.send("my-queue", { key: "value" }, { delayMs: 30_000 }),
-).run();
+await queue.send("my-queue", { key: "value" }, { delayMs: 30_000 }).run();
 ```
 
 ### Queue.stream
@@ -73,14 +75,10 @@ await Queue.withConnection(
 Stream messages with concurrent processing:
 
 ```ts
-const { successes, errors } = await Queue.withConnection(
-  connector,
-  (queue) =>
-    Task.of(() =>
-      queue.stream("orders", { count: 10, concurrency: 10 })
-        .map(async (msg) => await processOrder(msg.data))
-    ),
-).partition();
+const { successes, errors } = await queue
+  .stream("orders", { count: 10, concurrency: 10 })
+  .map(async (msg) => await processOrder(msg.data))
+  .partition();
 ```
 
 ### Queue.ack / Queue.nack
@@ -88,16 +86,10 @@ const { successes, errors } = await Queue.withConnection(
 Acknowledge successful processing or negative acknowledge with requeue:
 
 ```ts
-await Queue.withConnection(
-  connector,
-  (queue) => queue.nack("orders", msg.id, { requeue: true, delay: 5_000 }),
-).run();
+await queue.nack("orders", msg.id, { requeue: true, delay: 5_000 }).run();
 
 // Or route to dead letter queue
-await Queue.withConnection(
-  connector,
-  (queue) => queue.nack("orders", msg.id, { deadLetter: true }),
-).run();
+await queue.nack("orders", msg.id, { deadLetter: true }).run();
 ```
 
 ### Queue.sendBatch
@@ -105,14 +97,12 @@ await Queue.withConnection(
 Send multiple messages efficiently:
 
 ```ts
-const ids = await Queue.withConnection(
-  connector,
-  (queue) =>
-    queue.sendBatch("notifications", [
-      { to: "user1@example.com" },
-      { to: "user2@example.com" },
-    ]),
-).run();
+const ids = await queue
+  .sendBatch("notifications", [
+    { to: "user1@example.com" },
+    { to: "user2@example.com" },
+  ])
+  .run();
 ```
 
 ## Configuration
