@@ -1,0 +1,84 @@
+/**
+ * @anabranch/queue
+ *
+ * Queue primitives with Task/Stream semantics for error-tolerant message processing.
+ * Integrates with anabranch's {@linkcode Task}, {@linkcode Stream}, {@linkcode Source}, and
+ * {@linkcode Channel} types for composable error handling and concurrent processing.
+ *
+ * ## Adapters vs Connectors
+ *
+ * A **QueueConnector** produces connected **QueueAdapter** instances. Use connectors for
+ * production code to properly manage connection lifecycles:
+ *
+ * - **Connector**: Manages connection pool/lifecycle, produces adapters
+ * - **Adapter**: Low-level send/receive/ack/nack interface
+ * - **Queue**: Wrapper providing Task/Stream methods over an adapter
+ *
+ * ## Core Types
+ *
+ * - {@link QueueConnector} - Interface for connection factories
+ * - {@link QueueAdapter} - Low-level queue operations interface
+ * - {@link Queue} - High-level wrapper with Task/Stream methods
+ * - {@link QueueMessage} - Message envelope with id, data, attempt count
+ *
+ * ## Error Types
+ *
+ * All errors are typed for catchable handling:
+ * - {@link QueueConnectionFailed} - Connection establishment failed
+ * - {@link QueueSendFailed} - Send operation failed
+ * - {@link QueueReceiveFailed} - Receive operation failed
+ * - {@link QueueAckFailed} - Acknowledgment failed
+ *
+ * @example Basic send with Task semantics
+ * ```ts
+ * import { Queue, createInMemory } from "@anabranch/queue";
+ *
+ * const messageId = await Queue.withConnection(createInMemory(), (queue) =>
+ *   queue.send("notifications", { userId: 123, type: "welcome" })
+ * ).run();
+ * ```
+ *
+ * @example Stream messages with concurrent processing and error collection
+ * ```ts
+ * const { successes, errors } = await Queue.withConnection(createInMemory(), (queue) =>
+ *   queue.stream("notifications")
+ *     .withConcurrency(5)
+ *     .map(async (msg) => await sendEmail(msg.data))
+ *     .tapErr((err) => logError(err))
+ *     .partition()
+ * ).run();
+ * ```
+ *
+ * @example Delayed messages with retry handling
+ * ```ts
+ * import { Queue, createInMemory } from "@anabranch/queue";
+ *
+ * await Queue.withConnection(createInMemory(), (queue) =>
+ *   queue.send("notifications", reminder, { delayMs: 30_000 })
+ * ).run();
+ *
+ * const processed = await Queue.withConnection(createInMemory(), (queue) =>
+ *   queue.stream("notifications")
+ *     .map(async (msg) => await processWithRetry(msg.data))
+ *     .filter((r) => r.type === "success")
+ *     .map((r) => r.value)
+ *     .collect()
+ * ).run();
+ * ```
+ *
+ * @module
+ */
+export { Queue } from "./queue.ts";
+export type { QueueMessage } from "./adapter.ts";
+export type {
+  NackOptions,
+  QueueAdapter,
+  QueueConnector,
+  QueueOptions,
+  SendOptions,
+} from "./adapter.ts";
+export * from "./errors.ts";
+export { createInMemory } from "./in-memory.ts";
+export type { InMemoryConnector } from "./in-memory.ts";
+export { Task } from "@anabranch/anabranch";
+export type { Source, Stream } from "@anabranch/anabranch";

@@ -4,14 +4,7 @@ on:
   push:
     branches: [main]
     tags:
-      - "anabranch@*"
-      - "web-client@*"
-      - "broken-link-checker@*"
-      - "fs@*"
-      - "db@*"
-      - "db-postgres@*"
-      - "db-sqlite@*"
-      - "db-mysql@*"
+      - "*@*"
   pull_request:
   workflow_dispatch:
 
@@ -50,6 +43,11 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/deno
+          key: deno-${{ hashFiles('deno.lock') }}
+          restore-keys: deno-
       - name: Format, lint, test
         run: deno task check
         env:
@@ -83,162 +81,22 @@ jobs:
         id: deploy
         uses: actions/deploy-pages@v4
 
-  publish-jsr-anabranch:
+  publish-jsr:
     needs: check
-    if: startsWith(github.ref, 'refs/tags/anabranch@')
+    if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/publish-jsr.yml
     with:
-      package: anabranch
+      tag: ${{ github.ref_name }}
 
-  publish-jsr-web-client:
+  publish-npm:
     needs: check
-    if: startsWith(github.ref, 'refs/tags/web-client@')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-jsr.yml
-    with:
-      package: web-client
-
-  publish-jsr-broken-link-checker:
-    needs: check
-    if: startsWith(github.ref, 'refs/tags/broken-link-checker@')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-jsr.yml
-    with:
-      package: broken-link-checker
-
-  publish-npm-anabranch:
-    needs: check
-    if: startsWith(github.ref, 'refs/tags/anabranch@')
+    if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/publish-npm.yml
     with:
-      package: anabranch
-
-  publish-npm-web-client:
-    needs: check
-    if: startsWith(github.ref, 'refs/tags/web-client@')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-npm.yml
-    with:
-      package: web-client
-
-  publish-npm-broken-link-checker:
-    needs: check
-    if: startsWith(github.ref, 'refs/tags/broken-link-checker@')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-npm.yml
-    with:
-      package: broken-link-checker
-
-  publish-jsr-fs:
-    needs: check
-    if: startsWith(github.ref, 'refs/tags/fs@')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-jsr.yml
-    with:
-      package: fs
-
-  publish-npm-fs:
-    needs: check
-    if: startsWith(github.ref, 'refs/tags/fs@')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-npm.yml
-    with:
-      package: fs
-
-  publish-jsr-db:
-    needs: check
-    if: startsWith(github.ref, 'refs/tags/db@')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-jsr.yml
-    with:
-      package: db
-
-  publish-npm-db:
-    needs: check
-    if: startsWith(github.ref, 'refs/tags/db@')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-npm.yml
-    with:
-      package: db
-
-  publish-jsr-db-postgres:
-    needs: check
-    if: startsWith(github.ref, 'refs/tags/db-postgres@')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-jsr.yml
-    with:
-      package: db-postgres
-
-  publish-npm-db-postgres:
-    needs: check
-    if: startsWith(github.ref, 'refs/tags/db-postgres@')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-npm.yml
-    with:
-      package: db-postgres
-
-  publish-jsr-db-sqlite:
-    needs: check
-    if: startsWith(github.ref, 'refs/tags/db-sqlite@')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-jsr.yml
-    with:
-      package: db-sqlite
-
-  publish-npm-db-sqlite:
-    needs: check
-    if: startsWith(github.ref, 'refs/tags/db-sqlite@')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-npm.yml
-    with:
-      package: db-sqlite
-
-  publish-jsr-db-mysql:
-    needs: check
-    if: startsWith(github.ref, 'refs/tags/db-mysql@')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-jsr.yml
-    with:
-      package: db-mysql
-
-  publish-npm-db-mysql:
-    needs: check
-    if: startsWith(github.ref, 'refs/tags/db-mysql@')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-npm.yml
-    with:
-      package: db-mysql
+      tag: ${{ github.ref_name }}

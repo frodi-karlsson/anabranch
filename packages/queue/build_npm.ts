@@ -10,14 +10,15 @@ await build({
   outDir: `${dir}/npm`,
   shims: { deno: false },
   compilerOptions: {
-    lib: ["ESNext"],
+    lib: ["ESNext", "DOM"],
   },
   scriptModule: false,
   test: false,
   package: {
-    name: "@anabranch/db",
+    name: "@anabranch/queue",
     version,
-    description: "Database adapters with transaction support",
+    description:
+      "Message queue with dead letter queue and visibility timeout support",
     license: "MIT",
     repository: {
       type: "git",
@@ -25,12 +26,6 @@ await build({
     },
     bugs: {
       url: "https://github.com/frodi-karlsson/anabranch/issues",
-    },
-    engines: {
-      node: ">=24.0.0",
-    },
-    devDependencies: {
-      "@types/node": "^24",
     },
     dependencies: {
       anabranch: "^0",

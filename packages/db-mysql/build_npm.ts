@@ -17,7 +17,7 @@ await build({
   package: {
     name: "@anabranch/db-mysql",
     version,
-    description: "TODO: Add description",
+    description: "MySQL database adapter",
     license: "MIT",
     repository: {
       type: "git",

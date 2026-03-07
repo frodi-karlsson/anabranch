@@ -3,7 +3,7 @@ name: Publish npm
 on:
   workflow_call:
     inputs:
-      package:
+      tag:
         required: true
         type: string
 
@@ -15,6 +15,10 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+      - id: meta
+        run: echo "package=${TAG%%@*}" >> "$GITHUB_OUTPUT"
+        env:
+          TAG: ${{ inputs.tag }}
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
@@ -28,7 +32,7 @@ jobs:
       - name: Update npm
         run: npm install -g npm@latest
         shell: bash
-      - run: deno task build:npm:${{ inputs.package }}
+      - run: deno task build:npm:${{ steps.meta.outputs.package }}
         shell: bash
-      - run: cd packages/${{ inputs.package }}/npm && npm publish --access public
+      - run: cd packages/${{ steps.meta.outputs.package }}/npm && npm publish --access public
         shell: bash

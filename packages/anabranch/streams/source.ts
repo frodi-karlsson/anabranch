@@ -24,8 +24,6 @@ import type { Result } from "./util.ts";
  * ```
  */
 export class Source<T, E> extends _StreamImpl<T, E> {
-  private readonly rawSource: () => AsyncGenerator<T>;
-
   /**
    * @param source An async generator function. Each yielded value becomes a
    * success result; any thrown error becomes an error result and terminates
@@ -34,22 +32,11 @@ export class Source<T, E> extends _StreamImpl<T, E> {
    * @param bufferSize Maximum number of buffered results before backpressure is applied. Defaults to `Infinity`.
    */
   private constructor(
-    source: () => AsyncGenerator<T>,
+    private readonly resultSource: () => AsyncGenerator<Result<T, E>>,
     concurrency: number = Infinity,
     bufferSize: number = Infinity,
   ) {
-    const wrappedSource = async function* () {
-      try {
-        for await (const value of source()) {
-          yield { type: "success", value } as Result<T, E>;
-        }
-      } catch (error) {
-        yield { type: "error", error: error as E } as Result<T, E>;
-      }
-    };
-
-    super(wrappedSource, concurrency, bufferSize);
-    this.rawSource = source;
+    super(resultSource, concurrency, bufferSize);
   }
 
   /**
@@ -80,27 +67,44 @@ export class Source<T, E> extends _StreamImpl<T, E> {
   static from<T, E>(
     source: AsyncIterable<T> | (() => AsyncGenerator<T>),
   ): Source<T, E> {
-    if (typeof source === "function") {
-      return new Source(source);
-    }
-    return new Source(
-      async function* () {
-        yield* source;
-      },
-    );
+    const fn = typeof source === "function" ? source : async function* () {
+      yield* source;
+    };
+
+    const resultSource = async function* () {
+      try {
+        for await (const value of fn()) {
+          yield { type: "success", value } as Result<T, E>;
+        }
+      } catch (error) {
+        yield { type: "error", error: error as E } as Result<T, E>;
+      }
+    };
+
+    return new Source(resultSource);
+  }
+  /**
+   * Creates a {@link Source} from an async generator that yields {@link Result}
+   * values directly. This is useful when you want to yield both successes and
+   * errors from the source without terminating it on the first error.
+   */
+  static fromResults<T, E>(
+    source: () => AsyncGenerator<Result<T, E>>,
+  ): Source<T, E> {
+    return new Source(source);
   }
 
   /**
    * Sets the maximum number of concurrent operations for the stream.
    */
   withConcurrency(n: number): Source<T, E> {
-    return new Source(this.rawSource, n, this.bufferSize);
+    return new Source(this.resultSource, n, this.bufferSize);
   }
 
   /**
    * Sets the maximum number of buffered results before backpressure is applied to the stream. If the buffer is full, the stream will pause until there is space in the buffer for new results.
    */
   withBufferSize(n: number): Source<T, E> {
-    return new Source(this.rawSource, this.concurrency, n);
+    return new Source(this.resultSource, this.concurrency, n);
   }
 }

@@ -17,7 +17,7 @@ await build({
   package: {
     name: "@anabranch/db-sqlite",
     version,
-    description: "TODO: Add description",
+    description: "SQLite database adapter",
     license: "MIT",
     repository: {
       type: "git",

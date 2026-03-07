@@ -1,7 +1,7 @@
 import { existsSync, watch as fsWatch } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Channel } from "@anabranch/anabranch";
+import { Channel, Source } from "@anabranch/anabranch";
 import type { Stream } from "@anabranch/anabranch";
 import type { FsEvent, WatchOptions } from "./types.ts";
 import {
@@ -29,28 +29,34 @@ export function watch(
   options?: WatchOptions,
 ): Stream<FsEvent, WatchError> {
   const watchPath = path instanceof URL ? fileURLToPath(path) : path;
-  const watcher = fsWatch(
-    path,
-    { recursive: options?.recursive ?? true, persistent: false },
-    (eventType, filename) => {
-      const name = filename as string | null;
-      const fullPath = name ? join(watchPath, name) : watchPath;
-      let kind: "create" | "modify" | "remove";
-      if (eventType === "rename") {
-        kind = existsSync(fullPath) ? "create" : "remove";
-      } else {
-        kind = "modify";
+
+  return Source.from<FsEvent, WatchError>(async function* () {
+    const channel = new Channel<FsEvent, WatchError>();
+    const watcher = fsWatch(
+      path,
+      { recursive: options?.recursive ?? true, persistent: false },
+      (eventType, filename) => {
+        const name = filename as string | null;
+        const fullPath = name ? join(watchPath, name) : watchPath;
+        let kind: "create" | "modify" | "remove";
+        if (eventType === "rename") {
+          kind = existsSync(fullPath) ? "create" : "remove";
+        } else {
+          kind = "modify";
+        }
+        channel.send({ kind, paths: [fullPath] });
+      },
+    );
+    watcher.once("error", (err) => channel.fail(nodeErrorToFSError(err, path)));
+    watcher.once("close", () => channel.close());
+
+    try {
+      for await (const result of channel) {
+        if (result.type === "success") yield result.value;
+        else throw result.error;
       }
-      channel.send({ kind, paths: [fullPath] });
-    },
-  );
-
-  const channel = new Channel<FsEvent, WatchError>({
-    onClose: () => watcher.close(),
+    } finally {
+      watcher.close();
+    }
   });
-
-  watcher.once("error", (err) => channel.fail(nodeErrorToFSError(err, path)));
-  watcher.once("close", () => channel.close());
-
-  return channel;
 }

@@ -881,15 +881,16 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
     const bufferSize = this.bufferSize;
     return new _StreamImpl<T, E>(
       async function* () {
+        if (n <= 0) return;
         const gen = source();
         try {
           let count = 0;
           for await (const result of gen) {
             if (result.type === "success") {
-              if (count >= n) break;
               count += 1;
             }
             yield result;
+            if (count >= n) break;
           }
         } finally {
           await gen.return(undefined);

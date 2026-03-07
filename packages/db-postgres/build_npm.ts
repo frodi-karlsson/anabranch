@@ -17,7 +17,7 @@ await build({
   package: {
     name: "@anabranch/db-postgres",
     version,
-    description: "TODO: Add description",
+    description: "PostgreSQL database adapter",
     license: "MIT",
     repository: {
       type: "git",
