@@ -132,8 +132,7 @@ All errors are typed for catchable handling:
 
 ```ts
 try {
-  await Queue.withConnection(connector, (queue) => queue.send("my-queue", data))
-    .run();
+  await queue.send("my-queue", data).run();
 } catch (error) {
   if (error instanceof QueueSendFailed) {
     console.error("Failed to send:", error.message);

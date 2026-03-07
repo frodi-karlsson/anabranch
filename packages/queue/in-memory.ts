@@ -43,25 +43,21 @@ function generateId(): string {
  * import { Queue, createInMemory } from "@anabranch/queue";
  *
  * const connector = createInMemory();
+ * const queue = await Queue.connect(connector).run();
  *
  * // Send a message
- * await Queue.withConnection(connector, (queue) =>
- *   queue.send("notifications", { type: "welcome", userId: 123 })
- * ).run();
+ * await queue.send("notifications", { type: "welcome", userId: 123 }).run();
  *
  * // Receive messages
- * const { successes } = await Queue.withConnection(connector, (queue) =>
- *   queue.stream("notifications", { count: 10 })
- *     .map(async (msg) => await processNotification(msg.data))
- *     .partition()
- * ).run();
+ * const { successes } = await queue
+ *   .stream("notifications", { count: 10 })
+ *   .map(async (msg) => await processNotification(msg.data))
+ *   .partition();
  * ```
  *
  * @example With delayed messages
  * ```ts
- * await Queue.withConnection(connector, (queue) =>
- *   queue.send("notifications", reminder, { delayMs: 30_000 })
- * ).run();
+ * await queue.send("notifications", reminder, { delayMs: 30_000 }).run();
  * ```
  *
  * @example With dead letter queue
@@ -74,6 +70,7 @@ function generateId(): string {
  *     },
  *   },
  * });
+ * const queue = await Queue.connect(connector).run();
  * ```
  */
 export function createInMemory(options?: InMemoryOptions): InMemoryConnector {

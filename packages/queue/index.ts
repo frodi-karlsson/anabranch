@@ -33,37 +33,52 @@
  * ```ts
  * import { Queue, createInMemory } from "@anabranch/queue";
  *
- * const messageId = await Queue.withConnection(createInMemory(), (queue) =>
- *   queue.send("notifications", { userId: 123, type: "welcome" })
- * ).run();
+ * const connector = createInMemory();
+ * const queue = await Queue.connect(connector).run();
+ *
+ * const messageId = await queue
+ *   .send("notifications", { userId: 123, type: "welcome" })
+ *   .run();
  * ```
  *
  * @example Stream messages with concurrent processing and error collection
  * ```ts
- * const { successes, errors } = await Queue.withConnection(createInMemory(), (queue) =>
- *   queue.stream("notifications")
- *     .withConcurrency(5)
- *     .map(async (msg) => await sendEmail(msg.data))
- *     .tapErr((err) => logError(err))
- *     .partition()
- * ).run();
+ * const connector = createInMemory();
+ * const queue = await Queue.connect(connector).run();
+ *
+ * const { successes, errors } = await queue
+ *   .stream("notifications")
+ *   .withConcurrency(5)
+ *   .map(async (msg) => await sendEmail(msg.data))
+ *   .tapErr((err) => logError(err))
+ *   .partition();
  * ```
  *
- * @example Delayed messages with retry handling
+ * @example Delayed messages with visibility timeout
  * ```ts
  * import { Queue, createInMemory } from "@anabranch/queue";
  *
- * await Queue.withConnection(createInMemory(), (queue) =>
- *   queue.send("notifications", reminder, { delayMs: 30_000 })
- * ).run();
+ * const connector = createInMemory({ visibilityTimeout: 60_000 });
+ * const queue = await Queue.connect(connector).run();
  *
- * const processed = await Queue.withConnection(createInMemory(), (queue) =>
- *   queue.stream("notifications")
- *     .map(async (msg) => await processWithRetry(msg.data))
- *     .filter((r) => r.type === "success")
- *     .map((r) => r.value)
- *     .collect()
- * ).run();
+ * await queue.send("notifications", reminder, { delayMs: 30_000 }).run();
+ * ```
+ *
+ * @example Dead letter queue with max attempts
+ * ```ts
+ * import { Queue, createInMemory } from "@anabranch/queue";
+ *
+ * const connector = createInMemory({
+ *   queues: {
+ *     orders: {
+ *       maxAttempts: 3,
+ *       deadLetterQueue: "orders-dlq",
+ *     },
+ *   },
+ * });
+ * const queue = await Queue.connect(connector).run();
+ *
+ * await queue.nack("orders", msg.id, { deadLetter: true }).run();
  * ```
  *
  * @module
