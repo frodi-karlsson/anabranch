@@ -48,7 +48,7 @@
   "tasks": {
     "check": "deno fmt --check && deno lint && deno test --allow-read --allow-write --allow-sys --allow-env --allow-net",
     "test:integration": "deno run -A ./scripts/test-integration.ts",
-    "doc": "deno task doc:anabranch && deno task doc:web-client && deno task doc:broken-link-checker && deno task doc:fs && deno task doc:db && deno task doc:db-postgres && deno task doc:db-sqlite && deno task doc:db-mysql && deno task doc:queue && cp docs-src/index.html docs/index.html",
+    "doc": "deno task doc:anabranch && deno task doc:web-client && deno task doc:broken-link-checker && deno task doc:fs && deno task doc:db && deno task doc:db-postgres && deno task doc:db-sqlite && deno task doc:db-mysql && deno task doc:queue && deno task doc:queue-redis && deno task doc:queue-rabbitmq && cp docs-src/index.html docs/index.html",
     "doc:anabranch": "mkdir -p docs/anabranch && deno doc --html --name=anabranch --output=docs/anabranch ./packages/anabranch/index.ts",
     "doc:web-client": "mkdir -p docs/web-client && deno doc --html --name=web-client --output=docs/web-client ./packages/web-client/index.ts",
     "doc:broken-link-checker": "mkdir -p docs/broken-link-checker && deno doc --html --name=broken-link-checker --output=docs/broken-link-checker ./packages/broken-link-checker/index.ts",
