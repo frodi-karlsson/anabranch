@@ -250,10 +250,11 @@ export class Queue {
    */
   continuousStream<T>(
     queue: string,
-    options?: { count?: number; signal?: AbortSignal },
+    options?: { count?: number; signal?: AbortSignal; prefetch?: number },
   ): Source<QueueMessage<T>, QueueReceiveFailed> {
     const count = options?.count ?? 10;
     const signal = options?.signal;
+    const prefetch = options?.prefetch;
     const adapter = this.adapter;
 
     const isStreamAdapter = "subscribe" in adapter;
@@ -262,7 +263,10 @@ export class Queue {
       async function* () {
         if (isStreamAdapter) {
           const streamAdapter = adapter as StreamAdapter;
-          const iterable = streamAdapter.subscribe<T>(queue, { signal });
+          const iterable = streamAdapter.subscribe<T>(queue, {
+            signal,
+            prefetch,
+          });
 
           for await (const msg of iterable) {
             if (signal?.aborted) return;

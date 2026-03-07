@@ -18,7 +18,10 @@ export interface QueueMessage<T = unknown> {
   /** Timestamp when the message was first enqueued */
   timestamp: number;
   /** Optional metadata from the broker */
-  metadata?: Record<string, unknown>;
+  metadata?: {
+    headers?: Record<string, string>;
+    [key: string]: unknown;
+  };
 }
 
 /** Options for sending a message with delay or scheduling. */
@@ -31,6 +34,8 @@ export interface SendOptions {
   deadLetterQueue?: string;
   /** Message priority (higher = more important, if supported) */
   priority?: number;
+  /** Arbitrary key-value pairs to attach to the message */
+  headers?: Record<string, string>;
 }
 
 /** Options for negative acknowledgment. */
@@ -73,7 +78,10 @@ export interface QueueAdapter {
 export interface StreamAdapter extends QueueAdapter {
   subscribe<T>(
     queue: string,
-    options?: { signal?: AbortSignal },
+    options?: {
+      signal?: AbortSignal;
+      prefetch?: number;
+    },
   ): AsyncIterable<QueueMessage<T>>;
 }
 

@@ -91,6 +91,7 @@ export type {
   QueueConnector,
   QueueOptions,
   SendOptions,
+  StreamAdapter,
 } from "./adapter.ts";
 export * from "./errors.ts";
 export { createInMemory } from "./in-memory.ts";

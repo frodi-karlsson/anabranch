@@ -495,3 +495,59 @@ Deno.test({
     await connector.end();
   },
 });
+
+Deno.test({
+  name: "Queue.send - should include headers in message metadata on receive",
+  async fn() {
+    const connector = createInMemory();
+    const queue = await Queue.connect(connector).run();
+
+    await queue
+      .send("test-queue", { data: "test" }, {
+        headers: {
+          "x-correlation-id": "abc-123",
+          "x-source": "checkout-service",
+        },
+      })
+      .run();
+
+    const stream = queue.stream<{ data: string }>("test-queue");
+    const { successes } = await stream.partition();
+
+    assertEquals(successes.length, 1);
+    assertEquals(
+      successes[0].metadata?.headers?.["x-correlation-id"],
+      "abc-123",
+    );
+    assertEquals(
+      successes[0].metadata?.headers?.["x-source"],
+      "checkout-service",
+    );
+
+    await queue.close().run();
+  },
+});
+
+Deno.test({
+  name: "Queue - multiple messages with different headers",
+  async fn() {
+    const connector = createInMemory();
+    const queue = await Queue.connect(connector).run();
+
+    await queue
+      .send("test-queue", { id: 1 }, { headers: { "x-tenant": "acme" } })
+      .run();
+    await queue
+      .send("test-queue", { id: 2 }, { headers: { "x-tenant": "globex" } })
+      .run();
+
+    const stream = queue.stream<{ id: number }>("test-queue");
+    const { successes } = await stream.partition();
+
+    assertEquals(successes.length, 2);
+    assertEquals(successes[0].metadata?.headers?.["x-tenant"], "acme");
+    assertEquals(successes[1].metadata?.headers?.["x-tenant"], "globex");
+
+    await queue.close().run();
+  },
+});

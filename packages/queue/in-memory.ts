@@ -126,6 +126,10 @@ export function createInMemory(options?: InMemoryOptions): InMemoryConnector {
         );
       };
 
+      /**
+       * Routes to DLQ when attempt > maxAttempts (not >=).
+       * A message with maxAttempts=2 will be delivered 2x before DLQ.
+       */
       const handleNack = <T>(
         queue: InMemoryQueue<T>,
         id: string,
@@ -229,6 +233,9 @@ export function createInMemory(options?: InMemoryOptions): InMemoryConnector {
             data,
             attempt: 1,
             timestamp: Date.now(),
+            metadata: sendOptions?.headers
+              ? { headers: sendOptions.headers }
+              : undefined,
           };
 
           if (delayMs > 0) {
