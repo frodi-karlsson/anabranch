@@ -6,6 +6,7 @@ const { version } = JSON.parse(await Deno.readTextFile(`${dir}/deno.json`));
 
 await emptyDir(`${dir}/npm`);
 
+const anabranchPath = resolve(dir, "../anabranch/index.ts");
 const webClientPath = resolve(dir, "../web-client/index.ts");
 
 await build({
@@ -36,6 +37,10 @@ await build({
     },
   },
   mappings: {
+    [new URL(`file://${anabranchPath}`).href]: {
+      name: "anabranch",
+      version: "^0",
+    },
     [new URL(`file://${webClientPath}`).href]: {
       name: "@anabranch/web-client",
       version: "^0",
