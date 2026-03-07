@@ -1,4 +1,4 @@
-import { createInMemory, Queue, QueueReceiveFailed } from "../index.ts";
+import { createInMemory, Queue } from "../index.ts";
 
 const connector = createInMemory();
 const queue = await Queue.connect(connector).run();
