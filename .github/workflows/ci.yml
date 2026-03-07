@@ -50,7 +50,7 @@ jobs:
           MYSQL_ROOT_PASSWORD: mysql
           MYSQL_DATABASE: mysql
         ports:
-          - 3306:3306
+          - 3307:3306
         options: >-
           --health-cmd "mysqladmin ping -h localhost"
           --health-interval 10s
@@ -70,7 +70,7 @@ jobs:
         run: deno task test:integration
         env:
           POSTGRES_URL: postgresql://postgres:postgres@localhost:5432/postgres
-          MYSQL_URL: mysql://root:mysql@localhost:3306/mysql
+          MYSQL_URL: mysql://root:mysql@localhost:3307/mysql
 
   docs:
     name: Deploy docs
