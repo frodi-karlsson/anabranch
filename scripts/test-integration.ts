@@ -7,26 +7,16 @@ await main();
 async function main(): Promise<void> {
   const { packages, services } = await loadMetadata();
 
-  const isCI = Deno.env.get("CI") === "true";
-
-  if (!isCI) {
-    await startServices(services);
-  } else {
-    console.log("CI detected, using existing services...");
-  }
+  await startServices(services);
 
   try {
-    if (!isCI) {
-      await waitForServices(services);
-    }
+    await waitForServices(services);
 
     await runTests(packages);
 
     console.log("All integration tests passed!");
   } finally {
-    if (!isCI) {
-      await cleanupServices(services);
-    }
+    await cleanupServices(services);
   }
 }
 

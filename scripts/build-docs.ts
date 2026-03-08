@@ -33,6 +33,8 @@ async function buildDocs(pkg: string): Promise<void> {
   const outDir = `docs/${pkg}`;
   const sourceFile = `./packages/${pkg}/index.ts`;
 
+  await Deno.mkdir(outDir, { recursive: true });
+
   const proc = await new Deno.Command("deno", {
     args: ["doc", "--html", `--name=${pkg}`, `--output=${outDir}`, sourceFile],
   }).output();
