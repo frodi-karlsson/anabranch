@@ -1,3 +1,17 @@
+import { Task } from "../packages/anabranch/index.ts";
+
+async function startContainer(name: string, args: string[]): Promise<void> {
+  console.log(`Starting ${name} container...`);
+  const proc = await new Deno.Command("docker", {
+    args: ["run", "-d", "--name", name, ...args],
+  }).output();
+
+  if (!proc.success) {
+    console.error(`Failed to start ${name} container`);
+    Deno.exit(1);
+  }
+}
+
 async function main(): Promise<void> {
   const isCI = Deno.env.get("CI") === "true";
 
@@ -5,168 +19,126 @@ async function main(): Promise<void> {
     console.log("CI detected, using existing services...");
   } else {
     console.log("Cleaning up any existing containers...");
-    await new Deno.Command("docker", {
-      args: ["rm", "-f", "anabranch-postgres"],
-    }).output();
-    await new Deno.Command("docker", {
-      args: ["rm", "-f", "anabranch-mysql"],
-    }).output();
-    await new Deno.Command("docker", {
-      args: ["rm", "-f", "anabranch-redis"],
-    }).output();
-    await new Deno.Command("docker", {
-      args: ["rm", "-f", "anabranch-rabbitmq"],
-    }).output();
+    const cleanup = ["postgres", "mysql", "redis", "rabbitmq"].map((name) =>
+      new Deno.Command("docker", {
+        args: ["rm", "-f", `anabranch-${name}`],
+      }).output()
+    );
+    await Promise.all(cleanup);
 
-    console.log("Starting PostgreSQL container...");
-    const pgStart = await new Deno.Command("docker", {
-      args: [
-        "run",
-        "-d",
-        "--name",
-        "anabranch-postgres",
-        "-e",
-        "POSTGRES_USER=postgres",
-        "-e",
-        "POSTGRES_PASSWORD=postgres",
-        "-e",
-        "POSTGRES_DB=postgres",
-        "-p",
-        "5432:5432",
-        "postgres:16",
-      ],
-    }).output();
-
-    if (!pgStart.success) {
-      console.error("Failed to start PostgreSQL container");
-      Deno.exit(1);
-    }
-
-    console.log("Starting MySQL container...");
-    const mysqlStart = await new Deno.Command("docker", {
-      args: [
-        "run",
-        "-d",
-        "--name",
-        "anabranch-mysql",
-        "-e",
-        "MYSQL_ROOT_PASSWORD=mysql",
-        "-e",
-        "MYSQL_DATABASE=mysql",
-        "-e",
-        "MYSQL_ROOT_HOST=%",
-        "-p",
-        "3307:3306",
-        "mysql:8",
-      ],
-    }).output();
-
-    if (!mysqlStart.success) {
-      console.error("Failed to start MySQL container");
-      Deno.exit(1);
-    }
-
-    console.log("Starting Redis container...");
-    const redisStart = await new Deno.Command("docker", {
-      args: [
-        "run",
-        "-d",
-        "--name",
-        "anabranch-redis",
-        "-p",
-        "6379:6379",
-        "redis:7",
-      ],
-    }).output();
-
-    if (!redisStart.success) {
-      console.error("Failed to start Redis container");
-      Deno.exit(1);
-    }
-
-    console.log("Starting RabbitMQ container...");
-    const rabbitmqStart = await new Deno.Command("docker", {
-      args: [
-        "run",
-        "-d",
-        "--name",
-        "anabranch-rabbitmq",
-        "-p",
-        "5672:5672",
-        "-p",
-        "15672:15672",
-        "rabbitmq:3-management",
-      ],
-    }).output();
-
-    if (!rabbitmqStart.success) {
-      console.error("Failed to start RabbitMQ container");
-      Deno.exit(1);
-    }
+    await Task.all([
+      Task.of(() =>
+        startContainer("anabranch-postgres", [
+          "-e",
+          "POSTGRES_USER=postgres",
+          "-e",
+          "POSTGRES_PASSWORD=postgres",
+          "-e",
+          "POSTGRES_DB=postgres",
+          "-p",
+          "5432:5432",
+          "postgres:16",
+        ])
+      ),
+      Task.of(() =>
+        startContainer("anabranch-mysql", [
+          "-e",
+          "MYSQL_ROOT_PASSWORD=mysql",
+          "-e",
+          "MYSQL_DATABASE=mysql",
+          "-e",
+          "MYSQL_ROOT_HOST=%",
+          "-p",
+          "3307:3306",
+          "mysql:8",
+        ])
+      ),
+      Task.of(() =>
+        startContainer("anabranch-redis", [
+          "-p",
+          "6379:6379",
+          "redis:7",
+        ])
+      ),
+      Task.of(() =>
+        startContainer("anabranch-rabbitmq", [
+          "--user",
+          "rabbitmq",
+          "-p",
+          "5672:5672",
+          "-p",
+          "15672:15672",
+          "rabbitmq:3-management",
+        ])
+      ),
+    ]).run();
   }
 
   try {
     if (!isCI) {
-      console.log("Waiting for PostgreSQL to be ready...");
-      const pgWait = new Deno.Command("deno", {
-        args: ["run", "-A", `${import.meta.dirname}/wait-for-postgres.ts`],
-      });
-      await pgWait.output();
+      console.log("Waiting for services to be ready...");
+      await Task.all([
+        Task.of(async () => {
+          const probe = await new Deno.Command("docker", {
+            args: [
+              "exec",
+              "anabranch-postgres",
+              "pg_isready",
+              "-U",
+              "postgres",
+            ],
+          }).output();
+          if (!probe.success) throw new Error("PostgreSQL not ready");
+        })
+          .retry({ attempts: 30, delay: 1000 })
+          .tap(() => console.log("PostgreSQL is ready!")),
 
-      console.log("Waiting for MySQL to be ready...");
-      const maxAttempts = 30;
-      for (let i = 0; i < maxAttempts; i++) {
-        const probe = await new Deno.Command("docker", {
-          args: [
-            "exec",
-            "anabranch-mysql",
-            "mysqladmin",
-            "ping",
-            "-h",
-            "127.0.0.1",
-          ],
-        }).output();
-        if (probe.success) {
-          console.log("MySQL is ready!");
-          break;
-        }
-        await new Promise((r) => setTimeout(r, 1000));
-      }
+        Task.of(async () => {
+          const probe = await new Deno.Command("docker", {
+            args: [
+              "exec",
+              "anabranch-mysql",
+              "mysqladmin",
+              "ping",
+              "-h",
+              "127.0.0.1",
+            ],
+          }).output();
+          if (!probe.success) throw new Error("MySQL not ready");
+        })
+          .retry({ attempts: 30, delay: 1000 })
+          .tap(() => console.log("MySQL is ready!")),
 
-      console.log("Waiting for Redis to be ready...");
-      for (let i = 0; i < maxAttempts; i++) {
-        const probe = await new Deno.Command("docker", {
-          args: [
-            "exec",
-            "anabranch-redis",
-            "redis-cli",
-            "ping",
-          ],
-        }).output();
-        if (probe.success) {
-          console.log("Redis is ready!");
-          break;
-        }
-        await new Promise((r) => setTimeout(r, 1000));
-      }
+        Task.of(async () => {
+          const probe = await new Deno.Command("docker", {
+            args: [
+              "exec",
+              "anabranch-redis",
+              "redis-cli",
+              "ping",
+            ],
+          }).output();
+          if (!probe.success) throw new Error("Redis not ready");
+        })
+          .retry({ attempts: 30, delay: 1000 })
+          .tap(() => console.log("Redis is ready!")),
 
-      console.log("Waiting for RabbitMQ to be ready...");
-      const rabbitmqAttempts = 30;
-      for (let i = 0; i < rabbitmqAttempts; i++) {
-        const probe = await new Deno.Command("docker", {
-          args: [
-            "exec",
-            "anabranch-rabbitmq",
-            "rabbitmq-diagnostics",
-            "ping",
-          ],
-        }).output();
-        if (probe.success) {
-          console.log("RabbitMQ is ready!");
-          break;
-        }
-        await new Promise((r) => setTimeout(r, 2000));
-      }
+        Task.of(async () => {
+          const probe = await new Deno.Command("docker", {
+            args: [
+              "exec",
+              "anabranch-rabbitmq",
+              "rabbitmq-diagnostics",
+              "ping",
+            ],
+          }).output();
+          if (!probe.success) throw new Error("RabbitMQ not ready");
+        })
+          .retry({ attempts: 30, delay: 2000 })
+          .tap(() => console.log("RabbitMQ is ready!")),
+      ])
+        .timeout(45_000, new Error("Services did not become ready in time"))
+        .run();
     }
 
     console.log("Running PostgreSQL integration tests...");

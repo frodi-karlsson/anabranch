@@ -30,8 +30,7 @@ export function watch(
 ): Stream<FsEvent, WatchError> {
   const watchPath = path instanceof URL ? fileURLToPath(path) : path;
 
-  return Source.from<FsEvent, WatchError>(async function* () {
-    const channel = new Channel<FsEvent, WatchError>();
+  return Source.fromResults<FsEvent, WatchError>(async function* () {
     const watcher = fsWatch(
       path,
       { recursive: options?.recursive ?? true, persistent: false },
@@ -47,16 +46,18 @@ export function watch(
         channel.send({ kind, paths: [fullPath] });
       },
     );
-    watcher.once("error", (err) => channel.fail(nodeErrorToFSError(err, path)));
+
+    const channel = new Channel<FsEvent, WatchError>({
+      onClose: () => watcher?.close(),
+    });
+
+    watcher.once(
+      "error",
+      (err) => channel.fail(nodeErrorToFSError(err, path)),
+    );
+
     watcher.once("close", () => channel.close());
 
-    try {
-      for await (const result of channel) {
-        if (result.type === "success") yield result.value;
-        else throw result.error;
-      }
-    } finally {
-      watcher.close();
-    }
+    yield* channel;
   });
 }

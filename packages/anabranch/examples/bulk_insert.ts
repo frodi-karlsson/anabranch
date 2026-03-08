@@ -24,16 +24,19 @@ const userStream = Source.from<UserRecord, Error>(async function* () {
   }
 });
 
-const insertTask = userStream
+const summary = await userStream
   .chunks(10)
   .map(async (batch) => {
     const inserted = await mockDb.insertMany(batch);
     return { batchSize: batch.length, inserted };
   })
-  .collect();
+  .fold(
+    (acc, r) => ({
+      batches: acc.batches + 1,
+      totalInserted: acc.totalInserted + r.inserted,
+    }),
+    { batches: 0, totalInserted: 0 },
+  );
 
-const result = await insertTask;
-console.log(`\nTotal batches processed: ${result.length}`);
-console.log(
-  `Total records inserted: ${result.reduce((sum, r) => sum + r.inserted, 0)}`,
-);
+console.log(`\nTotal batches processed: ${summary.batches}`);
+console.log(`Total records inserted: ${summary.totalInserted}`);

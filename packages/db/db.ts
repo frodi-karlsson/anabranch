@@ -181,6 +181,8 @@ export class DB {
 
 /** Database transaction with Task semantics. */
 export class DBTransaction {
+  private settled = false;
+
   constructor(private readonly adapter: DBTransactionAdapter) {}
 
   query<T>(sql: string, params?: unknown[]): Task<T[], QueryFailed> {
@@ -219,6 +221,7 @@ export class DBTransaction {
     return Task.of(async () => {
       try {
         await this.adapter.commit();
+        this.settled = true;
       } catch (error) {
         throw new TransactionFailed(
           error instanceof Error ? error.message : String(error),
@@ -229,8 +232,10 @@ export class DBTransaction {
 
   rollback(): Task<void, TransactionFailed> {
     return Task.of(async () => {
+      if (this.settled) return;
       try {
         await this.adapter.rollback();
+        this.settled = true;
       } catch (error) {
         throw new TransactionFailed(
           error instanceof Error ? error.message : String(error),

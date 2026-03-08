@@ -231,6 +231,59 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "DB.withTransaction - should not redundant rollback on success",
+  async () => {
+    let rollbackCount = 0;
+    let commitCount = 0;
+
+    const mockAdapter = {
+      query: () => Promise.resolve([]),
+      execute: (sql: string) => {
+        if (sql === "ROLLBACK") rollbackCount++;
+        if (sql === "COMMIT") commitCount++;
+        return Promise.resolve(0);
+      },
+      close: () => Promise.resolve(),
+    };
+
+    const db = new DB(mockAdapter);
+    await db.withTransaction(async (tx) => {
+      await tx.execute("INSERT INTO test VALUES (1)").run();
+    }).run();
+
+    assertEquals(commitCount, 1, "Should have committed once");
+    assertEquals(rollbackCount, 0, "Should NOT have rolled back");
+  },
+);
+
+Deno.test(
+  "DB.withTransaction - should rollback on failure",
+  async () => {
+    let rollbackCount = 0;
+
+    const mockAdapter = {
+      query: () => Promise.resolve([]),
+      execute: (sql: string) => {
+        if (sql === "ROLLBACK") rollbackCount++;
+        return Promise.resolve(0);
+      },
+      close: () => Promise.resolve(),
+    };
+
+    const db = new DB(mockAdapter);
+    try {
+      await db.withTransaction(() => {
+        throw new Error("fail");
+      }).run();
+    } catch {
+      // expected
+    }
+
+    assertEquals(rollbackCount, 1, "Should have rolled back exactly once");
+  },
+);
+
 Deno.test("createInMemory - should return a valid connector", async () => {
   const connector = createInMemory();
   assertEquals(typeof connector.connect, "function");
