@@ -39,7 +39,7 @@ await build({
       "@aws-sdk/s3-request-presigner": "^3",
     },
     devDependencies: {
-      "@types/node": "^22",
+      "@types/node": "^24",
     },
   },
   mappings: {

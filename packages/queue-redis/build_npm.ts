@@ -37,7 +37,7 @@ await build({
       ioredis: "^5",
     },
     devDependencies: {
-      "@types/node": "^22",
+      "@types/node": "^24",
     },
   },
   mappings: {

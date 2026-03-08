@@ -36,7 +36,7 @@ await build({
       anabranch: "^0",
     },
     devDependencies: {
-      "@types/node": "^22",
+      "@types/node": "^24",
     },
   },
   mappings: {
