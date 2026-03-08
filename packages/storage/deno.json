@@ -1,6 +1,6 @@
 {
   "name": "@anabranch/storage",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "exports": "./index.ts",
   "publish": {
     "exclude": [

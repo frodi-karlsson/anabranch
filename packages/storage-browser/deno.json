@@ -1,6 +1,6 @@
 {
   "name": "@anabranch/storage-browser",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Browser storage adapter using IndexedDB for @anabranch/storage",
   "exports": "./index.ts",
   "compilerOptions": {
