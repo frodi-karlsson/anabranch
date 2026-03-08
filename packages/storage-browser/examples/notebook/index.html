@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notebook - storage-browser Demo</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <h1>Notebook</h1>
+    <p class="subtitle">A simple notes app using storage-browser + IndexedDB</p>
+
+    <div class="card">
+      <h3>Add Note</h3>
+      <input type="text" id="title" placeholder="Note title">
+      <textarea id="content" placeholder="Write your note..."></textarea>
+      <button id="saveBtn">Save Note</button>
+    </div>
+
+    <div id="notes"></div>
+    <div id="status"></div>
+
+    <script type="module" src="script.js"></script>
+  </body>
+</html>
