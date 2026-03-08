@@ -1,3 +1,4 @@
+/// <reference lib="deno.ns" />
 import "npm:fake-indexeddb@^4.0.0/auto";
 import { assertEquals } from "@std/assert";
 import { Source } from "@anabranch/anabranch";

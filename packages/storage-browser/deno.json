@@ -3,6 +3,9 @@
   "version": "0.1.2",
   "description": "Browser storage adapter using IndexedDB for @anabranch/storage",
   "exports": "./index.ts",
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM"]
+  },
   "publish": {
     "exclude": [
       "examples/",
