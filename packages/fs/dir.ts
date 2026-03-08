@@ -68,10 +68,14 @@ export function walk(
 
       for (const entry of entries) {
         const entryPath = join(dirPath, entry.name);
-        const relPath = relative(rootPath, entryPath).replace(/\\/g, "/");
+        let relPath = relative(rootPath, entryPath).replace(/\\/g, "/");
         const isFile = entry.isFile();
         const isDirectory = entry.isDirectory();
         const isSymlink = entry.isSymbolicLink();
+
+        if (isDirectory) {
+          relPath = `${relPath}/`;
+        }
 
         if (skip && skip.some((r) => r.test(relPath))) continue;
 
