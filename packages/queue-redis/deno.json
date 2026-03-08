@@ -1,6 +1,6 @@
 {
   "name": "@anabranch/queue-redis",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "exports": "./index.ts",
   "publish": {
     "exclude": [
