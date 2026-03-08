@@ -236,6 +236,41 @@ export class Storage {
     );
   }
 
+  /**
+   * Generate a presigned URL for direct object access.
+   *
+   * Only available on adapters that implement {@linkcode PresignableAdapter}
+   * (S3, GCS). Throws {@linkcode StoragePresignNotSupported} for adapters
+   * that don't support presigning (memory, browser).
+   *
+   * @example Generate a presigned URL for download
+   * ```ts
+   * import { Storage, createS3, StoragePresignNotSupported } from "@anabranch/storage";
+   *
+   * const storage = await Storage.connect(createS3({ bucket: "my-bucket" })).run();
+   *
+   * const url = await storage.presign("private/file.txt", {
+   *   expiresIn: 3600, // 1 hour
+   * }).run();
+   *
+   * console.log(url); // https://s3.amazonaws.com/my-bucket/private/file.txt?...
+   * ```
+   *
+   * @example Upload with presigned PUT
+   * ```ts
+   * const uploadUrl = await storage.presign("upload.txt", {
+   *   expiresIn: 300,
+   *   method: "PUT",
+   * }).run();
+   *
+   * // Client-side upload
+   * await fetch(uploadUrl, {
+   *   method: "PUT",
+   *   body: fileData,
+   *   headers: { "Content-Type": "text/plain" },
+   * });
+   * ```
+   */
   presign(
     key: string,
     options: PresignOptions,

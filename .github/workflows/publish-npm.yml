@@ -32,7 +32,8 @@ jobs:
       - name: Update npm
         run: npm install -g npm@latest
         shell: bash
-      - run: deno task build:npm:${{ steps.meta.outputs.package }}
+      - name: Build npm package
+        run: deno run -A ./scripts/build-npm.ts -p=${{ steps.meta.outputs.package }}
         shell: bash
       - run: cd packages/${{ steps.meta.outputs.package }}/npm && npm publish --access public
         shell: bash

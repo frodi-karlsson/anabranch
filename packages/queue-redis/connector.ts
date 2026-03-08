@@ -41,8 +41,14 @@ export function createRedis(
 
     async end(): Promise<void> {
       if (client) {
-        await client.quit();
-        client = undefined;
+        try {
+          await client.quit();
+        } catch {
+          // Ignore quit errors if connection is already dead
+        } finally {
+          client.disconnect();
+          client = undefined;
+        }
       }
     },
   };

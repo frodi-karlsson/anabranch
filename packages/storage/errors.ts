@@ -1,3 +1,16 @@
+/**
+ * Error thrown when a storage connection cannot be established.
+ *
+ * @example Handling connection failures with retry
+ * ```ts
+ * import { Storage, createMemory, StorageConnectionFailed } from "@anabranch/storage";
+ *
+ * const storage = await Storage.connect(createMemory())
+ *   .retry({ attempts: 3, delay: 1000 })
+ *   .timeout(30_000)
+ *   .try();
+ * ```
+ */
 export class StorageConnectionFailed extends Error {
   override name = "StorageConnectionFailed";
   constructor(
@@ -8,6 +21,22 @@ export class StorageConnectionFailed extends Error {
   }
 }
 
+/**
+ * Error thrown when attempting to get or head an object that does not exist.
+ *
+ * @example Handling not found errors
+ * ```ts
+ * import { Storage, createMemory, StorageObjectNotFound } from "@anabranch/storage";
+ *
+ * try {
+ *   const object = await storage.get("missing.txt").run();
+ * } catch (error) {
+ *   if (error instanceof StorageObjectNotFound) {
+ *     console.log("Object does not exist");
+ *   }
+ * }
+ * ```
+ */
 export class StorageObjectNotFound extends Error {
   override name = "StorageObjectNotFound";
   constructor(key: string) {
@@ -15,6 +44,9 @@ export class StorageObjectNotFound extends Error {
   }
 }
 
+/**
+ * Error thrown when closing a storage connection fails.
+ */
 export class StorageCloseFailed extends Error {
   override name = "StorageCloseFailed";
   constructor(
@@ -25,6 +57,9 @@ export class StorageCloseFailed extends Error {
   }
 }
 
+/**
+ * Error thrown when a put operation fails.
+ */
 export class StoragePutFailed extends Error {
   override name = "StoragePutFailed";
   constructor(
@@ -36,6 +71,9 @@ export class StoragePutFailed extends Error {
   }
 }
 
+/**
+ * Error thrown when a get operation fails.
+ */
 export class StorageGetFailed extends Error {
   override name = "StorageGetFailed";
   constructor(
@@ -47,6 +85,9 @@ export class StorageGetFailed extends Error {
   }
 }
 
+/**
+ * Error thrown when a delete operation fails.
+ */
 export class StorageDeleteFailed extends Error {
   override name = "StorageDeleteFailed";
   constructor(
@@ -58,6 +99,9 @@ export class StorageDeleteFailed extends Error {
   }
 }
 
+/**
+ * Error thrown when a head operation fails.
+ */
 export class StorageHeadFailed extends Error {
   override name = "StorageHeadFailed";
   constructor(
@@ -69,6 +113,9 @@ export class StorageHeadFailed extends Error {
   }
 }
 
+/**
+ * Error thrown when generating a presigned URL fails.
+ */
 export class StoragePresignFailed extends Error {
   override name = "StoragePresignFailed";
   constructor(
@@ -80,6 +127,26 @@ export class StoragePresignFailed extends Error {
   }
 }
 
+/**
+ * Error thrown when attempting to use presign on an adapter that does not
+ * support presigned URLs.
+ *
+ * @example Checking for presign support
+ * ```ts
+ * import { Storage, createMemory, StoragePresignNotSupported } from "@anabranch/storage";
+ *
+ * const storage = await Storage.connect(createMemory()).run();
+ *
+ * try {
+ *   const url = await storage.presign("file.txt", { expiresIn: 3600 }).run();
+ *   console.log(url);
+ * } catch (error) {
+ *   if (error instanceof StoragePresignNotSupported) {
+ *     console.log("Presigned URLs not supported by this adapter");
+ *   }
+ * }
+ * ```
+ */
 export class StoragePresignNotSupported extends Error {
   override name = "StoragePresignNotSupported";
   constructor() {
@@ -87,6 +154,9 @@ export class StoragePresignNotSupported extends Error {
   }
 }
 
+/**
+ * Error thrown when a list operation fails.
+ */
 export class StorageListFailed extends Error {
   override name = "StorageListFailed";
   constructor(
