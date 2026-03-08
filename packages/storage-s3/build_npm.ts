@@ -35,6 +35,9 @@ await build({
       "@aws-sdk/client-s3": "^3",
       "@aws-sdk/s3-request-presigner": "^3",
     },
+    devDependencies: {
+      "@types/node": "^22",
+    },
   },
   mappings: {
     [new URL(`file://${anabranchStoragePath}`).href]: {

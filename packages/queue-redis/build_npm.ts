@@ -33,6 +33,9 @@ await build({
       "@anabranch/queue": "^0",
       ioredis: "^5",
     },
+    devDependencies: {
+      "@types/node": "^22",
+    },
   },
   mappings: {
     [new URL(`file://${queuePath}`).href]: {
