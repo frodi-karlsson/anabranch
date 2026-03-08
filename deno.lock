@@ -15,7 +15,6 @@
     "npm:@aws-sdk/client-s3@3": "3.1004.0",
     "npm:@aws-sdk/s3-request-presigner@3": "3.1004.0",
     "npm:@google-cloud/storage@7": "7.19.0",
-    "npm:@smithy/node-http-handler@*": "4.4.14",
     "npm:@types/amqplib@0": "0.10.8",
     "npm:amqplib@0.10": "0.10.9",
     "npm:fake-indexeddb@4": "4.0.2",
@@ -1961,7 +1960,7 @@
           "jsr:@std/assert@1",
           "npm:@aws-sdk/client-s3@3",
           "npm:@aws-sdk/s3-request-presigner@3",
-          "npm:@smithy/node-http-handler@*"
+          "npm:@smithy/node-http-handler@4"
         ]
       },
       "packages/web-client": {

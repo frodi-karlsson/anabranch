@@ -13,7 +13,7 @@
     "@anabranch/storage": "jsr:@anabranch/storage@^0",
     "@aws-sdk/client-s3": "npm:@aws-sdk/client-s3@^3",
     "@aws-sdk/s3-request-presigner": "npm:@aws-sdk/s3-request-presigner@^3",
-    "@smithy/node-http-handler": "npm:@smithy/node-http-handler",
+    "@smithy/node-http-handler": "npm:@smithy/node-http-handler@^4",
     "@deno/dnt": "jsr:@deno/dnt@^0",
     "@std/assert": "jsr:@std/assert@^1"
   },
