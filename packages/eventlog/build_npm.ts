@@ -9,7 +9,7 @@ const { description } = JSON.parse(
 
 await emptyDir(`${dir}/npm`);
 
-const storagePath = resolve(dir, "../storage/index.ts");
+const anabranchPath = resolve(dir, "../anabranch/index.ts");
 
 await build({
   entryPoints: [`${dir}/index.ts`],
@@ -21,7 +21,7 @@ await build({
   scriptModule: false,
   test: false,
   package: {
-    name: "@anabranch/storage-gcs",
+    name: "@anabranch/eventlog",
     version,
     description,
     license: "MIT",
@@ -34,17 +34,14 @@ await build({
     },
     dependencies: {
       anabranch: "^0",
-      "@anabranch/storage": "^0",
-      "@google-cloud/storage": "^7",
     },
   },
   mappings: {
-    [new URL(`file://${storagePath}`).href]: {
-      name: "@anabranch/storage",
+    [new URL(`file://${anabranchPath}`).href]: {
+      name: "anabranch",
       version: "^0",
     },
   },
-
   postBuild() {
     Deno.copyFileSync(`${dir}/../../LICENSE`, `${dir}/npm/LICENSE`);
     Deno.copyFileSync(`${dir}/README.md`, `${dir}/npm/README.md`);

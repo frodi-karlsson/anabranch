@@ -1,0 +1,4 @@
+{
+  "name": "eventlog",
+  "description": "Event log with Task/Stream semantics. In-memory adapter for event-sourced systems with cursor-based consumption."
+}

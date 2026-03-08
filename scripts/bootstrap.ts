@@ -90,7 +90,7 @@ import { } from "@anabranch/${pkgName}";
 
 ## API
 
-###
+### 
 
 \`\`\`ts
 \`\`\`
@@ -105,6 +105,9 @@ import { resolve } from "node:path";
 
 const dir = import.meta.dirname!;
 const { version } = JSON.parse(await Deno.readTextFile(\`\${dir}/deno.json\`));
+const { description } = JSON.parse(
+  await Deno.readTextFile(\`\${dir}/metadata.json\`),
+);
 
 await emptyDir(\`\${dir}/npm\`);
 
@@ -122,7 +125,7 @@ await build({
   package: {
     name: "@anabranch/${pkgName}",
     version,
-    description: "TODO: Add description",
+    description,
     license: "MIT",
     repository: {
       type: "git",
@@ -166,6 +169,36 @@ Deno.test({
     );
   }
 
+  log(`mkdir ${pkgDir}/examples`);
+  if (!dryRun) Deno.mkdirSync(`${pkgDir}/examples`);
+
+  const example = `/**
+ * ${pkgName} Example
+ *
+ * Run:
+ * \`\`\`
+ * deno run -A packages/${pkgName}/examples/main.ts
+ * \`\`\`
+ */
+
+import { createInMemory } from "../index.ts";
+
+async function main() {
+  console.log("Starting ${pkgName} example...");
+
+  const connector = createInMemory();
+  // const connector = createInMemory({ /* options */ });
+
+  // const adapter = await connector.connect();
+  // await connector.end();
+}
+
+main().catch(console.error);`;
+  log(`write ${pkgDir}/examples/main.ts`);
+  if (!dryRun) {
+    await Deno.writeTextFile(`${pkgDir}/examples/main.ts`, example);
+  }
+
   const rootDeno = JSON.parse(
     await Deno.readTextFile(`${repoRoot}/deno.json`),
   );
@@ -195,6 +228,7 @@ Deno.test({
         `${pkgDir}/build_npm.ts`,
         `${pkgDir}/${pkgName}_test.ts`,
         `${pkgDir}/metadata.json`,
+        `${pkgDir}/examples/main.ts`,
       ],
     });
     await fmt.output();
@@ -219,10 +253,11 @@ Deno.test({
     console.log(`  1. Add functionality to ${pkgName}.ts`);
     console.log(`  2. Write tests in ${pkgName}_test.ts`);
     console.log("  3. Update README.md with usage examples");
-    console.log("  4. Set up OIDC for npm publishing (see publish-npm.yml)");
+    console.log("  4. Update metadata.json with a proper description");
+    console.log("  5. Set up OIDC for npm publishing (see publish-npm.yml)");
     console.log(
-      "  5. Create package in JSR and set up GitHub Actions connector",
+      "  6. Create package in JSR and set up GitHub Actions connector",
     );
-    console.log(`  6. Run: deno run -A scripts/bump.ts -p=${pkgName}`);
+    console.log(`  7. Run: deno run -A scripts/bump.ts -p=${pkgName}`);
   }
 }

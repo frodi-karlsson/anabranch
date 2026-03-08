@@ -14,7 +14,8 @@
     "./packages/storage",
     "./packages/storage-browser",
     "./packages/storage-s3",
-    "./packages/storage-gcs"
+    "./packages/storage-gcs",
+    "./packages/eventlog"
   ],
   "lint": {
     "rules": {
@@ -57,7 +58,8 @@
     "coverage": "deno test --allow-read --allow-write --allow-sys --allow-env --allow-net --coverage=packages/anabranch/coverage --clean && deno coverage ./packages/anabranch/coverage",
     "coverage:html": "deno test --allow-read --allow-write --allow-sys --allow-env --allow-net --coverage=packages/anabranch/coverage --clean && deno coverage --html ./packages/anabranch/coverage",
     "coverage:lcov": "deno test --allow-read --allow-write --allow-sys --allow-env --allow-net --coverage=packages/anabranch/coverage --clean && deno coverage --lcov --output=packages/anabranch/coverage.lcov ./packages/anabranch/coverage",
-    "build:npm": "deno run -A ./scripts/build-npm.ts"
+    "build:npm": "deno run -A ./scripts/build-npm.ts",
+    "doc:sync": "deno run -A ./scripts/sync-docs.ts"
   },
   "imports": {
     "ioredis": "npm:ioredis@^5.10.0"

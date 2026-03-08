@@ -3,6 +3,9 @@ import { resolve } from "node:path";
 
 const dir = import.meta.dirname!;
 const { version } = JSON.parse(await Deno.readTextFile(`${dir}/deno.json`));
+const { description } = JSON.parse(
+  await Deno.readTextFile(`${dir}/metadata.json`),
+);
 
 await emptyDir(`${dir}/npm`);
 
@@ -20,7 +23,7 @@ await build({
   package: {
     name: "@anabranch/db",
     version,
-    description: "Database adapters with transaction support",
+    description,
     license: "MIT",
     repository: {
       type: "git",

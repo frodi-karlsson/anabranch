@@ -3,6 +3,9 @@ import { resolve } from "node:path";
 
 const dir = import.meta.dirname!;
 const { version } = JSON.parse(await Deno.readTextFile(`${dir}/deno.json`));
+const { description } = JSON.parse(
+  await Deno.readTextFile(`${dir}/metadata.json`),
+);
 
 await emptyDir(`${dir}/npm`);
 
@@ -20,7 +23,7 @@ await build({
   package: {
     name: "@anabranch/storage-s3",
     version,
-    description: "S3 storage adapter for the anabranch ecosystem",
+    description,
     license: "MIT",
     repository: {
       type: "git",
