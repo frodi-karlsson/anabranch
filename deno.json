@@ -12,7 +12,9 @@
     "./packages/queue-redis",
     "./packages/queue-rabbitmq",
     "./packages/storage",
-    "./packages/storage-browser"
+    "./packages/storage-browser",
+    "./packages/storage-s3",
+    "./packages/storage-gcs"
   ],
   "lint": {
     "rules": {
@@ -50,38 +52,12 @@
   "tasks": {
     "check": "deno fmt --check && deno lint && deno test --allow-read --allow-write --allow-sys --allow-env --allow-net",
     "test:integration": "deno run -A ./scripts/test-integration.ts",
-    "doc": "deno task doc:anabranch && deno task doc:web-client && deno task doc:broken-link-checker && deno task doc:fs && deno task doc:db && deno task doc:db-postgres && deno task doc:db-sqlite && deno task doc:db-mysql && deno task doc:queue && deno task doc:queue-redis && deno task doc:queue-rabbitmq && deno task doc:storage && deno task doc:storage-browser && cp docs-src/index.html docs/index.html",
-    "doc:anabranch": "mkdir -p docs/anabranch && deno doc --html --name=anabranch --output=docs/anabranch ./packages/anabranch/index.ts",
-    "doc:web-client": "mkdir -p docs/web-client && deno doc --html --name=web-client --output=docs/web-client ./packages/web-client/index.ts",
-    "doc:broken-link-checker": "mkdir -p docs/broken-link-checker && deno doc --html --name=broken-link-checker --output=docs/broken-link-checker ./packages/broken-link-checker/index.ts",
+    "doc": "deno run -A ./scripts/build-docs.ts",
     "doc:lint": "deno doc --lint ./packages/anabranch/index.ts",
     "coverage": "deno test --allow-read --allow-write --allow-sys --allow-env --allow-net --coverage=packages/anabranch/coverage --clean && deno coverage ./packages/anabranch/coverage",
     "coverage:html": "deno test --allow-read --allow-write --allow-sys --allow-env --allow-net --coverage=packages/anabranch/coverage --clean && deno coverage --html ./packages/anabranch/coverage",
     "coverage:lcov": "deno test --allow-read --allow-write --allow-sys --allow-env --allow-net --coverage=packages/anabranch/coverage --clean && deno coverage --lcov --output=packages/anabranch/coverage.lcov ./packages/anabranch/coverage",
-    "build:npm": "deno run -A ./packages/anabranch/build_npm.ts && deno run -A ./packages/queue/build_npm.ts && deno run -A ./packages/queue-redis/build_npm.ts && deno run -A ./packages/queue-rabbitmq/build_npm.ts && deno run -A ./packages/db-mysql/build_npm.ts && deno run -A ./packages/db-sqlite/build_npm.ts && deno run -A ./packages/db-postgres/build_npm.ts && deno run -A ./packages/web-client/build_npm.ts && deno run -A ./packages/broken-link-checker/build_npm.ts && deno run -A ./packages/fs/build_npm.ts && deno run -A ./packages/db/build_npm.ts && deno run -A ./packages/storage/build_npm.ts && deno run -A ./packages/storage-browser/build_npm.ts",
-    "build:npm:anabranch": "deno run -A ./packages/anabranch/build_npm.ts",
-    "build:npm:web-client": "deno run -A ./packages/web-client/build_npm.ts",
-    "build:npm:broken-link-checker": "deno run -A ./packages/broken-link-checker/build_npm.ts",
-    "doc:fs": "mkdir -p docs/fs && deno doc --html --name=fs --output=docs/fs ./packages/fs/index.ts",
-    "build:npm:fs": "deno run -A ./packages/fs/build_npm.ts",
-    "build:npm:db": "deno run -A ./packages/db/build_npm.ts",
-    "doc:db": "mkdir -p docs/db && deno doc --html --name=db --output=docs/db ./packages/db/index.ts",
-    "build:npm:db-postgres": "deno run -A ./packages/db-postgres/build_npm.ts",
-    "doc:db-postgres": "mkdir -p docs/db-postgres && deno doc --html --name=db-postgres --output=docs/db-postgres ./packages/db-postgres/index.ts",
-    "build:npm:db-sqlite": "deno run -A ./packages/db-sqlite/build_npm.ts",
-    "doc:db-sqlite": "mkdir -p docs/db-sqlite && deno doc --html --name=db-sqlite --output=docs/db-sqlite ./packages/db-sqlite/index.ts",
-    "build:npm:db-mysql": "deno run -A ./packages/db-mysql/build_npm.ts",
-    "doc:db-mysql": "mkdir -p docs/db-mysql && deno doc --html --name=db-mysql --output=docs/db-mysql ./packages/db-mysql/index.ts",
-    "build:npm:queue": "deno run -A ./packages/queue/build_npm.ts",
-    "build:npm:queue-redis": "deno run -A ./packages/queue-redis/build_npm.ts",
-    "build:npm:queue-rabbitmq": "deno run -A ./packages/queue-rabbitmq/build_npm.ts",
-    "build:npm:storage": "deno run -A ./packages/storage/build_npm.ts",
-    "build:npm:storage-browser": "deno run -A ./packages/storage-browser/build_npm.ts",
-    "doc:queue": "mkdir -p docs/queue && deno doc --html --name=queue --output=docs/queue ./packages/queue/index.ts",
-    "doc:queue-redis": "mkdir -p docs/queue-redis && deno doc --html --name=queue-redis --output=docs/queue-redis ./packages/queue-redis/index.ts",
-    "doc:queue-rabbitmq": "mkdir -p docs/queue-rabbitmq && deno doc --html --name=queue-rabbitmq --output=docs/queue-rabbitmq ./packages/queue-rabbitmq/index.ts",
-    "doc:storage-browser": "mkdir -p docs/storage-browser && deno doc --html --name=storage-browser --output=docs/storage-browser ./packages/storage-browser/index.ts",
-    "doc:storage": "mkdir -p docs/storage && deno doc --html --name=storage --output=docs/storage ./packages/storage/index.ts"
+    "build:npm": "deno run -A ./scripts/build-npm.ts"
   },
   "imports": {
     "ioredis": "npm:ioredis@^5.10.0"

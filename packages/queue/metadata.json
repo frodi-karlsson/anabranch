@@ -1,0 +1,4 @@
+{
+  "name": "queue",
+  "description": "Message queue with Task/Stream semantics. In-memory adapter with delayed messages, dead letter queues, and visibility timeout."
+}

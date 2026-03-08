@@ -1,0 +1,4 @@
+{
+  "name": "storage",
+  "description": "Object storage primitives with Task/Stream semantics. In-memory adapter with generic interface for cloud providers."
+}

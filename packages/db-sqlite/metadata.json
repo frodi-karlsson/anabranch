@@ -1,0 +1,4 @@
+{
+  "name": "db-sqlite",
+  "description": "SQLite database connector using Node.js built-in node:sqlite for in-memory or file-based databases."
+}

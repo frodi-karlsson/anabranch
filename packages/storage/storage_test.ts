@@ -115,3 +115,20 @@ Deno.test("Storage - should close and end connector properly", async () => {
   await storage.close().run();
   await connector.end();
 });
+
+Deno.test("Storage - should throw StoragePresignNotSupported for memory adapter", async () => {
+  const connector = createMemory();
+  const storage = await Storage.connect(connector).run();
+
+  const result = await storage
+    .presign("test.txt", { method: "GET", expiresIn: 3600 })
+    .result();
+
+  assertEquals(result.type, "error");
+  assertEquals(
+    (result as { error: Error }).error.name,
+    "StoragePresignNotSupported",
+  );
+
+  await connector.end();
+});

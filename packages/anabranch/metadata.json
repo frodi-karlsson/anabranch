@@ -1,0 +1,4 @@
+{
+  "name": "anabranch",
+  "description": "Async stream processing where errors are collected alongside values instead of stopping the pipeline. Built on Task and Channel primitives."
+}

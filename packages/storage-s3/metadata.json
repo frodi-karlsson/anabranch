@@ -1,0 +1,34 @@
+{
+  "name": "storage-s3",
+  "description": "S3 adapter for @anabranch/storage using @aws-sdk/client-s3. Supports presigned URLs, multipart uploads, and all storage operations.",
+  "env": {
+    "S3_ENDPOINT": "http://localhost:9000",
+    "S3_REGION": "us-east-1",
+    "S3_ACCESS_KEY_ID": "minioadmin",
+    "S3_SECRET_ACCESS_KEY": "minioadmin",
+    "S3_BUCKET": "test-bucket"
+  },
+  "service": {
+    "name": "s3",
+    "image": "minio/minio",
+    "env": {
+      "MINIO_ROOT_USER": "minioadmin",
+      "MINIO_ROOT_PASSWORD": "minioadmin",
+      "MINIO_SERVER_URL": "http://localhost:9000"
+    },
+    "ports": [
+      "9000:9000",
+      "9001:9001"
+    ],
+    "args": [
+      "server",
+      "/data",
+      "--console-address",
+      ":9001"
+    ],
+    "probe": {
+      "type": "http",
+      "url": "http://localhost:9000/minio/health/live"
+    }
+  }
+}

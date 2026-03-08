@@ -1,0 +1,4 @@
+{
+  "name": "storage-browser",
+  "description": "Browser storage adapter using IndexedDB. Works in browsers and Web Workers."
+}

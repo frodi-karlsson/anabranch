@@ -1,0 +1,4 @@
+{
+  "name": "web-client",
+  "description": "Modern HTTP client built on fetch with automatic retries, timeouts, and rate-limit handling. Returns Task for composable error handling."
+}

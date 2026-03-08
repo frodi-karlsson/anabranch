@@ -1,0 +1,26 @@
+{
+  "name": "storage-gcs",
+  "description": "GCS adapter for @anabranch/storage using @google-cloud/storage. Supports signed URLs and all storage operations.",
+  "env": {
+    "GCS_ENDPOINT": "http://localhost:4443",
+    "GCS_PROJECT_ID": "test-project",
+    "GCS_BUCKET": "test-bucket"
+  },
+  "service": {
+    "name": "gcs",
+    "image": "fsouza/fake-gcs-server",
+    "ports": [
+      "4443:4443"
+    ],
+    "args": [
+      "-scheme",
+      "http",
+      "-public-host",
+      "localhost:4443"
+    ],
+    "probe": {
+      "type": "http",
+      "url": "http://localhost:4443/storage/v1/b"
+    }
+  }
+}

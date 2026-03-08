@@ -1,6 +1,8 @@
 import { Source, Task } from "@anabranch/anabranch";
 import type {
   BodyInput,
+  PresignableAdapter,
+  PresignOptions,
   PutOptions,
   StorageAdapter,
   StorageConnector,
@@ -16,6 +18,8 @@ import {
   StorageHeadFailed,
   StorageListFailed,
   StorageObjectNotFound,
+  StoragePresignFailed,
+  StoragePresignNotSupported,
   StoragePutFailed,
 } from "./errors.ts";
 
@@ -230,5 +234,28 @@ export class Storage {
         }
       },
     );
+  }
+
+  presign(
+    key: string,
+    options: PresignOptions,
+  ): Task<string, StoragePresignFailed | StoragePresignNotSupported> {
+    return Task.of(async () => {
+      if (
+        !("presign" in this.adapter) ||
+        typeof this.adapter.presign !== "function"
+      ) {
+        throw new StoragePresignNotSupported();
+      }
+      try {
+        return await (this.adapter as PresignableAdapter).presign(key, options);
+      } catch (error) {
+        throw new StoragePresignFailed(
+          key,
+          error instanceof Error ? error.message : String(error),
+          error,
+        );
+      }
+    });
   }
 }

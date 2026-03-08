@@ -1,0 +1,4 @@
+{
+  "name": "db",
+  "description": "Database abstraction with Task/Stream semantics. In-memory adapter for testing, adapters for PostgreSQL, MySQL, and SQLite."
+}

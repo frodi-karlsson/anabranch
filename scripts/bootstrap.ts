@@ -24,7 +24,6 @@ async function main(): Promise<void> {
   const pkgDir = `${repoRoot}/packages/${pkgName}`;
   const log = (msg: string) => console.log((dryRun ? "[DRY-RUN] " : "") + msg);
 
-  // Check if package already exists
   if (await Deno.stat(pkgDir).catch(() => null)) {
     console.error(`Package ${pkgName} already exists at ${pkgDir}`);
     Deno.exit(1);
@@ -32,11 +31,9 @@ async function main(): Promise<void> {
 
   log(`Bootstrapping @anabranch/${pkgName} in ${pkgDir}`);
 
-  // Create package directory
   log(`mkdir ${pkgDir}`);
   if (!dryRun) Deno.mkdirSync(pkgDir);
 
-  // Create deno.json with mappings for npm dependencies
   const denoJson = {
     name: `@anabranch/${pkgName}`,
     version: "0.1.0",
@@ -64,13 +61,23 @@ async function main(): Promise<void> {
     );
   }
 
-  // Create index.ts
+  log(`write ${pkgDir}/metadata.json`);
+  if (!dryRun) {
+    const metadata = {
+      name: pkgName,
+      description: "TODO: Add description",
+    };
+    await Deno.writeTextFile(
+      `${pkgDir}/metadata.json`,
+      JSON.stringify(metadata, null, 2) + "\n",
+    );
+  }
+
   log(`write ${pkgDir}/index.ts`);
   if (!dryRun) {
     await Deno.writeTextFile(`${pkgDir}/index.ts`, "/** @module */\n");
   }
 
-  // Create README.md
   const readme = `# @anabranch/${pkgName}
 
 TODO: Add description
@@ -83,7 +90,7 @@ import { } from "@anabranch/${pkgName}";
 
 ## API
 
-### 
+###
 
 \`\`\`ts
 \`\`\`
@@ -93,7 +100,6 @@ import { } from "@anabranch/${pkgName}";
     await Deno.writeTextFile(`${pkgDir}/README.md`, readme);
   }
 
-  // Create build_npm.ts
   const buildNpm = `import { build, emptyDir } from "@deno/dnt";
 import { resolve } from "node:path";
 
@@ -145,7 +151,6 @@ await build({
     await Deno.writeTextFile(`${pkgDir}/build_npm.ts`, buildNpm);
   }
 
-  // Create empty test file
   log(`write ${pkgDir}/${pkgName}_test.ts`);
   if (!dryRun) {
     await Deno.writeTextFile(
@@ -161,7 +166,6 @@ Deno.test({
     );
   }
 
-  // Compute deno.json changes
   const rootDeno = JSON.parse(
     await Deno.readTextFile(`${repoRoot}/deno.json`),
   );
@@ -182,7 +186,6 @@ Deno.test({
     if (workspaceChange) {
       rootDeno.workspace.push(`./packages/${pkgName}`);
     }
-    // Add doc task for this package
     if (docTaskNew) {
       rootDeno.tasks[`doc:${pkgName}`] =
         `mkdir -p docs/${pkgName} && deno doc --html --name=${pkgName} --output=docs/${pkgName} ./packages/${pkgName}/index.ts`;
@@ -193,7 +196,6 @@ Deno.test({
     );
   }
 
-  // Format created files
   log(`format created files`);
   if (!dryRun) {
     const fmt = new Deno.Command("deno", {
@@ -202,6 +204,7 @@ Deno.test({
         `${pkgDir}/deno.json`,
         `${pkgDir}/build_npm.ts`,
         `${pkgDir}/${pkgName}_test.ts`,
+        `${pkgDir}/metadata.json`,
       ],
     });
     await fmt.output();
@@ -213,13 +216,13 @@ Deno.test({
       "[DRY-RUN] No changes made. Re-run without --dry-run to apply.",
     );
   } else {
-    console.log(`\nPackage @anabranch/${pkgName} bootstrapped!`);
+    console.log(`Package @anabranch/${pkgName} bootstrapped!`);
     console.log("Next steps:");
     console.log(`  1. Add functionality to ${pkgName}.ts`);
     console.log(`  2. Write tests in ${pkgName}_test.ts`);
     console.log("  3. Update README.md with usage examples");
     console.log(`  4. Add doc:${pkgName} to the "doc" task in deno.json`);
-    console.log("  5. Add bundle size badge to root README (see bundlejs.com)");
+    console.log("  5. Run: deno run -A scripts/sync-docs.ts");
     console.log("  6. CI is automatic - just tag to publish (see workflows)");
     console.log("  7. Manually publish to npm");
     console.log("  8. Set up OIDC");

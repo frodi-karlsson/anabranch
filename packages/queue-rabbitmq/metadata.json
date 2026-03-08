@@ -1,0 +1,24 @@
+{
+  "name": "queue-rabbitmq",
+  "description": "RabbitMQ adapter for @anabranch/queue using amqplib. Supports all queue features with RabbitMQ queues for persistent messaging.",
+  "env": {
+    "RABBITMQ_URL": "amqp://localhost:5672"
+  },
+  "service": {
+    "name": "rabbitmq",
+    "image": "rabbitmq:3-management",
+    "dockerOptions": [
+      "--user",
+      "rabbitmq"
+    ],
+    "ports": [
+      "5672:5672",
+      "15672:15672"
+    ],
+    "probe": {
+      "type": "exec",
+      "command": ["rabbitmq-diagnostics", "ping"],
+      "delay": 2000
+    }
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "name": "fs",
+  "description": "Streaming file-system utilities for reading, walking, globbing, and watching files with composable error handling."
+}

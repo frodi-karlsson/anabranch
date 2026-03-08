@@ -1,0 +1,23 @@
+{
+  "name": "db-postgres",
+  "description": "PostgreSQL database connector using node:pg with connection pooling and cursor-based streaming for large result sets.",
+  "env": {
+    "POSTGRES_URL": "postgresql://postgres:postgres@localhost:5432/postgres"
+  },
+  "service": {
+    "name": "postgres",
+    "image": "postgres:16",
+    "env": {
+      "POSTGRES_USER": "postgres",
+      "POSTGRES_PASSWORD": "postgres",
+      "POSTGRES_DB": "postgres"
+    },
+    "ports": [
+      "5432:5432"
+    ],
+    "probe": {
+      "type": "exec",
+      "command": ["pg_isready", "-U", "postgres"]
+    }
+  }
+}

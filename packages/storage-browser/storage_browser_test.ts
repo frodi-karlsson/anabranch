@@ -234,3 +234,24 @@ Deno.test("StorageBrowser - should close and end connector properly", async () =
   await storage.close().run();
   await connector.end();
 });
+
+Deno.test("StorageBrowser - should throw StoragePresignNotSupported", async () => {
+  const { createIndexedDB } = await import("./index.ts");
+  const connector = createIndexedDB({
+    prefix: "test/",
+    dbName: "test-presign",
+  });
+  const storage = await Storage.connect(connector).run();
+
+  const result = await storage
+    .presign("test.txt", { method: "GET", expiresIn: 3600 })
+    .result();
+
+  assertEquals(result.type, "error");
+  assertEquals(
+    (result as { error: Error }).error.name,
+    "StoragePresignNotSupported",
+  );
+
+  await connector.end();
+});

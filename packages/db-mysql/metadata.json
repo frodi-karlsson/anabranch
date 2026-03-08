@@ -1,0 +1,23 @@
+{
+  "name": "db-mysql",
+  "description": "MySQL database connector using mysql2 with connection pooling for MySQL databases.",
+  "env": {
+    "MYSQL_URL": "mysql://root:mysql@localhost:3307/mysql"
+  },
+  "service": {
+    "name": "mysql",
+    "image": "mysql:8",
+    "env": {
+      "MYSQL_ROOT_PASSWORD": "mysql",
+      "MYSQL_DATABASE": "mysql",
+      "MYSQL_ROOT_HOST": "%"
+    },
+    "ports": [
+      "3307:3306"
+    ],
+    "probe": {
+      "type": "exec",
+      "command": ["mysqladmin", "ping", "-h", "127.0.0.1"]
+    }
+  }
+}

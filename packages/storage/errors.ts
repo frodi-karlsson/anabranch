@@ -80,6 +80,13 @@ export class StoragePresignFailed extends Error {
   }
 }
 
+export class StoragePresignNotSupported extends Error {
+  override name = "StoragePresignNotSupported";
+  constructor() {
+    super("Presigned URLs are not supported by this storage adapter.");
+  }
+}
+
 export class StorageListFailed extends Error {
   override name = "StorageListFailed";
   constructor(

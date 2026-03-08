@@ -6,7 +6,7 @@ const { version } = JSON.parse(await Deno.readTextFile(`${dir}/deno.json`));
 
 await emptyDir(`${dir}/npm`);
 
-const anabranchPath = resolve(dir, "../anabranch/index.ts");
+const anabranchStoragePath = resolve(dir, "../storage/index.ts");
 
 await build({
   entryPoints: [`${dir}/index.ts`],
@@ -18,10 +18,9 @@ await build({
   scriptModule: false,
   test: false,
   package: {
-    name: "@anabranch/storage",
+    name: "@anabranch/storage-s3",
     version,
-    description:
-      "Object storage primitives with Task/Stream semantics. In-memory adapter with generic interface for cloud providers.",
+    description: "S3 storage adapter for the anabranch ecosystem",
     license: "MIT",
     repository: {
       type: "git",
@@ -32,17 +31,18 @@ await build({
     },
     dependencies: {
       anabranch: "^0",
-    },
-    devDependencies: {
-      "@types/node": "^24",
+      "@anabranch/storage": "^0",
+      "@aws-sdk/client-s3": "^3",
+      "@aws-sdk/s3-request-presigner": "^3",
     },
   },
   mappings: {
-    [new URL(`file://${anabranchPath}`).href]: {
-      name: "anabranch",
+    [new URL(`file://${anabranchStoragePath}`).href]: {
+      name: "@anabranch/storage",
       version: "^0",
     },
   },
+
   postBuild() {
     Deno.copyFileSync(`${dir}/../../LICENSE`, `${dir}/npm/LICENSE`);
     Deno.copyFileSync(`${dir}/README.md`, `${dir}/npm/README.md`);
