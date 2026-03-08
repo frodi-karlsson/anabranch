@@ -1,6 +1,6 @@
 #!/usr/bin/env -S deno run -A
 
-main();
+await main();
 
 async function main(): Promise<void> {
   const args = [...Deno.args];
@@ -170,30 +170,20 @@ Deno.test({
     await Deno.readTextFile(`${repoRoot}/deno.json`),
   );
   const workspaceChange = !rootDeno.workspace.includes(`./packages/${pkgName}`);
-  const docTaskNew = !rootDeno.tasks[`doc:${pkgName}`];
 
   log(`update ${repoRoot}/deno.json`);
   if (dryRun) {
     if (workspaceChange) {
       log(`  + workspace: "./packages/${pkgName}"`);
     }
-    if (docTaskNew) {
-      log(
-        `  + task: doc:${pkgName} = "mkdir -p docs/${pkgName} && deno doc --html ..."`,
-      );
-    }
   } else {
     if (workspaceChange) {
       rootDeno.workspace.push(`./packages/${pkgName}`);
+      await Deno.writeTextFile(
+        `${repoRoot}/deno.json`,
+        JSON.stringify(rootDeno, null, 2) + "\n",
+      );
     }
-    if (docTaskNew) {
-      rootDeno.tasks[`doc:${pkgName}`] =
-        `mkdir -p docs/${pkgName} && deno doc --html --name=${pkgName} --output=docs/${pkgName} ./packages/${pkgName}/index.ts`;
-    }
-    await Deno.writeTextFile(
-      `${repoRoot}/deno.json`,
-      JSON.stringify(rootDeno, null, 2) + "\n",
-    );
   }
 
   log(`format created files`);
@@ -221,14 +211,12 @@ Deno.test({
     console.log(`  1. Add functionality to ${pkgName}.ts`);
     console.log(`  2. Write tests in ${pkgName}_test.ts`);
     console.log("  3. Update README.md with usage examples");
-    console.log(`  4. Add doc:${pkgName} to the "doc" task in deno.json`);
-    console.log("  5. Run: deno run -A scripts/sync-docs.ts");
-    console.log("  6. CI is automatic - just tag to publish (see workflows)");
-    console.log("  7. Manually publish to npm");
-    console.log("  8. Set up OIDC");
+    console.log("  4. Run: deno run -A scripts/sync-docs.ts");
+    console.log("  5. CI is automatic - docs deploy on main, publish on tag");
+    console.log("  6. Set up OIDC for npm publishing (see publish-npm.yml)");
     console.log(
-      "  9. Create package in JSR and set up GitHub Actions connector",
+      "  7. Create package in JSR and set up GitHub Actions connector",
     );
-    console.log(`  10. Run: deno run -A scripts/bump.ts -p=${pkgName}`);
+    console.log(`  8. Run: deno run -A scripts/bump.ts -p=${pkgName}`);
   }
 }
