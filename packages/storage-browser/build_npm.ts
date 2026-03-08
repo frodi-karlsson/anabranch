@@ -42,5 +42,6 @@ await build({
   },
   postBuild() {
     Deno.copyFileSync(`${dir}/../../LICENSE`, `${dir}/npm/LICENSE`);
+    Deno.copyFileSync(`${dir}/README.md`, `${dir}/npm/README.md`);
   },
 });
