@@ -74,6 +74,7 @@
     "build:npm:queue": "deno run -A ./packages/queue/build_npm.ts",
     "build:npm:queue-redis": "deno run -A ./packages/queue-redis/build_npm.ts",
     "build:npm:queue-rabbitmq": "deno run -A ./packages/queue-rabbitmq/build_npm.ts",
+    "build:npm:storage": "deno run -A ./packages/storage/build_npm.ts",
     "doc:queue": "mkdir -p docs/queue && deno doc --html --name=queue --output=docs/queue ./packages/queue/index.ts",
     "doc:queue-redis": "mkdir -p docs/queue-redis && deno doc --html --name=queue-redis --output=docs/queue-redis ./packages/queue-redis/index.ts",
     "doc:queue-rabbitmq": "mkdir -p docs/queue-rabbitmq && deno doc --html --name=queue-rabbitmq --output=docs/queue-rabbitmq ./packages/queue-rabbitmq/index.ts",
