@@ -83,8 +83,8 @@
  *
  * @module
  */
-export { Queue } from "./queue.ts";
-export type { QueueMessage } from "./adapter.ts";
+export { Queue } from './queue.ts'
+export type { QueueMessage } from './adapter.ts'
 export type {
   NackOptions,
   QueueAdapter,
@@ -92,9 +92,9 @@ export type {
   QueueOptions,
   SendOptions,
   StreamAdapter,
-} from "./adapter.ts";
-export * from "./errors.ts";
-export { createInMemory } from "./in-memory.ts";
-export type { InMemoryConnector } from "./in-memory.ts";
-export { Task } from "@anabranch/anabranch";
-export type { Source, Stream } from "@anabranch/anabranch";
+} from './adapter.ts'
+export * from './errors.ts'
+export { createInMemory } from './in-memory.ts'
+export type { InMemoryConnector } from './in-memory.ts'
+export { Task } from '@anabranch/anabranch'
+export type { Source, Stream } from '@anabranch/anabranch'

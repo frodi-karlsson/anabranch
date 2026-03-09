@@ -29,4 +29,4 @@ export {
   createPostgres,
   type PostgresConnector,
   type PostgresOptions,
-} from "./postgres.ts";
+} from './postgres.ts'

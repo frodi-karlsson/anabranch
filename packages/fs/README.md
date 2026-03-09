@@ -7,21 +7,21 @@ operations return a `Source` for streaming; single-value operations return a
 ## Usage
 
 ```ts
-import { glob, readLines } from "@anabranch/fs";
+import { glob, readLines } from '@anabranch/fs'
 
-const { successes, errors } = await glob("./src", "**/*.ts")
+const { successes, errors } = await glob('./src', '**/*.ts')
   .flatMap(async (entry) => {
     const lines = await readLines(entry.path)
-      .filter((line) => line.includes("TODO"))
+      .filter((line) => line.includes('TODO'))
       .map((line) => ({ path: entry.path, line }))
-      .collect();
-    return lines;
+      .collect()
+    return lines
   })
-  .partition();
+  .partition()
 
-console.log("TODOs found:", successes.length);
+console.log('TODOs found:', successes.length)
 for (const error of errors) {
-  console.error("Failed:", error);
+  console.error('Failed:', error)
 }
 ```
 
@@ -30,7 +30,7 @@ for (const error of errors) {
 **Deno (JSR)**
 
 ```ts
-import { glob } from "jsr:@anabranch/fs";
+import { glob } from 'jsr:@anabranch/fs'
 ```
 
 **Node / Bun (npm)**

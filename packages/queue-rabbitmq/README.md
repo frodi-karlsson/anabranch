@@ -5,21 +5,21 @@ RabbitMQ adapter for @anabranch/queue using amqplib.
 ## Usage
 
 ```ts
-import { Queue } from "@anabranch/queue";
-import { createRabbitMQ } from "@anabranch/queue-rabbitmq";
+import { Queue } from '@anabranch/queue'
+import { createRabbitMQ } from '@anabranch/queue-rabbitmq'
 
-const connector = createRabbitMQ("amqp://localhost:5672");
-const queue = await Queue.connect(connector).run();
+const connector = createRabbitMQ('amqp://localhost:5672')
+const queue = await Queue.connect(connector).run()
 
-await queue.send("notifications", { userId: 123, type: "welcome" });
+await queue.send('notifications', { userId: 123, type: 'welcome' })
 
 const { successes, errors } = await queue
-  .stream("notifications")
+  .stream('notifications')
   .withConcurrency(5)
   .map(async (msg) => await sendNotification(msg.data))
-  .partition();
+  .partition()
 
-await queue.close().run();
+await queue.close().run()
 ```
 
 ## API
@@ -29,19 +29,19 @@ await queue.close().run();
 Creates a RabbitMQ queue connector.
 
 ```ts
-import { createRabbitMQ } from "@anabranch/queue-rabbitmq";
+import { createRabbitMQ } from '@anabranch/queue-rabbitmq'
 
 const connector = createRabbitMQ({
-  connection: "amqp://localhost:5672",
-  prefix: "myapp",
+  connection: 'amqp://localhost:5672',
+  prefix: 'myapp',
   queues: {
     orders: {
       maxAttempts: 5,
-      deadLetterQueue: "orders-dlq",
+      deadLetterQueue: 'orders-dlq',
     },
   },
   defaultPrefetch: 10,
-});
+})
 ```
 
 **Options:**
@@ -56,12 +56,12 @@ const connector = createRabbitMQ({
 Headers can be attached to messages for routing and correlation:
 
 ```ts
-await queue.send("orders", order, {
+await queue.send('orders', order, {
   headers: {
-    "x-correlation-id": "abc-123",
-    "x-source": "checkout-service",
+    'x-correlation-id': 'abc-123',
+    'x-source': 'checkout-service',
   },
-}).run();
+}).run()
 ```
 
 Headers are surfaced in `metadata.headers` on received messages.
@@ -73,21 +73,21 @@ Headers are surfaced in `metadata.headers` on received messages.
 Without it, specifying `delayMs` will throw an error.
 
 ```ts
-await queue.send("notifications", reminder, { delayMs: 30_000 }).run();
+await queue.send('notifications', reminder, { delayMs: 30_000 }).run()
 ```
 
 ### Dead Letter Queue
 
 ```ts
 const connector = createRabbitMQ({
-  connection: "amqp://localhost:5672",
+  connection: 'amqp://localhost:5672',
   queues: {
     orders: {
       maxAttempts: 3,
-      deadLetterQueue: "orders-dlq",
+      deadLetterQueue: 'orders-dlq',
     },
   },
-});
+})
 ```
 
 When a message exceeds max delivery attempts, it is routed to the dead letter

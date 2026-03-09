@@ -1,50 +1,50 @@
-import { build, emptyDir } from "@deno/dnt";
-import { resolve } from "node:path";
+import { build, emptyDir } from '@deno/dnt'
+import { resolve } from 'node:path'
 
-const dir = import.meta.dirname!;
-const { version } = JSON.parse(await Deno.readTextFile(`${dir}/deno.json`));
+const dir = import.meta.dirname!
+const { version } = JSON.parse(await Deno.readTextFile(`${dir}/deno.json`))
 const { description } = JSON.parse(
   await Deno.readTextFile(`${dir}/metadata.json`),
-);
+)
 
-await emptyDir(`${dir}/npm`);
+await emptyDir(`${dir}/npm`)
 
-const storagePath = resolve(dir, "../storage/index.ts");
+const storagePath = resolve(dir, '../storage/index.ts')
 
 await build({
   entryPoints: [`${dir}/index.ts`],
   outDir: `${dir}/npm`,
   shims: { deno: false },
   compilerOptions: {
-    lib: ["ESNext", "DOM"],
+    lib: ['ESNext', 'DOM'],
   },
   scriptModule: false,
   test: false,
   package: {
-    name: "@anabranch/storage-browser",
+    name: '@anabranch/storage-browser',
     version,
     description,
-    license: "MIT",
+    license: 'MIT',
     repository: {
-      type: "git",
-      url: "git+https://github.com/frodi-karlsson/anabranch.git",
+      type: 'git',
+      url: 'git+https://github.com/frodi-karlsson/anabranch.git',
     },
     bugs: {
-      url: "https://github.com/frodi-karlsson/anabranch.git",
+      url: 'https://github.com/frodi-karlsson/anabranch.git',
     },
     dependencies: {
-      anabranch: "^0",
-      "@anabranch/storage": `^${version}`,
+      anabranch: '^0',
+      '@anabranch/storage': `^${version}`,
     },
   },
   mappings: {
     [new URL(`file://${storagePath}`).href]: {
-      name: "@anabranch/storage",
+      name: '@anabranch/storage',
       version: `^${version}`,
     },
   },
   postBuild() {
-    Deno.copyFileSync(`${dir}/../../LICENSE`, `${dir}/npm/LICENSE`);
-    Deno.copyFileSync(`${dir}/README.md`, `${dir}/npm/README.md`);
+    Deno.copyFileSync(`${dir}/../../LICENSE`, `${dir}/npm/LICENSE`)
+    Deno.copyFileSync(`${dir}/README.md`, `${dir}/npm/README.md`)
   },
-});
+})

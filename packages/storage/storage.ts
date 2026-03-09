@@ -1,4 +1,4 @@
-import { Source, Task } from "@anabranch/anabranch";
+import { Source, Task } from '@anabranch/anabranch'
 import type {
   BodyInput,
   PresignableAdapter,
@@ -9,7 +9,7 @@ import type {
   StorageEntry,
   StorageMetadata,
   StorageObject,
-} from "./adapter.ts";
+} from './adapter.ts'
 import {
   StorageCloseFailed,
   StorageConnectionFailed,
@@ -21,7 +21,7 @@ import {
   StoragePresignFailed,
   StoragePresignNotSupported,
   StoragePutFailed,
-} from "./errors.ts";
+} from './errors.ts'
 
 /**
  * Storage wrapper with Task/Stream semantics for error-tolerant object operations.
@@ -70,14 +70,14 @@ export class Storage {
   ): Task<Storage, StorageConnectionFailed> {
     return Task.of(async () => {
       try {
-        return new Storage(await connector.connect());
+        return new Storage(await connector.connect())
       } catch (error) {
         throw new StorageConnectionFailed(
           error instanceof Error ? error.message : String(error),
           error,
-        );
+        )
       }
-    });
+    })
   }
 
   /**
@@ -91,14 +91,14 @@ export class Storage {
   close(): Task<void, StorageCloseFailed> {
     return Task.of(async () => {
       try {
-        await this.adapter.close();
+        await this.adapter.close()
       } catch (error) {
         throw new StorageCloseFailed(
           error instanceof Error ? error.message : String(error),
           error,
-        );
+        )
       }
-    });
+    })
   }
 
   /**
@@ -116,15 +116,15 @@ export class Storage {
   ): Task<void, StoragePutFailed> {
     return Task.of(async () => {
       try {
-        await this.adapter.put(key, body, options);
+        await this.adapter.put(key, body, options)
       } catch (error) {
         throw new StoragePutFailed(
           key,
           error instanceof Error ? error.message : String(error),
           error,
-        );
+        )
       }
-    });
+    })
   }
 
   /**
@@ -141,18 +141,18 @@ export class Storage {
   ): Task<StorageObject, StorageGetFailed | StorageObjectNotFound> {
     return Task.of(async () => {
       try {
-        return await this.adapter.get(key);
+        return await this.adapter.get(key)
       } catch (error) {
         if (error instanceof StorageObjectNotFound) {
-          throw error;
+          throw error
         }
         throw new StorageGetFailed(
           key,
           error instanceof Error ? error.message : String(error),
           error,
-        );
+        )
       }
-    });
+    })
   }
 
   /**
@@ -166,15 +166,15 @@ export class Storage {
   delete(key: string): Task<void, StorageDeleteFailed> {
     return Task.of(async () => {
       try {
-        await this.adapter.delete(key);
+        await this.adapter.delete(key)
       } catch (error) {
         throw new StorageDeleteFailed(
           key,
           error instanceof Error ? error.message : String(error),
           error,
-        );
+        )
       }
-    });
+    })
   }
 
   /**
@@ -191,18 +191,18 @@ export class Storage {
   ): Task<StorageMetadata, StorageHeadFailed | StorageObjectNotFound> {
     return Task.of(async () => {
       try {
-        return await this.adapter.head(key);
+        return await this.adapter.head(key)
       } catch (error) {
         if (error instanceof StorageObjectNotFound) {
-          throw error;
+          throw error
         }
         throw new StorageHeadFailed(
           key,
           error instanceof Error ? error.message : String(error),
           error,
-        );
+        )
       }
-    });
+    })
   }
 
   /**
@@ -218,22 +218,22 @@ export class Storage {
    * ```
    */
   list(prefix?: string): Source<StorageEntry, StorageListFailed> {
-    const adapter = this.adapter;
+    const adapter = this.adapter
     return Source.from<StorageEntry, StorageListFailed>(
       async function* () {
         try {
           for await (const entry of adapter.list(prefix)) {
-            yield entry;
+            yield entry
           }
         } catch (error) {
           throw new StorageListFailed(
             prefix,
             error instanceof Error ? error.message : String(error),
             error,
-          );
+          )
         }
       },
-    );
+    )
   }
 
   /**
@@ -277,20 +277,20 @@ export class Storage {
   ): Task<string, StoragePresignFailed | StoragePresignNotSupported> {
     return Task.of(async () => {
       if (
-        !("presign" in this.adapter) ||
-        typeof this.adapter.presign !== "function"
+        !('presign' in this.adapter) ||
+        typeof this.adapter.presign !== 'function'
       ) {
-        throw new StoragePresignNotSupported();
+        throw new StoragePresignNotSupported()
       }
       try {
-        return await (this.adapter as PresignableAdapter).presign(key, options);
+        return await (this.adapter as PresignableAdapter).presign(key, options)
       } catch (error) {
         throw new StoragePresignFailed(
           key,
           error instanceof Error ? error.message : String(error),
           error,
-        );
+        )
       }
-    });
+    })
   }
 }

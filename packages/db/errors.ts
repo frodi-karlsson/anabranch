@@ -17,55 +17,55 @@
  * ```
  */
 export class DBError extends Error {
-  readonly kind: string;
-  readonly sql: string | undefined;
+  readonly kind: string
+  readonly sql: string | undefined
 
   constructor(kind: string, sql: string | undefined, message: string) {
-    super(message);
-    this.kind = kind;
-    this.sql = sql;
+    super(message)
+    this.kind = kind
+    this.sql = sql
   }
 }
 
 /** Failed to establish a database connection. */
 export class ConnectionFailed extends DBError {
   constructor(message: string) {
-    super("ConnectionFailed", undefined, message);
+    super('ConnectionFailed', undefined, message)
   }
 }
 
 /** Query execution failed. */
 export class QueryFailed extends DBError {
   constructor(sql: string, message: string) {
-    super("QueryFailed", sql, message);
+    super('QueryFailed', sql, message)
   }
 }
 
 /** Constraint violation (e.g., unique, foreign key). */
 export class ConstraintViolation extends DBError {
   constructor(sql: string, message: string) {
-    super("ConstraintViolation", sql, message);
+    super('ConstraintViolation', sql, message)
   }
 }
 
 /** Transaction failed. */
 export class TransactionFailed extends DBError {
   constructor(message: string) {
-    super("TransactionFailed", undefined, message);
+    super('TransactionFailed', undefined, message)
   }
 }
 
 /** Failed to close the database connection. */
 export class CloseError extends DBError {
   constructor(message: string) {
-    super("CloseError", undefined, message);
+    super('CloseError', undefined, message)
   }
 }
 
 /** Serialization failure (concurrent modification detected). */
 export class SerializationFailure extends DBError {
-  constructor(message: string = "serialization failure") {
-    super("SerializationFailure", undefined, message);
+  constructor(message: string = 'serialization failure') {
+    super('SerializationFailure', undefined, message)
   }
 }
 
@@ -77,4 +77,4 @@ export const DBErrors = {
   TransactionFailed,
   CloseError,
   SerializationFailure,
-} as const;
+} as const

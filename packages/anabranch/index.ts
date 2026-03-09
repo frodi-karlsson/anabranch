@@ -35,14 +35,14 @@
  *
  * @module
  */
-export { Source } from "./streams/source.ts";
-export { Task } from "./streams/task.ts";
-export { Channel } from "./streams/channel.ts";
-export type { Stream } from "./streams/stream.ts";
-export { AggregateError } from "./streams/util.ts";
+export { Source } from './streams/source.ts'
+export { Task } from './streams/task.ts'
+export { Channel } from './streams/channel.ts'
+export type { Stream } from './streams/stream.ts'
+export { AggregateError } from './streams/util.ts'
 export type {
   ErrorResult,
   Promisable,
   Result,
   SuccessResult,
-} from "./streams/util.ts";
+} from './streams/util.ts'

@@ -1,22 +1,22 @@
-export type { RetryOptions } from "@anabranch/web-client";
+export type { RetryOptions } from '@anabranch/web-client'
 
 /** Log level for output verbosity. */
-export type LogLevel = "debug" | "info" | "warn" | "error" | "none";
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'none'
 
 /** Result of checking a single URL. */
 export interface CheckResult {
   /** The URL that was checked. */
-  url: URL;
+  url: URL
   /** The page containing the link, undefined for seed URLs. */
-  parent: URL | undefined;
+  parent: URL | undefined
   /** Whether the URL loaded successfully (2xx status). */
-  ok: boolean;
+  ok: boolean
   /** HTTP status code, undefined for network errors. */
-  status: number | undefined;
+  status: number | undefined
   /** Error message for failed requests. */
-  reason: string | undefined;
+  reason: string | undefined
   /** Whether the URL is on the same host as the seed. */
-  isPath: boolean;
+  isPath: boolean
   /** Time in milliseconds to complete the request. */
-  durationMs: number;
+  durationMs: number
 }

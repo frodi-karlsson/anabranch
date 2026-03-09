@@ -13,23 +13,31 @@
  */
 export interface DBAdapter {
   /** Execute a SELECT query and return rows. */
-  query(sql: string, params?: unknown[]): Promise<unknown[]>;
+  // deno-lint-ignore no-explicit-any
+  query<T extends Record<string, any> = Record<string, any>>(
+    sql: string,
+    params?: unknown[],
+  ): Promise<T[]>
 
   /** Execute INSERT/UPDATE/DELETE and return affected row count. */
-  execute(sql: string, params?: unknown[]): Promise<number>;
+  execute(sql: string, params?: unknown[]): Promise<number>
 
   /**
    * Release the connection back to its source (e.g., pool).
    * For pooled connections, this returns the client to the pool.
    * For single connections, this may close the underlying connection.
    */
-  close(): Promise<void>;
+  close(): Promise<void>
 
   /**
    * Stream rows from a SELECT query using a cursor.
    * If not implemented, the DB class falls back to buffering the full result.
    */
-  stream?(sql: string, params?: unknown[]): AsyncIterable<unknown>;
+  // deno-lint-ignore no-explicit-any
+  stream?<T extends Record<string, any> = Record<string, any>>(
+    sql: string,
+    params?: unknown[],
+  ): AsyncIterable<T>
 }
 
 /**
@@ -44,13 +52,17 @@ export interface DBConnector {
    * @param signal Optional AbortSignal for cancellation
    * @throws ConnectionFailed if the connection cannot be established
    */
-  connect(signal?: AbortSignal): Promise<DBAdapter>;
+  connect(signal?: AbortSignal): Promise<DBAdapter>
 }
 
 /** Transaction adapter interface. */
 export interface DBTransactionAdapter {
-  query(sql: string, params?: unknown[]): Promise<unknown[]>;
-  execute(sql: string, params?: unknown[]): Promise<number>;
-  commit(): Promise<void>;
-  rollback(): Promise<void>;
+  // deno-lint-ignore no-explicit-any
+  query<T extends Record<string, any> = Record<string, any>>(
+    sql: string,
+    params?: unknown[],
+  ): Promise<T[]>
+  execute(sql: string, params?: unknown[]): Promise<number>
+  commit(): Promise<void>
+  rollback(): Promise<void>
 }

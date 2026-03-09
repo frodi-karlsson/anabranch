@@ -5,10 +5,10 @@
 export class AggregateError extends Error {
   /** The errors collected during stream processing. */
   constructor(public errors: unknown[]) {
-    super(`AggregateError: ${errors.length} errors`);
+    super(`AggregateError: ${errors.length} errors`)
 
-    this.name = "AggregateError";
-    this.errors = errors;
+    this.name = 'AggregateError'
+    this.errors = errors
   }
 }
 
@@ -18,25 +18,25 @@ export class AggregateError extends Error {
  */
 export type Result<T, E> = E extends never ? SuccessResult<T, E>
   : T extends never ? ErrorResult<T, E>
-  : SuccessResult<T, E> | ErrorResult<T, E>;
+  : SuccessResult<T, E> | ErrorResult<T, E>
 
 /**
  * A value that is either already resolved or a `Promise` that resolves to it. Used throughout the API to allow callbacks to be synchronous or asynchronous.
  */
-export type Promisable<T> = T | Promise<T>;
+export type Promisable<T> = T | Promise<T>
 
 /**
  * An error result emitted by a {@link Stream}.
  */
 export type ErrorResult<_T, E> = {
-  type: "error";
-  error: E;
-};
+  type: 'error'
+  error: E
+}
 
 /**
  * A successful result emitted by a {@link Stream}.
  */
 export type SuccessResult<T, _E> = {
-  type: "success";
-  value: T;
-};
+  type: 'success'
+  value: T
+}

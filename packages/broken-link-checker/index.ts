@@ -25,5 +25,5 @@
  *
  * @module
  */
-export { BrokenLinkChecker } from "./checker.ts";
-export type { CheckResult, LogLevel, RetryOptions } from "./types.ts";
+export { BrokenLinkChecker } from './checker.ts'
+export type { CheckResult, LogLevel, RetryOptions } from './types.ts'

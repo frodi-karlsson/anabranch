@@ -3,7 +3,6 @@
   "specifiers": {
     "jsr:@david/code-block-writer@^13.0.3": "13.0.3",
     "jsr:@deno/dnt@0": "0.42.3",
-    "jsr:@deno/dnt@0.42.3": "0.42.3",
     "jsr:@std/assert@1": "1.0.19",
     "jsr:@std/fmt@1": "1.0.9",
     "jsr:@std/fs@1": "1.0.23",
@@ -20,8 +19,7 @@
     "npm:amqplib@0.10": "0.10.9",
     "npm:fake-indexeddb@4": "4.0.2",
     "npm:ioredis@5": "5.10.0",
-    "npm:ioredis@^5.10.0": "5.10.0",
-    "npm:linkedom@*": "0.18.12",
+    "npm:kafkajs@2": "2.2.4",
     "npm:linkedom@0": "0.18.12",
     "npm:mysql2@3": "3.19.0_@types+node@25.3.3",
     "npm:pg-cursor@2": "2.19.0_pg@8.20.0",
@@ -1520,6 +1518,9 @@
         "safe-buffer"
       ]
     },
+    "kafkajs@2.2.4": {
+      "integrity": "sha512-j/YeapB1vfPT2iOIUn/vxdyKEuhuY2PxMBvf5JWux6iSaukAccrMtXEY/Lb7OvavDhOWME589bpLrEdnVHjfjA=="
+    },
     "linkedom@0.18.12": {
       "integrity": "sha512-jalJsOwIKuQJSeTvsgzPe9iJzyfVaEJiEXl+25EkKevsULHvMJzpNqwvj1jOESWdmgKDiXObyjOYwlUqG7wo1Q==",
       "dependencies": [
@@ -1851,12 +1852,12 @@
   },
   "workspace": {
     "dependencies": [
-      "npm:ioredis@^5.10.0"
+      "npm:ioredis@5"
     ],
     "members": {
       "packages/anabranch": {
         "dependencies": [
-          "jsr:@deno/dnt@0.42.3",
+          "jsr:@deno/dnt@0",
           "jsr:@std/assert@1"
         ]
       },
@@ -1905,6 +1906,14 @@
           "jsr:@anabranch/anabranch@0",
           "jsr:@deno/dnt@0",
           "jsr:@std/assert@1"
+        ]
+      },
+      "packages/eventlog-kafka": {
+        "dependencies": [
+          "jsr:@anabranch/anabranch@0",
+          "jsr:@deno/dnt@0",
+          "jsr:@std/assert@1",
+          "npm:kafkajs@2"
         ]
       },
       "packages/fs": {

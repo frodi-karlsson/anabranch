@@ -99,6 +99,6 @@
  *
  * @module
  */
-export { GcsAdapter } from "./gcs.ts";
-export { createGcs } from "./connector.ts";
-export type { GcsStorageOptions } from "./connector.ts";
+export { GcsAdapter } from './gcs.ts'
+export { createGcs } from './connector.ts'
+export type { GcsStorageOptions } from './connector.ts'

@@ -79,11 +79,7 @@
  *
  * @module
  */
-export { DB, DBTransaction } from "./db.ts";
-export type {
-  DBAdapter,
-  DBConnector,
-  DBTransactionAdapter,
-} from "./adapter.ts";
-export * from "./errors.ts";
-export { createInMemory } from "./sqlite.ts";
+export { DB, DBTransaction } from './db.ts'
+export type { DBAdapter, DBConnector, DBTransactionAdapter } from './adapter.ts'
+export * from './errors.ts'
+export { createInMemory } from './in-memory.ts'

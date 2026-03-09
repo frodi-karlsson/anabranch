@@ -1,13 +1,13 @@
-import { Task } from "@anabranch/anabranch";
+import { Task } from '@anabranch/anabranch'
 import type {
   HttpError,
   Method,
   RequestOptions,
   ResponseResult,
   RetryOptions,
-} from "./types.ts";
+} from './types.ts'
 
-const RETRYABLE_STATUS_CODES = [408, 429, 500, 502, 503, 504];
+const RETRYABLE_STATUS_CODES = [408, 429, 500, 502, 503, 504]
 
 /**
  * An HTTP client built on fetch with automatic retries and error handling.
@@ -25,10 +25,10 @@ const RETRYABLE_STATUS_CODES = [408, 429, 500, 502, 503, 504];
  * ```
  */
 export class WebClient {
-  private readonly config: ResolvedConfig;
+  private readonly config: ResolvedConfig
 
   private constructor(config: ResolvedConfig) {
-    this.config = config;
+    this.config = config
   }
 
   /** Creates a new WebClient with all defaults. */
@@ -43,16 +43,16 @@ export class WebClient {
         when: isRetryable,
       },
       fetch: globalThis.fetch,
-    });
+    })
   }
 
   /** Returns a new WebClient with the given base URL. */
   withBaseUrl(url: string | URL): WebClient {
-    const base = url instanceof URL ? url : new URL(url);
+    const base = url instanceof URL ? url : new URL(url)
     const normalized = new URL(
-      base.href.endsWith("/") ? base.href : base.href + "/",
-    );
-    return new WebClient({ ...this.config, baseUrl: normalized });
+      base.href.endsWith('/') ? base.href : base.href + '/',
+    )
+    return new WebClient({ ...this.config, baseUrl: normalized })
   }
 
   /** Returns a new WebClient with the given headers merged into existing ones. */
@@ -60,12 +60,12 @@ export class WebClient {
     return new WebClient({
       ...this.config,
       headers: { ...this.config.headers, ...headers },
-    });
+    })
   }
 
   /** Returns a new WebClient with the given timeout in milliseconds. */
   withTimeout(ms: number): WebClient {
-    return new WebClient({ ...this.config, timeout: ms });
+    return new WebClient({ ...this.config, timeout: ms })
   }
 
   /** Returns a new WebClient with retry options field-merged into existing ones. */
@@ -77,12 +77,12 @@ export class WebClient {
         delay: retry.delay ?? this.config.retry.delay,
         when: retry.when ?? this.config.retry.when,
       },
-    });
+    })
   }
 
   /** Returns a new WebClient using the given fetch function. */
   withFetch(fetch: typeof globalThis.fetch): WebClient {
-    return new WebClient({ ...this.config, fetch });
+    return new WebClient({ ...this.config, fetch })
   }
 
   /**
@@ -120,13 +120,13 @@ export class WebClient {
       timeout: defaultTimeout,
       retry: defaultRetry,
       fetch,
-    } = this.config;
-    const url = buildUrl(baseUrl, path);
-    const headers = mergeHeaders(defaultHeaders, options?.headers);
-    const timeout = options?.timeout ?? defaultTimeout;
-    const retryAttempts = options?.retry?.attempts ?? defaultRetry.attempts;
-    const retryDelay = options?.retry?.delay ?? defaultRetry.delay;
-    const retryWhen = options?.retry?.when ?? defaultRetry.when;
+    } = this.config
+    const url = buildUrl(baseUrl, path)
+    const headers = mergeHeaders(defaultHeaders, options?.headers)
+    const timeout = options?.timeout ?? defaultTimeout
+    const retryAttempts = options?.retry?.attempts ?? defaultRetry.attempts
+    const retryDelay = options?.retry?.delay ?? defaultRetry.delay
+    const retryWhen = options?.retry?.when ?? defaultRetry.when
 
     const performRequest = Task.of<ResponseResult, HttpError>(
       async (signal) => {
@@ -135,15 +135,15 @@ export class WebClient {
           headers,
           body: body !== undefined ? JSON.stringify(body) : undefined,
           signal,
-        });
+        })
 
         const retryAfter = parseRetryAfter(
-          response.headers.get("retry-after"),
-        );
-        const rateLimited = response.status === 429;
+          response.headers.get('retry-after'),
+        )
+        const rateLimited = response.status === 429
 
         if (!response.ok) {
-          const reason = response.statusText || `HTTP ${response.status}`;
+          const reason = response.statusText || `HTTP ${response.status}`
           throw {
             url,
             method,
@@ -152,17 +152,17 @@ export class WebClient {
             isRetryable: RETRYABLE_STATUS_CODES.includes(response.status),
             isRateLimited: rateLimited,
             retryAfter,
-          } as HttpError;
+          } as HttpError
         }
 
-        const contentType = response.headers.get("content-type") ?? "";
-        let data: unknown;
-        if (contentType.includes("application/json")) {
-          data = await response.json();
-        } else if (contentType.includes("text/")) {
-          data = await response.text();
+        const contentType = response.headers.get('content-type') ?? ''
+        let data: unknown
+        if (contentType.includes('application/json')) {
+          data = await response.json()
+        } else if (contentType.includes('text/')) {
+          data = await response.text()
         } else {
-          data = await response.blob();
+          data = await response.blob()
         }
 
         return {
@@ -172,9 +172,9 @@ export class WebClient {
           headers: response.headers,
           ok: response.ok,
           data,
-        } as ResponseResult;
+        }
       },
-    );
+    )
 
     return performRequest
       .timeout(timeout, {
@@ -185,19 +185,19 @@ export class WebClient {
         isRetryable: true, // Timeouts may be transient, so retry by default
         isRateLimited: false,
         retryAfter: undefined,
-      } as HttpError)
+      })
       .retry({
         attempts: retryAttempts,
         delay: (attempt, error) => {
           if (error.isRateLimited && error.retryAfter) {
-            return error.retryAfter * 1000;
+            return error.retryAfter * 1000
           }
-          return typeof retryDelay === "function"
+          return typeof retryDelay === 'function'
             ? retryDelay(attempt, error)
-            : retryDelay;
+            : retryDelay
         },
         when: retryWhen,
-      });
+      })
   }
 
   /**
@@ -213,7 +213,7 @@ export class WebClient {
    * ```
    */
   get(path: string, options?: RequestOptions): Task<ResponseResult, HttpError> {
-    return this.request(path, "GET", options);
+    return this.request(path, 'GET', options)
   }
 
   /**
@@ -234,7 +234,7 @@ export class WebClient {
     body: unknown,
     options?: RequestOptions,
   ): Task<ResponseResult, HttpError> {
-    return this.request(path, "POST", options, body);
+    return this.request(path, 'POST', options, body)
   }
 
   /**
@@ -255,7 +255,7 @@ export class WebClient {
     body: unknown,
     options?: RequestOptions,
   ): Task<ResponseResult, HttpError> {
-    return this.request(path, "PUT", options, body);
+    return this.request(path, 'PUT', options, body)
   }
 
   /**
@@ -276,7 +276,7 @@ export class WebClient {
     body: unknown,
     options?: RequestOptions,
   ): Task<ResponseResult, HttpError> {
-    return this.request(path, "PATCH", options, body);
+    return this.request(path, 'PATCH', options, body)
   }
 
   /**
@@ -295,58 +295,58 @@ export class WebClient {
     path: string,
     options?: RequestOptions,
   ): Task<ResponseResult, HttpError> {
-    return this.request(path, "DELETE", options);
+    return this.request(path, 'DELETE', options)
   }
 }
 
 interface ResolvedConfig {
-  baseUrl: URL | undefined;
-  headers: Record<string, string>;
-  timeout: number;
+  baseUrl: URL | undefined
+  headers: Record<string, string>
+  timeout: number
   retry: {
-    attempts: number;
-    delay: number | ((attempt: number, error: HttpError) => number);
-    when: (error: HttpError) => boolean;
-  };
-  fetch: typeof globalThis.fetch;
+    attempts: number
+    delay: number | ((attempt: number, error: HttpError) => number)
+    when: (error: HttpError) => boolean
+  }
+  fetch: typeof globalThis.fetch
 }
 
 function parseRetryAfter(header: string | null): number | undefined {
-  if (!header) return undefined;
-  const delay = Number(header);
-  if (!Number.isNaN(delay)) return delay;
-  const httpDate = Date.parse(header);
+  if (!header) return undefined
+  const delay = Number(header)
+  if (!Number.isNaN(delay)) return delay
+  const httpDate = Date.parse(header)
   if (!Number.isNaN(httpDate)) {
-    return Math.max(0, (httpDate - Date.now()) / 1000);
+    return Math.max(0, (httpDate - Date.now()) / 1000)
   }
-  return undefined;
+  return undefined
 }
 
 function buildUrl(baseUrl: URL | undefined, path: string): URL {
   if (baseUrl) {
-    const url = path.startsWith("/") ? path.slice(1) : path;
-    return new URL(url, baseUrl.href);
+    const url = path.startsWith('/') ? path.slice(1) : path
+    return new URL(url, baseUrl.href)
   }
-  return new URL(path);
+  return new URL(path)
 }
 
 function mergeHeaders(
   base: Record<string, string> | undefined,
   overrides: Record<string, string> | undefined,
 ): Record<string, string> {
-  const merged = { ...base };
+  const merged = { ...base }
   if (overrides) {
     for (const [key, value] of Object.entries(overrides)) {
-      merged[key] = value;
+      merged[key] = value
     }
   }
-  return merged;
+  return merged
 }
 
 function isRetryable(error: HttpError): boolean {
-  if (error.isRateLimited) return true;
+  if (error.isRateLimited) return true
   if (error.status && RETRYABLE_STATUS_CODES.includes(error.status)) {
-    return true;
+    return true
   }
-  return false;
+  return false
 }

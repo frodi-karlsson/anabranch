@@ -1,15 +1,11 @@
-import { type Promisable, Source, Task } from "@anabranch/anabranch";
-import type {
-  DBAdapter,
-  DBConnector,
-  DBTransactionAdapter,
-} from "./adapter.ts";
+import { type Promisable, Source, Task } from '@anabranch/anabranch'
+import type { DBAdapter, DBConnector, DBTransactionAdapter } from './adapter.ts'
 import {
   ConnectionFailed,
   ConstraintViolation,
   QueryFailed,
   TransactionFailed,
-} from "./errors.ts";
+} from './errors.ts'
 
 /**
  * Database wrapper with Task/Stream semantics.
@@ -53,11 +49,11 @@ export class DB {
         connector.connect(signal).catch((error) => {
           throw new ConnectionFailed(
             error instanceof Error ? error.message : String(error),
-          );
+          )
         }),
       release: (adapter) => adapter.close(),
       use: (adapter) => fn(new DB(adapter)),
-    });
+    })
   }
 
   /**
@@ -65,23 +61,24 @@ export class DB {
    * @example
    * const users = await db.query("SELECT * FROM users").run();
    */
-  query<T>(
+  // deno-lint-ignore no-explicit-any
+  query<T extends Record<string, any> = Record<string, any>>(
     sql: string,
     params?: unknown[],
   ): Task<T[], QueryFailed | ConstraintViolation> {
     return Task.of(async () => {
       try {
-        return await this.adapter.query(sql, params) as T[];
+        return await this.adapter.query<T>(sql, params)
       } catch (error) {
-        if (error instanceof Error && error.message.includes("constraint")) {
-          throw new ConstraintViolation(sql, error.message);
+        if (error instanceof Error && error.message.includes('constraint')) {
+          throw new ConstraintViolation(sql, error.message)
         }
         throw new QueryFailed(
           sql,
           error instanceof Error ? error.message : String(error),
-        );
+        )
       }
-    });
+    })
   }
 
   /**
@@ -95,17 +92,17 @@ export class DB {
   ): Task<number, QueryFailed | ConstraintViolation> {
     return Task.of(async () => {
       try {
-        return await this.adapter.execute(sql, params);
+        return await this.adapter.execute(sql, params)
       } catch (error) {
-        if (error instanceof Error && error.message.includes("constraint")) {
-          throw new ConstraintViolation(sql, error.message);
+        if (error instanceof Error && error.message.includes('constraint')) {
+          throw new ConstraintViolation(sql, error.message)
         }
         throw new QueryFailed(
           sql,
           error instanceof Error ? error.message : String(error),
-        );
+        )
       }
-    });
+    })
   }
 
   /**
@@ -118,28 +115,29 @@ export class DB {
    * @example
    * const { successes, errors } = await db.stream("SELECT * FROM users").partition();
    */
-  stream<T>(
+  // deno-lint-ignore no-explicit-any
+  stream<T extends Record<string, any> = Record<string, any>>(
     sql: string,
     params?: unknown[],
   ): Source<T, QueryFailed> {
-    const adapter = this.adapter;
+    const adapter = this.adapter
     return Source.from<T, QueryFailed>(async function* () {
       try {
         if (adapter.stream) {
-          yield* adapter.stream(sql, params) as AsyncIterable<T>;
+          yield* adapter.stream<T>(sql, params)
         } else {
-          const results = await adapter.query(sql, params) as T[];
+          const results = await adapter.query<T>(sql, params)
           for (const row of results) {
-            yield row;
+            yield row
           }
         }
       } catch (error) {
         throw new QueryFailed(
           sql,
           error instanceof Error ? error.message : String(error),
-        );
+        )
       }
-    });
+    })
   }
 
   withTransaction<R>(
@@ -155,92 +153,92 @@ export class DB {
       use: (tx) =>
         Task.of<R, TransactionFailed | QueryFailed | ConstraintViolation>(
           () => {
-            const result = fn(tx);
-            return result instanceof Promise ? result : Promise.resolve(result);
+            const result = fn(tx)
+            return result instanceof Promise ? result : Promise.resolve(result)
           },
         ).flatMap((result) => tx.commit().map(() => result)),
-    });
+    })
   }
 
   private transaction(): Task<DBTransaction, TransactionFailed> {
     return Task.of(async () => {
-      await this.adapter.execute("BEGIN");
+      await this.adapter.execute('BEGIN')
       return new DBTransaction({
         query: (sql, params) => this.adapter.query(sql, params),
         execute: (sql, params) => this.adapter.execute(sql, params),
-        commit: () => this.adapter.execute("COMMIT").then(() => {}),
-        rollback: () => this.adapter.execute("ROLLBACK").then(() => {}),
-      });
+        commit: () => this.adapter.execute('COMMIT').then(() => {}),
+        rollback: () => this.adapter.execute('ROLLBACK').then(() => {}),
+      })
     }).mapErr((error) =>
       new TransactionFailed(
         error instanceof Error ? error.message : String(error),
       )
-    );
+    )
   }
 }
 
 /** Database transaction with Task semantics. */
 export class DBTransaction {
-  private settled = false;
+  private settled = false
 
   constructor(private readonly adapter: DBTransactionAdapter) {}
 
   query<T>(sql: string, params?: unknown[]): Task<T[], QueryFailed> {
     return Task.of(async () => {
       try {
-        return await this.adapter.query(sql, params) as T[];
+        return await this.adapter.query(sql, params) as T[]
       } catch (error) {
-        if (error instanceof Error && error.message.includes("constraint")) {
-          throw new ConstraintViolation(sql, error.message);
+        if (error instanceof Error && error.message.includes('constraint')) {
+          throw new ConstraintViolation(sql, error.message)
         }
         throw new QueryFailed(
           sql,
           error instanceof Error ? error.message : String(error),
-        );
+        )
       }
-    });
+    })
   }
 
   execute(sql: string, params?: unknown[]): Task<number, QueryFailed> {
     return Task.of(async () => {
       try {
-        return await this.adapter.execute(sql, params);
+        return await this.adapter.execute(sql, params)
       } catch (error) {
-        if (error instanceof Error && error.message.includes("constraint")) {
-          throw new ConstraintViolation(sql, error.message);
+        if (error instanceof Error && error.message.includes('constraint')) {
+          throw new ConstraintViolation(sql, error.message)
         }
         throw new QueryFailed(
           sql,
           error instanceof Error ? error.message : String(error),
-        );
+        )
       }
-    });
+    })
   }
 
   commit(): Task<void, TransactionFailed> {
     return Task.of(async () => {
       try {
-        await this.adapter.commit();
-        this.settled = true;
+        await this.adapter.commit()
+        this.settled = true
       } catch (error) {
         throw new TransactionFailed(
           error instanceof Error ? error.message : String(error),
-        );
+        )
       }
-    });
+    })
   }
 
   rollback(): Task<void, TransactionFailed> {
     return Task.of(async () => {
-      if (this.settled) return;
+      if (this.settled) return
       try {
-        await this.adapter.rollback();
-        this.settled = true;
+        await this.adapter.rollback()
+        this.settled = true
       } catch (error) {
         throw new TransactionFailed(
           error instanceof Error ? error.message : String(error),
-        );
+        )
       }
-    });
+    })
   }
 }

@@ -1,416 +1,390 @@
-import { assertEquals, assertExists } from "@std/assert";
-import { createInMemory, EventLog } from "./index.ts";
+import { assertEquals, assertExists } from '@std/assert'
+import { createInMemory, EventLog } from './index.ts'
 
 Deno.test({
-  name: "EventLog.append - should append an event and return an ID",
+  name: 'EventLog.append - should append an event and return an ID',
   async fn() {
-    const connector = createInMemory();
-    const log = await EventLog.connect(connector).run();
+    const connector = createInMemory()
+    const log = await EventLog.connect(connector).run()
 
-    const id = await log.append("users", { action: "created", userId: 123 })
-      .run();
+    const id = await log.append('users', { action: 'created', userId: 123 })
+      .run()
 
-    assertExists(id);
-    assertEquals(typeof id, "string");
-    assertEquals(id.split("-").length, 5);
+    assertExists(id)
+    assertEquals(typeof id, 'string')
+    assertEquals(id.split('-').length, 5)
 
-    await log.close().run();
+    await log.close().run()
   },
-});
+})
 
 Deno.test({
-  name: "EventLog.append - should support partition keys",
+  name: 'EventLog.append - should support partition keys',
   async fn() {
-    const connector = createInMemory();
-    const log = await EventLog.connect(connector).run();
+    const connector = createInMemory()
+    const log = await EventLog.connect(connector).run()
 
-    await log.append("orders", { orderId: 1 }, { partitionKey: "user-123" })
-      .run();
-    await log.append("orders", { orderId: 2 }, { partitionKey: "user-456" })
-      .run();
+    await log.append('orders', { orderId: 1 }, { partitionKey: 'user-123' })
+      .run()
+    await log.append('orders', { orderId: 2 }, { partitionKey: 'user-456' })
+      .run()
 
-    const events = await log.list("orders", { partitionKey: "user-123" }).run();
+    const { successes: events } = await log.consume(
+      'orders',
+      'partition-test',
+      {
+        batchSize: 10,
+      },
+    ).take(1).map((batch) => batch.events).flatMap((events) => events)
+      .partition()
 
-    assertEquals(events.length, 1);
-    assertEquals(events[0].partitionKey, "user-123");
+    assertEquals(events.length, 2)
+    assertEquals(events[0].sequenceNumber, 0)
+    assertEquals(events[1].sequenceNumber, 1)
 
-    await log.close().run();
+    await log.close().run()
   },
-});
+})
 
 Deno.test({
-  name: "EventLog.get - should get a single event by sequence number",
+  name: 'EventLog.consume - should yield event batches',
   async fn() {
-    const connector = createInMemory();
-    const log = await EventLog.connect(connector).run();
+    const connector = createInMemory()
+    const log = await EventLog.connect(connector).run()
 
-    const data = { action: "created", userId: 123 };
-    await log.append("users", data).run();
-
-    const event = await log.get("users", 0).run();
-
-    assertExists(event);
-    assertEquals(event?.data, data);
-    assertEquals(event?.sequenceNumber, 0);
-
-    await log.close().run();
-  },
-});
-
-Deno.test({
-  name: "EventLog.get - should return null for non-existent event",
-  async fn() {
-    const connector = createInMemory();
-    const log = await EventLog.connect(connector).run();
-
-    const event = await log.get("users", 999).run();
-
-    assertEquals(event, null);
-
-    await log.close().run();
-  },
-});
-
-Deno.test({
-  name: "EventLog.list - should list all events in a topic",
-  async fn() {
-    const connector = createInMemory();
-    const log = await EventLog.connect(connector).run();
-
-    await log.append("users", { action: "created", userId: 1 }).run();
-    await log.append("users", { action: "updated", userId: 1 }).run();
-    await log.append("users", { action: "deleted", userId: 1 }).run();
-
-    const events = await log.list("users").run();
-
-    assertEquals(events.length, 3);
-    assertEquals(events[0].sequenceNumber, 0);
-    assertEquals(events[1].sequenceNumber, 1);
-    assertEquals(events[2].sequenceNumber, 2);
-
-    await log.close().run();
-  },
-});
-
-Deno.test({
-  name:
-    "EventLog.list - should support pagination with fromSequenceNumber and limit",
-  async fn() {
-    const connector = createInMemory();
-    const log = await EventLog.connect(connector).run();
-
-    for (let i = 0; i < 10; i++) {
-      await log.append("users", { index: i }).run();
-    }
-
-    const events = await log.list("users", { fromSequenceNumber: 3, limit: 5 })
-      .run();
-
-    assertEquals(events.length, 5);
-    assertEquals(events[0].sequenceNumber, 3);
-    assertEquals(events[4].sequenceNumber, 7);
-
-    await log.close().run();
-  },
-});
-
-Deno.test({
-  name: "EventLog.consume - should yield event batches",
-  async fn() {
-    const connector = createInMemory();
-    const log = await EventLog.connect(connector).run();
-
-    await log.append("notifications", { type: "email" }).run();
-    await log.append("notifications", { type: "sms" }).run();
-    await log.append("notifications", { type: "push" }).run();
+    await log.append('notifications', { type: 'email' }).run()
+    await log.append('notifications', { type: 'sms' }).run()
+    await log.append('notifications', { type: 'push' }).run()
 
     const { successes } = await log.consume<{ type: string }>(
-      "notifications",
-      "processor-1",
-    ).take(1).partition();
+      'notifications',
+      'processor-1',
+    ).take(1).partition()
 
-    assertEquals(successes.length, 1);
-    assertEquals(successes[0].events.length, 3);
-    assertEquals(successes[0].topic, "notifications");
-    assertEquals(successes[0].consumerGroup, "processor-1");
+    assertEquals(successes.length, 1)
+    assertEquals(successes[0].events.length, 3)
+    assertEquals(successes[0].topic, 'notifications')
+    assertEquals(successes[0].consumerGroup, 'processor-1')
 
-    await log.close().run();
+    await log.close().run()
   },
-});
+})
 
 Deno.test({
-  name: "EventLog.consume - cursor commits must be manual now",
+  name: 'EventLog.consume - cursor commits must be manual now',
   async fn() {
-    const connector = createInMemory();
-    const log = await EventLog.connect(connector).run();
+    const connector = createInMemory()
+    const log = await EventLog.connect(connector).run()
 
-    await log.append("events", { value: 1 }).run();
-    await log.append("events", { value: 2 }).run();
-    await log.append("events", { value: 3 }).run();
+    await log.append('events', { value: 1 }).run()
+    await log.append('events', { value: 2 }).run()
+    await log.append('events', { value: 3 }).run()
 
     const { successes } = await log.consume<{ value: number }>(
-      "events",
-      "consumer-1",
+      'events',
+      'consumer-1',
       { batchSize: 2 },
-    ).take(2).partition();
+    ).take(2).partition()
 
-    assertEquals(successes.length, 2);
+    assertEquals(successes.length, 2)
 
-    const cursor = await log.getCommittedCursor("events", "consumer-1").run();
-    assertEquals(cursor, null);
+    const cursor = await log.getCommittedCursor('events', 'consumer-1').run()
+    assertEquals(cursor, null)
 
-    await log.close().run();
+    await log.close().run()
   },
-});
+})
 
 Deno.test({
-  name: "EventLog.consume - should resume from committed cursor",
+  name: 'EventLog.consume - should resume from committed cursor',
   async fn() {
-    const connector = createInMemory();
-    const log = await EventLog.connect(connector).run();
+    const connector = createInMemory()
+    const log = await EventLog.connect(connector).run()
 
-    await log.append("events", { value: 1 }).run();
-    await log.append("events", { value: 2 }).run();
-    await log.append("events", { value: 3 }).run();
+    await log.append('events', { value: 1 }).run()
+    await log.append('events', { value: 2 }).run()
+    await log.append('events', { value: 3 }).run()
 
-    const ac1 = new AbortController();
-    const stream1 = log.consume<{ value: number }>("events", "processor-2", {
+    const ac1 = new AbortController()
+    const stream1 = log.consume<{ value: number }>('events', 'processor-2', {
       batchSize: 2,
-    }).take(1);
-    const { successes: firstBatch } = await stream1.partition();
-    await log.commit("events", "processor-2", firstBatch[0].cursor).run();
-    ac1.abort();
+    }).take(1)
+    const { successes: firstBatch } = await stream1.partition()
+    await log.commit('events', 'processor-2', firstBatch[0].cursor).run()
+    ac1.abort()
 
-    const ac2 = new AbortController();
-    const lastCursor = await log.getCommittedCursor("events", "processor-2")
-      .run();
+    const ac2 = new AbortController()
+    const lastCursor = await log.getCommittedCursor('events', 'processor-2')
+      .run()
     const stream2 = log
-      .consume<{ value: number }>("events", "processor-2", {
+      .consume<{ value: number }>('events', 'processor-2', {
         cursor: lastCursor,
       })
-      .take(1);
-    const { successes: secondBatch } = await stream2.partition();
+      .take(1)
+    const { successes: secondBatch } = await stream2.partition()
 
-    assertEquals(secondBatch.length, 1);
-    assertEquals(secondBatch[0].events.length, 1);
-    assertEquals(secondBatch[0].events[0].data.value, 3);
+    assertEquals(secondBatch.length, 1)
+    assertEquals(secondBatch[0].events.length, 1)
+    assertEquals(secondBatch[0].events[0].data.value, 3)
 
-    ac2.abort();
-    await log.close().run();
+    ac2.abort()
+    await log.close().run()
   },
-});
+})
 
 Deno.test({
-  name: "EventLog.commit - should manually commit cursor",
+  name: 'EventLog.commit - should manually commit cursor',
   async fn() {
-    const connector = createInMemory();
-    const log = await EventLog.connect(connector).run();
+    const connector = createInMemory()
+    const log = await EventLog.connect(connector).run()
 
-    await log.append("events", { value: 1 }).run();
-    await log.append("events", { value: 2 }).run();
+    await log.append('events', { value: 1 }).run()
+    await log.append('events', { value: 2 }).run()
 
-    const cursor = "0";
-    await log.commit("events", "manual-consumer", cursor).run();
+    const cursor = '0'
+    await log.commit('events', 'manual-consumer', cursor).run()
 
-    const committed = await log.getCommittedCursor("events", "manual-consumer")
-      .run();
-    assertEquals(committed, cursor);
+    const committed = await log.getCommittedCursor('events', 'manual-consumer')
+      .run()
+    assertEquals(committed, cursor)
 
-    await log.close().run();
+    await log.close().run()
   },
-});
+})
 
 Deno.test({
   name:
-    "EventLog.getCommittedCursor - should return null for new consumer group",
+    'EventLog.getCommittedCursor - should return null for new consumer group',
   async fn() {
-    const connector = createInMemory();
-    const log = await EventLog.connect(connector).run();
+    const connector = createInMemory()
+    const log = await EventLog.connect(connector).run()
 
-    const cursor = await log.getCommittedCursor("events", "new-consumer").run();
+    const cursor = await log.getCommittedCursor('events', 'new-consumer').run()
 
-    assertEquals(cursor, null);
+    assertEquals(cursor, null)
 
-    await log.close().run();
+    await log.close().run()
   },
-});
+})
 
 Deno.test({
-  name: "EventLog - connector.end() should clean up all resources",
+  name: 'EventLog - connector.end() should clean up all resources',
   async fn() {
-    const connector = createInMemory();
-    const adapter = await connector.connect();
+    const connector = createInMemory()
+    const adapter = await connector.connect()
 
-    await connector.end();
+    await connector.end()
 
-    let appendError: Error | undefined;
+    let appendError: Error | undefined
     try {
-      await adapter.append("test-topic", { data: "after close" });
+      await adapter.append('test-topic', { data: 'after close' })
     } catch (e) {
-      appendError = e as Error;
+      appendError = e as Error
     }
-    assertExists(appendError);
-    assertEquals(appendError.name, "EventLogAppendFailed");
+    assertExists(appendError)
+    assertEquals(appendError.name, 'EventLogAppendFailed')
   },
-});
+})
 
 Deno.test({
-  name: "EventLog.consume - should support batch size option",
+  name: 'EventLog.consume - should support batch size option',
   async fn() {
-    const connector = createInMemory();
-    const log = await EventLog.connect(connector).run();
+    const connector = createInMemory()
+    const log = await EventLog.connect(connector).run()
 
     for (let i = 0; i < 10; i++) {
-      await log.append("batch-topic", { index: i }).run();
+      await log.append('batch-topic', { index: i }).run()
     }
 
     const { successes: batches } = await log.consume<{ index: number }>(
-      "batch-topic",
-      "batch-consumer",
+      'batch-topic',
+      'batch-consumer',
       { batchSize: 3 },
-    ).take(4).partition();
+    ).take(4).partition()
 
-    assertEquals(batches.length, 4);
-    assertEquals(batches[0].events.length, 3);
-    assertEquals(batches[1].events.length, 3);
-    assertEquals(batches[2].events.length, 3);
-    assertEquals(batches[3].events.length, 1);
+    assertEquals(batches.length, 4)
+    assertEquals(batches[0].events.length, 3)
+    assertEquals(batches[1].events.length, 3)
+    assertEquals(batches[2].events.length, 3)
+    assertEquals(batches[3].events.length, 1)
 
-    await log.close().run();
+    await log.close().run()
   },
-});
+})
 
 Deno.test({
-  name: "EventLog - should include timestamp and metadata in events",
+  name: 'EventLog - should include timestamp and metadata in events',
   async fn() {
-    const connector = createInMemory();
-    const log = await EventLog.connect(connector).run();
+    const connector = createInMemory()
+    const log = await EventLog.connect(connector).run()
 
-    const timestamp = Date.now();
-    await log.append("meta-topic", { data: "test" }, {
-      metadata: { source: "test", version: "1.0" },
+    const timestamp = Date.now()
+    await log.append('meta-topic', { data: 'test' }, {
+      metadata: { source: 'test', version: '1.0' },
       timestamp,
-    }).run();
+    }).run()
 
-    const events = await log.list("meta-topic").run();
+    const { successes: events } = await log.consume(
+      'meta-topic',
+      'meta-consumer',
+      { batchSize: 10 },
+    ).take(1).map(
+      (batch) => batch.events,
+    ).flatMap((events) => events).partition()
 
-    assertEquals(events.length, 1);
-    assertEquals(events[0].timestamp, timestamp);
-    assertEquals(events[0].metadata?.source, "test");
-    assertEquals(events[0].metadata?.version, "1.0");
+    assertEquals(events.length, 1)
+    assertEquals(events[0].timestamp, timestamp)
+    assertEquals(events[0].metadata?.source, 'test')
+    assertEquals(events[0].metadata?.version, '1.0')
 
-    await log.close().run();
+    await log.close().run()
   },
-});
+})
 
 Deno.test({
-  name: "EventLog.consume - should emit cursor in each batch",
+  name: 'EventLog.consume - should emit cursor in each batch',
   async fn() {
-    const connector = createInMemory();
-    const log = await EventLog.connect(connector).run();
+    const connector = createInMemory()
+    const log = await EventLog.connect(connector).run()
 
-    await log.append("cursor-topic", { value: 1 }).run();
-    await log.append("cursor-topic", { value: 2 }).run();
+    await log.append('cursor-topic', { value: 1 }).run()
+    await log.append('cursor-topic', { value: 2 }).run()
 
-    const ac = new AbortController();
     const stream = log.consume<{ value: number }>(
-      "cursor-topic",
-      "cursor-check",
+      'cursor-topic',
+      'cursor-check',
       { batchSize: 1 },
     )
-      .take(2);
-    const { successes } = await stream.partition();
+      .take(2)
+    const { successes } = await stream.partition()
 
-    assertEquals(successes.length, 2);
-    assertExists(successes[0].cursor);
-    assertExists(successes[1].cursor);
-    assertEquals(successes[0].cursor, "0");
-    assertEquals(successes[1].cursor, "1");
+    assertEquals(successes.length, 2)
+    assertExists(successes[0].cursor)
+    assertExists(successes[1].cursor)
+    assertEquals(successes[0].cursor, '0')
+    assertEquals(successes[1].cursor, '1')
 
-    ac.abort();
-    await log.close().run();
+    await log.close().run()
   },
-});
+})
 
 Deno.test({
-  name: "EventLog - multiple topics should be isolated",
+  name: 'EventLog - multiple topics should be isolated',
   async fn() {
-    const connector = createInMemory();
-    const log = await EventLog.connect(connector).run();
+    const connector = createInMemory()
+    const log = await EventLog.connect(connector).run()
 
-    await log.append("topic-a", { id: 1 }).run();
-    await log.append("topic-b", { id: 2 }).run();
-    await log.append("topic-a", { id: 3 }).run();
+    await log.append('topic-a', { id: 1 }).run()
+    await log.append('topic-b', { id: 2 }).run()
+    await log.append('topic-a', { id: 3 }).run()
 
-    const topicA = await log.list<{ id: number }>("topic-a").run();
-    const topicB = await log.list<{ id: number }>("topic-b").run();
+    const { successes: topicA } = await log.consume<{ id: number }>(
+      'topic-a',
+      'consumer-a',
+      { batchSize: 10 },
+    ).take(1).map((batch) => batch.events).flatMap((events) => events)
+      .partition()
 
-    assertEquals(topicA.length, 2);
-    assertEquals(topicB.length, 1);
-    assertEquals(topicA[0].data.id, 1);
-    assertEquals(topicB[0].data.id, 2);
+    const { successes: topicB } = await log.consume<{ id: number }>(
+      'topic-b',
+      'consumer-b',
+      { batchSize: 10 },
+    ).take(1).map((batch) => batch.events).flatMap((events) => events)
+      .partition()
 
-    await log.close().run();
+    assertEquals(topicA.length, 2)
+    assertEquals(topicB.length, 1)
+    assertEquals(topicA[0].data.id, 1)
+    assertEquals(topicB[0].data.id, 2)
+
+    await log.close().run()
   },
-});
+})
 
 Deno.test({
-  name: "EventLog - should generate unique event IDs under concurrent load",
+  name: 'EventLog - should generate unique event IDs under concurrent load',
   async fn() {
-    const connector = createInMemory();
-    const log = await EventLog.connect(connector).run();
+    const connector = createInMemory()
+    const log = await EventLog.connect(connector).run()
 
-    const concurrency = 100;
-    const promises: Promise<string>[] = [];
+    const concurrency = 100
+    const promises: Promise<string>[] = []
     for (let i = 0; i < concurrency; i++) {
-      promises.push(log.append("concurrent-topic", { index: i }).run());
+      promises.push(log.append('concurrent-topic', { index: i }).run())
     }
 
-    const ids = await Promise.all(promises);
-    const uniqueIds = new Set(ids);
+    const ids = await Promise.all(promises)
+    const uniqueIds = new Set(ids)
 
-    assertEquals(uniqueIds.size, concurrency);
-    assertEquals(ids.length, concurrency);
+    assertEquals(uniqueIds.size, concurrency)
+    assertEquals(ids.length, concurrency)
 
     const idFormat =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     for (const id of ids) {
-      assertEquals(id.match(idFormat) !== null, true);
+      assertEquals(id.match(idFormat) !== null, true)
     }
 
-    await log.close().run();
-    await connector.end();
+    await log.close().run()
+    await connector.end()
   },
-});
+})
 
 Deno.test({
-  name: "EventLog.consume - should support AbortSignal",
+  name: 'EventLog.consume - should support AbortSignal',
   async fn() {
-    const connector = createInMemory();
-    const log = await EventLog.connect(connector).run();
-    const ac = new AbortController();
+    const connector = createInMemory()
+    const log = await EventLog.connect(connector).run()
+    const ac = new AbortController()
 
     for (let i = 0; i < 5; i++) {
-      await log.append("signal-topic", { index: i }).run();
+      await log.append('signal-topic', { index: i }).run()
     }
 
-    let batchesReceived = 0;
+    let batchesReceived = 0
     log
-      .consume("signal-topic", "signal-consumer", {
+      .consume('signal-topic', 'signal-consumer', {
         signal: ac.signal,
         batchSize: 1,
       })
       .tap(() => {
-        batchesReceived++;
+        batchesReceived++
       })
       .take(2)
-      .partition();
+      .partition()
 
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 50))
 
-    assertEquals(batchesReceived, 2);
+    assertEquals(batchesReceived, 2)
 
-    ac.abort();
-    await log.close().run();
+    ac.abort()
+    await log.close().run()
   },
-});
+})
+
+Deno.test('consume resumes from committed cursor when provided', async () => {
+  const connector = createInMemory()
+  const log = await EventLog.connect(connector).run()
+
+  await log.append('events', { v: 1 }).run()
+  await log.append('events', { v: 2 }).run()
+  await log.append('events', { v: 3 }).run()
+
+  const { successes } = await log
+    .consume('events', 'g1', { batchSize: 2 })
+    .take(1)
+    .partition()
+
+  await log.commit('events', 'g1', successes[0].cursor).run()
+
+  const cursor = await log.getCommittedCursor('events', 'g1').run()
+
+  const { successes: next } = await log
+    .consume('events', 'g1', { cursor })
+    .take(1)
+    .partition()
+
+  assertEquals(next[0].events.length, 1)
+
+  await log.close().run()
+})

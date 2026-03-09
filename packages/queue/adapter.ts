@@ -10,42 +10,42 @@
  */
 export interface QueueMessage<T = unknown> {
   /** Unique message identifier */
-  id: string;
-  /** Message payload */
-  data: T;
+  id: string
+  /** Message payload. The message may have no content when q*/
+  data: T
   /** Number of times this message has been delivered */
-  attempt: number;
+  attempt: number
   /** Timestamp when the message was first enqueued */
-  timestamp: number;
+  timestamp: number
   /** Optional metadata from the broker */
   metadata?: {
-    headers?: Record<string, string>;
-    [key: string]: unknown;
-  };
+    headers?: Record<string, string>
+    [key: string]: unknown
+  }
 }
 
 /** Options for sending a message with delay or scheduling. */
 export interface SendOptions {
   /** Delay in milliseconds before the message becomes available */
-  delayMs?: number;
+  delayMs?: number
   /** Explicit scheduled delivery time */
-  scheduledAt?: Date;
+  scheduledAt?: Date
   /** Override the default dead letter queue for this message */
-  deadLetterQueue?: string;
+  deadLetterQueue?: string
   /** Message priority (higher = more important, if supported) */
-  priority?: number;
+  priority?: number
   /** Arbitrary key-value pairs to attach to the message */
-  headers?: Record<string, string>;
+  headers?: Record<string, string>
 }
 
 /** Options for negative acknowledgment. */
 export interface NackOptions {
   /** Requeue the message instead of dead-letter routing */
-  requeue?: boolean;
+  requeue?: boolean
   /** Delay before the message is requeued */
-  delay?: number;
+  delay?: number
   /** Explicit dead letter queue target */
-  deadLetter?: boolean;
+  deadLetter?: boolean
 }
 
 /**
@@ -56,18 +56,18 @@ export interface QueueAdapter {
     queue: string,
     data: T,
     options?: SendOptions,
-  ): Promise<string>;
+  ): Promise<string>
 
   receive<T>(
     queue: string,
     count?: number,
-  ): Promise<QueueMessage<T>[]>;
+  ): Promise<QueueMessage<T>[]>
 
-  ack(queue: string, ...ids: string[]): Promise<void>;
+  ack(queue: string, ...ids: string[]): Promise<void>
 
-  nack(queue: string, id: string, options?: NackOptions): Promise<void>;
+  nack(queue: string, id: string, options?: NackOptions): Promise<void>
 
-  close(): Promise<void>;
+  close(): Promise<void>
 }
 
 /**
@@ -79,10 +79,10 @@ export interface StreamAdapter extends QueueAdapter {
   subscribe<T>(
     queue: string,
     options?: {
-      signal?: AbortSignal;
-      prefetch?: number;
+      signal?: AbortSignal
+      prefetch?: number
     },
-  ): AsyncIterable<QueueMessage<T>>;
+  ): AsyncIterable<QueueMessage<T>>
 }
 
 /**
@@ -97,28 +97,28 @@ export interface QueueConnector {
    * @param signal Optional AbortSignal for cancellation
    * @throws QueueConnectionFailed if the connection cannot be established
    */
-  connect(signal?: AbortSignal): Promise<QueueAdapter>;
+  connect(signal?: AbortSignal): Promise<QueueAdapter>
 
   /**
    * Close all connections and clean up resources.
    * After calling end(), the connector cannot be used to create new adapters.
    */
-  end(): Promise<void>;
+  end(): Promise<void>
 }
 
 /** Queue configuration options. */
 export interface QueueOptions {
   /** Maximum delivery attempts before routing to dead letter queue */
-  maxAttempts?: number;
+  maxAttempts?: number
   /** Message visibility timeout (milliseconds) - time between delivery and ACK/NACK */
-  visibilityTimeout?: number;
+  visibilityTimeout?: number
   /** Default dead letter queue for failed messages */
-  deadLetterQueue?: string;
+  deadLetterQueue?: string
   /** Dead letter queue specific options */
   deadLetterOptions?: {
     /** DLQ's own max delivery attempts */
-    maxAttempts?: number;
+    maxAttempts?: number
     /** Delay for DLQ messages */
-    delay?: number;
-  };
+    delay?: number
+  }
 }

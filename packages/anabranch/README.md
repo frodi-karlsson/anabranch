@@ -12,7 +12,7 @@ When processing async data in a loop, a single failure kills everything:
 
 ```ts
 for await (const item of source) {
-  const result = await process(item); // one throw stops the whole loop
+  const result = await process(item) // one throw stops the whole loop
 }
 ```
 
@@ -25,23 +25,23 @@ Anabranch wraps each item as either `{ type: "success", value }` or
 only on successes; errors pass through until you decide what to do with them.
 
 ```ts
-import { Source } from "anabranch";
+import { Source } from 'anabranch'
 
 const stream = Source.from<string, Error>(async function* () {
-  yield "https://example.com/1";
-  yield "https://example.com/2";
-  yield "https://example.com/3";
-});
+  yield 'https://example.com/1'
+  yield 'https://example.com/2'
+  yield 'https://example.com/3'
+})
 
 const { successes, errors } = await stream
   .withConcurrency(4)
   .map(async (url) => {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
+    const res = await fetch(url)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return res.json()
   })
   .filter((data) => data.active)
-  .partition();
+  .partition()
 ```
 
 ## Installation
@@ -49,7 +49,7 @@ const { successes, errors } = await stream
 **Deno (JSR)**
 
 ```ts
-import { Source } from "jsr:@anabranch/anabranch";
+import { Source } from 'jsr:@anabranch/anabranch'
 ```
 
 **Node / Bun (npm)**
@@ -67,43 +67,43 @@ Use `Source` with an async generator, or `Source.from()` for an existing
 
 ```ts
 const stream = Source.from<number, Error>(async function* () {
-  yield 1;
-  yield 2;
-  yield 3;
-});
+  yield 1
+  yield 2
+  yield 3
+})
 
-const stream2 = Source.from<number, Error>(someAsyncIterable);
+const stream2 = Source.from<number, Error>(someAsyncIterable)
 ```
 
 For push-based streams where external producers send values as they arrive, use
 `Channel`:
 
 ```ts
-import { Channel } from "anabranch";
+import { Channel } from 'anabranch'
 
 const channel = new Channel<PriceUpdate, Error>({
   bufferSize: 100,
-  onDrop: (update) => console.log("dropped:", update),
-});
+  onDrop: (update) => console.log('dropped:', update),
+})
 
 // External producer sends values:
-channel.send({ symbol: "AAPL", price: 150 });
-channel.send({ symbol: "GOOGL", price: 2750 });
+channel.send({ symbol: 'AAPL', price: 150 })
+channel.send({ symbol: 'GOOGL', price: 2750 })
 
 // Consumer reads from the channel like any stream:
 for await (const result of channel) {
   // result is { type: "success", value } or { type: "error", error }
 }
 
-channel.close(); // signals no more items
+channel.close() // signals no more items
 ```
 
 `Channel.fail` bypasses the buffer and injects errors directly into the stream:
 
 ```ts
-channel.send({ symbol: "AAPL", price: 150 });
-channel.fail(new Error("feed disconnected")); // goes straight to consumer
-channel.send({ symbol: "GOOGL", price: 2750 }); // still processes
+channel.send({ symbol: 'AAPL', price: 150 })
+channel.fail(new Error('feed disconnected')) // goes straight to consumer
+channel.send({ symbol: 'GOOGL', price: 2750 }) // still processes
 ```
 
 ### Single async operations with Task
@@ -112,18 +112,18 @@ For single async operations with retries, timeouts, and signal handling, use
 `Task`:
 
 ```ts
-import { Task } from "anabranch";
+import { Task } from 'anabranch'
 
 const task = Task.of(async () => {
-  const res = await fetch("https://example.com");
-  if (!res.ok) throw new Error("Bad response");
-  return res.json();
-});
+  const res = await fetch('https://example.com')
+  if (!res.ok) throw new Error('Bad response')
+  return res.json()
+})
 
 const result = await task
   .retry({ attempts: 3, delay: (attempt) => 200 * 2 ** attempt })
   .timeout(5_000)
-  .result();
+  .result()
 ```
 
 `Task` composes with `flatMap` for chaining, and `Task.allSettled` / `Task.race`
@@ -132,29 +132,29 @@ for concurrency:
 ```ts
 const combined = Task.of(() => Promise.resolve(2))
   .flatMap((value) => Task.of(() => Promise.resolve(value * 3)))
-  .timeout(500);
+  .timeout(500)
 
 const results = await Task.allSettled([
-  Task.of(() => fetch("/api/users")),
-  Task.of(() => fetch("/api/posts")),
-]).run();
+  Task.of(() => fetch('/api/users')),
+  Task.of(() => fetch('/api/posts')),
+]).run()
 
 const fastest = await Task.race([
-  Task.of(() => fetch("/fast")),
-  Task.of(() => fetch("/slow")),
-]).run();
+  Task.of(() => fetch('/fast')),
+  Task.of(() => fetch('/slow')),
+]).run()
 ```
 
 Abort signals thread through the task lifecycle:
 
 ```ts
-const controller = new AbortController();
+const controller = new AbortController()
 const task = Task.of(async (signal) => {
-  const res = await fetch("/long-request", { signal });
-  return res.json();
-}).withSignal(controller.signal);
+  const res = await fetch('/long-request', { signal })
+  return res.json()
+}).withSignal(controller.signal)
 
-controller.abort();
+controller.abort()
 ```
 
 For resource lifecycle management, use `Task.acquireRelease` to acquire a
@@ -168,9 +168,9 @@ const task = Task.acquireRelease({
     Task.of(() => query(conn))
       .retry({ attempts: 3 })
       .timeout(5_000),
-});
+})
 
-const result = await task.result();
+const result = await task.result()
 ```
 
 `Task` error types are not runtime-checked; the `E` type is a hint for how you
@@ -185,7 +185,7 @@ item becomes an error result:
 stream
   .map((n) => n * 2)
   .flatMap((n) => [n, n + 1])
-  .filter((n) => n % 2 === 0);
+  .filter((n) => n % 2 === 0)
 ```
 
 Operations are applied lazily without creating intermediate collections. Items
@@ -196,10 +196,10 @@ The stream itself is an `AsyncIterable`, so you can iterate directly:
 
 ```ts
 for await (const result of stream) {
-  if (result.type === "success") {
-    console.log(result.value);
+  if (result.type === 'success') {
+    console.log(result.value)
   } else {
-    console.error(result.error);
+    console.error(result.error)
   }
 }
 ```
@@ -216,13 +216,13 @@ stream
     (e): e is NetworkError => e instanceof NetworkError,
     (e) => fallbackValue,
   )
-  .recover((e) => defaultValue); // recover all remaining errors
+  .recover((e) => defaultValue) // recover all remaining errors
 ```
 
 Use `throwOn` to throw specific errors immediately, terminating iteration:
 
 ```ts
-stream.throwOn((e): e is FatalError => e instanceof FatalError);
+stream.throwOn((e): e is FatalError => e instanceof FatalError)
 ```
 
 ### Accumulating state
@@ -232,11 +232,11 @@ stream.throwOn((e): e is FatalError => e instanceof FatalError);
 ```ts
 const payments = Source.from<Payment, Error>(async function* () {
   /* stream of payment events */
-});
+})
 
 payments
   .scan((total, payment) => total + payment.amount, 0)
-  .tap((total) => updateDashboard(total));
+  .tap((total) => updateDashboard(total))
 ```
 
 `chunks` groups consecutive successes into fixed-size arrays:
@@ -244,12 +244,12 @@ payments
 ```ts
 const records = Source.from<Record, Error>(async function* () {
   /* stream of database records */
-});
+})
 
 // Batch records for bulk insert
 records
   .chunks(100)
-  .map((batch) => db.insertMany(batch));
+  .map((batch) => db.insertMany(batch))
 ```
 
 ### Concurrency and backpressure
@@ -257,7 +257,7 @@ records
 ```ts
 Source.from(generator)
   .withConcurrency(8) // up to 8 concurrent map/flatMap operations
-  .withBufferSize(16); // pause the source if results pile up
+  .withBufferSize(16) // pause the source if results pile up
 ```
 
 ### Collecting results

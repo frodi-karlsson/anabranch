@@ -6,24 +6,24 @@ S3-compatible APIs.
 ## Usage
 
 ```ts
-import { createGcs } from "@anabranch/storage-gcs";
-import { Storage } from "@anabranch/storage";
+import { createGcs } from '@anabranch/storage-gcs'
+import { Storage } from '@anabranch/storage'
 
 const connector = createGcs({
-  bucket: "my-bucket",
-  projectId: "my-project",
+  bucket: 'my-bucket',
+  projectId: 'my-project',
   credentials: {
-    client_email: "...",
-    private_key: "...",
+    client_email: '...',
+    private_key: '...',
   },
-});
+})
 
-const storage = new Storage(await connector.connect());
+const storage = new Storage(await connector.connect())
 
-await storage.put("hello.txt", "world").run();
+await storage.put('hello.txt', 'world').run()
 
-const content = await storage.get("hello.txt").run();
-console.log(await new Response(content.body).text());
+const content = await storage.get('hello.txt').run()
+console.log(await new Response(content.body).text())
 ```
 
 ## Features

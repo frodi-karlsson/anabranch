@@ -2,51 +2,51 @@
  * HTTP request methods supported by the WebClient.
  */
 export type Method =
-  | "GET"
-  | "POST"
-  | "PUT"
-  | "PATCH"
-  | "DELETE"
-  | "HEAD"
-  | "OPTIONS";
+  | 'GET'
+  | 'POST'
+  | 'PUT'
+  | 'PATCH'
+  | 'DELETE'
+  | 'HEAD'
+  | 'OPTIONS'
 
 /**
  * Options for an individual request, overriding client defaults.
  */
 export interface RequestOptions {
   /** @default {} (merged with client headers) */
-  headers?: Record<string, string>;
+  headers?: Record<string, string>
 
   /** @default client.timeout */
-  timeout?: number;
+  timeout?: number
 
   /** @default client.retry */
-  retry?: RetryOptions;
+  retry?: RetryOptions
 }
 
 /**
  * Successful HTTP response data.
  */
 export interface ResponseResult {
-  url: URL;
-  status: number;
-  statusText: string;
-  headers: Headers;
-  ok: boolean;
-  data: unknown;
+  url: URL
+  status: number
+  statusText: string
+  headers: Headers
+  ok: boolean
+  data: unknown
 }
 
 /**
  * Error details for a failed HTTP request.
  */
 export interface HttpError {
-  url: URL;
-  method: string;
-  status?: number;
-  reason: string;
-  isRetryable: boolean;
-  isRateLimited: boolean;
-  retryAfter?: number;
+  url: URL
+  method: string
+  status?: number
+  reason: string
+  isRetryable: boolean
+  isRateLimited: boolean
+  retryAfter?: number
 }
 
 /**
@@ -59,11 +59,11 @@ export interface HttpError {
  */
 export interface RetryOptions {
   /** @default 3 */
-  attempts?: number;
+  attempts?: number
 
   /** @default (n) => 1000 * 2 ** n (exponential backoff) */
-  delay?: number | ((attempt: number, error: HttpError) => number);
+  delay?: number | ((attempt: number, error: HttpError) => number)
 
   /** @default retries on 408, 429, 500, 502, 503, 504 */
-  when?: (error: HttpError) => boolean;
+  when?: (error: HttpError) => boolean
 }

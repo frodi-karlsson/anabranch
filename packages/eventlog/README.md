@@ -10,26 +10,26 @@ consumer resumption.
 ## Usage
 
 ```ts
-import { createInMemory, EventLog } from "@anabranch/eventlog";
+import { createInMemory, EventLog } from '@anabranch/eventlog'
 
-const connector = createInMemory();
-const log = await EventLog.connect(connector).run();
+const connector = createInMemory()
+const log = await EventLog.connect(connector).run()
 
 // Append an event
-await log.append("users", { type: "created", userId: 123 }).run();
+await log.append('users', { type: 'created', userId: 123 }).run()
 
 // Consume events with cursor-based resumption
 const { successes, errors } = await log
-  .consume("users", "my-processor", { batchSize: 10 })
+  .consume('users', 'my-processor', { batchSize: 10 })
   .withConcurrency(5)
   .map(async (batch) => {
     for (const event of batch.events) {
-      await handleEvent(event.data);
+      await handleEvent(event.data)
     }
     // Manual commit for at-least-once delivery
-    await log.commit(batch.topic, batch.consumerGroup, batch.cursor).run();
+    await log.commit(batch.topic, batch.consumerGroup, batch.cursor).run()
   })
-  .partition();
+  .partition()
 ```
 
 ## Installation

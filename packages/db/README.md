@@ -9,31 +9,31 @@ packages.
 ## Usage
 
 ```ts
-import { DB } from "@anabranch/db";
-import { createPostgres } from "@anabranch/db-postgres";
+import { DB } from '@anabranch/db'
+import { createPostgres } from '@anabranch/db-postgres'
 
 const db = new DB(
-  await createPostgres({ connectionString: "postgresql://..." }).connect(),
-);
+  await createPostgres({ connectionString: 'postgresql://...' }).connect(),
+)
 
 // Query with type inference
 const users = await db
-  .query<{ id: number; name: string }>("SELECT * FROM users")
-  .run();
+  .query<{ id: number; name: string }>('SELECT * FROM users')
+  .run()
 
 // Transactions with automatic rollback on error
 await DB.withConnection(
   createPostgres({}),
   (db) =>
     db.withTransaction(async (tx) => {
-      await tx.execute("INSERT INTO users (name) VALUES ('Alice')");
+      await tx.execute("INSERT INTO users (name) VALUES ('Alice')")
     }),
-).run();
+).run()
 
 // Stream large result sets
-for await (const row of db.stream("SELECT * FROM large_table")) {
-  if (row.type === "success") {
-    console.log(row.value);
+for await (const row of db.stream('SELECT * FROM large_table')) {
+  if (row.type === 'success') {
+    console.log(row.value)
   }
 }
 ```
@@ -51,9 +51,9 @@ for await (const row of db.stream("SELECT * FROM large_table")) {
 Creates a DB instance from a connected adapter.
 
 ```ts
-import { DB } from "@anabranch/db";
+import { DB } from '@anabranch/db'
 
-const db = new DB(adapter);
+const db = new DB(adapter)
 ```
 
 ### query(sql, params?)
@@ -62,10 +62,10 @@ Executes a SELECT query and returns results.
 
 ```ts
 const users = await db
-  .query<{ id: number; name: string }>("SELECT * FROM users WHERE active = ?", [
+  .query<{ id: number; name: string }>('SELECT * FROM users WHERE active = ?', [
     true,
   ])
-  .run();
+  .run()
 ```
 
 ### execute(sql, params?)
@@ -74,9 +74,9 @@ Executes INSERT, UPDATE, DELETE or DDL statements.
 
 ```ts
 const result = await db
-  .execute("INSERT INTO users (name) VALUES (?)", ["Alice"])
-  .run();
-console.log(result.affectedRows);
+  .execute('INSERT INTO users (name) VALUES (?)', ['Alice'])
+  .run()
+console.log(result.affectedRows)
 ```
 
 ### stream(sql, params?)
@@ -84,9 +84,9 @@ console.log(result.affectedRows);
 Streams rows from a query result.
 
 ```ts
-for await (const row of db.stream("SELECT * FROM users")) {
-  if (row.type === "success") {
-    console.log(row.value);
+for await (const row of db.stream('SELECT * FROM users')) {
+  if (row.type === 'success') {
+    console.log(row.value)
   }
 }
 ```
@@ -98,9 +98,9 @@ rolling back on error.
 
 ```ts
 await db.withTransaction(async (tx) => {
-  await tx.execute("INSERT INTO accounts (balance) VALUES (100)");
-  await tx.execute("INSERT INTO accounts (balance) VALUES (-100)");
-}).run();
+  await tx.execute('INSERT INTO accounts (balance) VALUES (100)')
+  await tx.execute('INSERT INTO accounts (balance) VALUES (-100)')
+}).run()
 ```
 
 ### DB.withConnection(connector, fn)
@@ -113,8 +113,8 @@ const result = await DB.withConnection(
   createPostgres({}),
   (db) =>
     db.withTransaction(async (tx) => {
-      await tx.execute("INSERT INTO orders DEFAULT VALUES");
-      return tx.query("SELECT LAST_INSERT_ID()");
+      await tx.execute('INSERT INTO orders DEFAULT VALUES')
+      return tx.query('SELECT LAST_INSERT_ID()')
     }),
-).run();
+).run()
 ```

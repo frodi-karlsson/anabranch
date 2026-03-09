@@ -1,5 +1,5 @@
-import { _StreamImpl } from "./stream.ts";
-import type { Result } from "./util.ts";
+import { _StreamImpl } from './stream.ts'
+import type { Result } from './util.ts'
 
 /**
  * The entry point for creating a {@link Stream}. Wraps an async generator so
@@ -36,7 +36,7 @@ export class Source<T, E> extends _StreamImpl<T, E> {
     concurrency: number = Infinity,
     bufferSize: number = Infinity,
   ) {
-    super(resultSource, concurrency, bufferSize);
+    super(resultSource, concurrency, bufferSize)
   }
 
   /**
@@ -62,26 +62,26 @@ export class Source<T, E> extends _StreamImpl<T, E> {
    * const stream2 = Source.from<number, Error>(generate());
    * ```
    */
-  static from<T, E>(source: AsyncIterable<T>): Source<T, E>;
-  static from<T, E>(fn: () => AsyncGenerator<T>): Source<T, E>;
+  static from<T, E>(source: AsyncIterable<T>): Source<T, E>
+  static from<T, E>(fn: () => AsyncGenerator<T>): Source<T, E>
   static from<T, E>(
     source: AsyncIterable<T> | (() => AsyncGenerator<T>),
   ): Source<T, E> {
-    const fn = typeof source === "function" ? source : async function* () {
-      yield* source;
-    };
+    const fn = typeof source === 'function' ? source : async function* () {
+      yield* source
+    }
 
     const resultSource = async function* () {
       try {
         for await (const value of fn()) {
-          yield { type: "success", value } as Result<T, E>;
+          yield { type: 'success', value } as Result<T, E>
         }
       } catch (error) {
-        yield { type: "error", error: error as E } as Result<T, E>;
+        yield { type: 'error', error: error as E } as Result<T, E>
       }
-    };
+    }
 
-    return new Source(resultSource);
+    return new Source(resultSource)
   }
   /**
    * Creates a {@link Source} from an async generator that yields {@link Result}
@@ -91,20 +91,20 @@ export class Source<T, E> extends _StreamImpl<T, E> {
   static fromResults<T, E>(
     source: () => AsyncGenerator<Result<T, E>>,
   ): Source<T, E> {
-    return new Source(source);
+    return new Source(source)
   }
 
   /**
    * Sets the maximum number of concurrent operations for the stream.
    */
   withConcurrency(n: number): Source<T, E> {
-    return new Source(this.resultSource, n, this.bufferSize);
+    return new Source(this.resultSource, n, this.bufferSize)
   }
 
   /**
    * Sets the maximum number of buffered results before backpressure is applied to the stream. If the buffer is full, the stream will pause until there is space in the buffer for new results.
    */
   withBufferSize(n: number): Source<T, E> {
-    return new Source(this.resultSource, this.concurrency, n);
+    return new Source(this.resultSource, this.concurrency, n)
   }
 }

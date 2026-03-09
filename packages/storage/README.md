@@ -10,26 +10,26 @@ management.
 ## Usage
 
 ```ts
-import { createMemory, Storage } from "@anabranch/storage";
+import { createMemory, Storage } from '@anabranch/storage'
 
-const connector = createMemory({ prefix: "files/" });
-const storage = await Storage.connect(connector).run();
+const connector = createMemory({ prefix: 'files/' })
+const storage = await Storage.connect(connector).run()
 
 // Put an object
-await storage.put("hello.txt", "Hello, World!", {
-  contentType: "text/plain",
-}).run();
+await storage.put('hello.txt', 'Hello, World!', {
+  contentType: 'text/plain',
+}).run()
 
 // Get an object
-const object = await storage.get("hello.txt").run();
-const text = await new Response(object.body).text();
-console.log(text); // "Hello, World!"
+const object = await storage.get('hello.txt').run()
+const text = await new Response(object.body).text()
+console.log(text) // "Hello, World!"
 
 // List objects with concurrent processing
-const { successes, errors } = await storage.list("files/")
+const { successes, errors } = await storage.list('files/')
   .withConcurrency(10)
   .map(async (entry) => await processFile(entry))
-  .partition();
+  .partition()
 ```
 
 ## Installation
@@ -37,7 +37,7 @@ const { successes, errors } = await storage.list("files/")
 **Deno (JSR)**
 
 ```ts
-import { Storage } from "jsr:@anabranch/storage";
+import { Storage } from 'jsr:@anabranch/storage'
 ```
 
 **Node / Bun (npm)**

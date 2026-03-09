@@ -1,22 +1,19 @@
-import { Source, Task } from "@anabranch/anabranch";
+import { Source, Task } from '@anabranch/anabranch'
 import type {
   AppendOptions,
   ConsumeOptions,
-  Event,
   EventBatch,
   EventLogAdapter,
   EventLogConnector,
-  ListOptions,
-} from "./adapter.ts";
+} from './adapter.ts'
 import {
   EventLogAppendFailed,
   EventLogCloseFailed,
   EventLogCommitCursorFailed,
   EventLogConnectionFailed,
+  EventLogConsumeFailed,
   EventLogGetCursorFailed,
-  EventLogGetFailed,
-  EventLogListFailed,
-} from "./errors.ts";
+} from './errors.ts'
 
 /**
  * EventLog wrapper with Task/Stream semantics for event-sourced systems.
@@ -30,12 +27,6 @@ import {
  *
  * // Append an event
  * const eventId = await log.append("users", { action: "created", userId: 123 }).run();
- *
- * // Get a specific event
- * const event = await log.get("users", 0).run();
- *
- * // List events
- * const events = await log.list("users").run();
  *
  * await log.close().run();
  * ```
@@ -71,14 +62,14 @@ export class EventLog {
   ): Task<EventLog, EventLogConnectionFailed> {
     return Task.of(async () => {
       try {
-        return new EventLog(await connector.connect());
+        return new EventLog(await connector.connect())
       } catch (error) {
         throw new EventLogConnectionFailed(
           error instanceof Error ? error.message : String(error),
           error,
-        );
+        )
       }
-    });
+    })
   }
 
   /**
@@ -92,14 +83,14 @@ export class EventLog {
   close(): Task<void, EventLogCloseFailed> {
     return Task.of(async () => {
       try {
-        await this.adapter.close();
+        await this.adapter.close()
       } catch (error) {
         throw new EventLogCloseFailed(
           error instanceof Error ? error.message : String(error),
           error,
-        );
+        )
       }
-    });
+    })
   }
 
   /**
@@ -124,84 +115,15 @@ export class EventLog {
   ): Task<string, EventLogAppendFailed> {
     return Task.of(async () => {
       try {
-        return await this.adapter.append(topic, data, options);
+        return await this.adapter.append(topic, data, options)
       } catch (error) {
         throw new EventLogAppendFailed(
           topic,
           error instanceof Error ? error.message : String(error),
           error,
-        );
+        )
       }
-    });
-  }
-
-  /**
-   * Get a single event by topic and sequence number.
-   *
-   * @example
-   * ```ts
-   * const event = await log.get("users", 0).run();
-   * if (event) {
-   *   console.log(event.data);
-   * }
-   * ```
-   */
-  get<T>(
-    topic: string,
-    sequenceNumber: number,
-  ): Task<Event<T> | null, EventLogGetFailed> {
-    return Task.of(async () => {
-      try {
-        return await this.adapter.get(topic, sequenceNumber);
-      } catch (error) {
-        throw new EventLogGetFailed(
-          topic,
-          sequenceNumber,
-          error instanceof Error ? error.message : String(error),
-          error,
-        );
-      }
-    });
-  }
-
-  /**
-   * List events in a topic with optional filtering and pagination.
-   *
-   * @example List all events
-   * ```ts
-   * const events = await log.list("users").run();
-   * ```
-   *
-   * @example With pagination
-   * ```ts
-   * const events = await log.list("users", {
-   *   fromSequenceNumber: 100,
-   *   limit: 50,
-   * }).run();
-   * ```
-   *
-   * @example Filtered by partition key
-   * ```ts
-   * const events = await log.list("orders", {
-   *   partitionKey: "user-123",
-   * }).run();
-   * ```
-   */
-  list<T>(
-    topic: string,
-    options?: ListOptions,
-  ): Task<Event<T>[], EventLogListFailed> {
-    return Task.of(async () => {
-      try {
-        return await this.adapter.list(topic, options);
-      } catch (error) {
-        throw new EventLogListFailed(
-          topic,
-          error instanceof Error ? error.message : String(error),
-          error,
-        );
-      }
-    });
+    })
   }
 
   /**
@@ -242,23 +164,23 @@ export class EventLog {
     topic: string,
     consumerGroup: string,
     options?: ConsumeOptions,
-  ): Source<EventBatch<T>, EventLogListFailed> {
-    const adapter = this.adapter;
+  ): Source<EventBatch<T>, EventLogConsumeFailed> {
+    const adapter = this.adapter
     return Source.from(async function* () {
       try {
         for await (
           const batch of adapter.consume<T>(topic, consumerGroup, options)
         ) {
-          yield batch;
+          yield batch
         }
       } catch (error) {
-        throw new EventLogListFailed(
+        throw new EventLogConsumeFailed(
           topic,
           error instanceof Error ? error.message : String(error),
           error,
-        );
+        )
       }
-    });
+    })
   }
 
   /**
@@ -276,16 +198,16 @@ export class EventLog {
   ): Task<void, EventLogCommitCursorFailed> {
     return Task.of(async () => {
       try {
-        await this.adapter.commitCursor(topic, consumerGroup, cursor);
+        await this.adapter.commitCursor(topic, consumerGroup, cursor)
       } catch (error) {
         throw new EventLogCommitCursorFailed(
           topic,
           consumerGroup,
           error instanceof Error ? error.message : String(error),
           error,
-        );
+        )
       }
-    });
+    })
   }
 
   /**
@@ -305,15 +227,15 @@ export class EventLog {
   ): Task<string | null, EventLogGetCursorFailed> {
     return Task.of(async () => {
       try {
-        return await this.adapter.getCursor(topic, consumerGroup);
+        return await this.adapter.getCursor(topic, consumerGroup)
       } catch (error) {
         throw new EventLogGetCursorFailed(
           topic,
           consumerGroup,
           error instanceof Error ? error.message : String(error),
           error,
-        );
+        )
       }
-    });
+    })
   }
 }

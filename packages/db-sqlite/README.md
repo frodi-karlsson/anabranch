@@ -9,22 +9,22 @@ in-memory or file-based databases.
 ## Usage
 
 ```ts
-import { DB } from "@anabranch/db";
-import { createSqlite } from "@anabranch/db-sqlite";
+import { DB } from '@anabranch/db'
+import { createSqlite } from '@anabranch/db-sqlite'
 
 const db = new DB(
-  await createSqlite({ filename: "./mydb.sqlite" }).connect(),
-);
+  await createSqlite({ filename: './mydb.sqlite' }).connect(),
+)
 
 // Query
 const users = await db
-  .query<{ id: number; name: string }>("SELECT * FROM users")
-  .run();
+  .query<{ id: number; name: string }>('SELECT * FROM users')
+  .run()
 
 // In-memory database for testing
 const testDb = new DB(
   await createSqlite().connect(),
-);
+)
 ```
 
 ## API
@@ -34,19 +34,19 @@ const testDb = new DB(
 Creates a SQLite connector with a shared database instance.
 
 ```ts
-import { createSqlite } from "@anabranch/db-sqlite";
+import { createSqlite } from '@anabranch/db-sqlite'
 
 const connector = createSqlite({
   // Database file path (default: ":memory:" for in-memory)
-  filename: "./mydb.sqlite",
-});
+  filename: './mydb.sqlite',
+})
 
 // Connect returns a DBAdapter
-const adapter = await connector.connect();
-await adapter.close();
+const adapter = await connector.connect()
+await adapter.close()
 
 // End closes the database connection
-await connector.end();
+await connector.end()
 ```
 
 ### Environment Variables
@@ -64,7 +64,7 @@ No environment variables are used. All options must be passed explicitly.
 **Deno:**
 
 ```ts
-import { createSqlite } from "@anabranch/db-sqlite";
+import { createSqlite } from '@anabranch/db-sqlite'
 ```
 
 **Node.js:**

@@ -1,5 +1,5 @@
-import type { DBAdapter, DBConnector } from "@anabranch/db";
-import { DatabaseSync, type SQLInputValue } from "node:sqlite";
+import type { DBAdapter, DBConnector } from '@anabranch/db'
+import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 
 /**
  * Creates a SQLite connector with a shared database instance.
@@ -45,61 +45,65 @@ import { DatabaseSync, type SQLInputValue } from "node:sqlite";
  * ```
  */
 export function createSqlite(options: SQLiteOptions = {}): SQLiteConnector {
-  const filename = options.filename ?? ":memory:";
+  const filename = options.filename ?? ':memory:'
 
-  let db: DatabaseSync | null = null;
-  let refCount = 0;
+  let db: DatabaseSync | null = null
+  let refCount = 0
 
   function getDb() {
     if (!db) {
-      db = new DatabaseSync(filename);
+      db = new DatabaseSync(filename)
     }
-    return db;
+    return db
   }
 
   return {
     connect(_signal?: AbortSignal): Promise<DBAdapter> {
-      const database = getDb();
-      refCount++;
+      const database = getDb()
+      refCount++
 
       return Promise.resolve({
-        query: (sql, params) => {
-          const stmt = database.prepare(sql);
+        // deno-lint-ignore no-explicit-any
+        query: <T extends Record<string, any> = Record<string, any>>(
+          sql: string,
+          params?: unknown[],
+        ): Promise<T[]> => {
+          const stmt = database.prepare(sql)
           return Promise.resolve(
-            stmt.all(...(params ?? []) as SQLInputValue[]) as unknown[],
-          );
+            stmt.all(...(params ?? []) as SQLInputValue[]) as T[],
+          )
         },
         execute: (sql, params) => {
-          const stmt = database.prepare(sql);
+          const stmt = database.prepare(sql)
           const result = stmt.run(
             ...(params ?? []) as SQLInputValue[],
-          );
-          return Promise.resolve(Number(result.changes));
+          )
+          return Promise.resolve(Number(result.changes))
         },
         close: () => {
-          refCount--;
-          return Promise.resolve();
+          refCount--
+          return Promise.resolve()
         },
-      });
+      })
     },
     end(): Promise<void> {
       if (db) {
-        db.close();
-        db = null;
+        db.close()
+        db = null
       }
-      return Promise.resolve();
+      return Promise.resolve()
     },
-  };
+  }
 }
 
 /** SQLite database connector. */
 export interface SQLiteConnector extends DBConnector {
   /** Closes the database connection. */
-  end(): Promise<void>;
+  end(): Promise<void>
 }
 
 /** Connection options for SQLite. */
 export interface SQLiteOptions {
   /** @default ":memory:" */
-  filename?: string;
+  filename?: string
 }

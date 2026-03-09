@@ -26,6 +26,6 @@
  *
  * @module
  */
-export { createRedis } from "./connector.ts";
-export type { RedisConnector, RedisQueueOptions } from "./connector.ts";
-export { RedisAdapter } from "./adapter.ts";
+export { createRedis } from './connector.ts'
+export type { RedisConnector, RedisQueueOptions } from './connector.ts'
+export { RedisAdapter } from './adapter.ts'

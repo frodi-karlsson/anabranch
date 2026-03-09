@@ -10,9 +10,9 @@ retries, and timeouts:
 
 ```ts
 try {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return await res.json();
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return await res.json()
 } catch (e) {
   // retry logic, backoff, etc.
 }
@@ -24,21 +24,21 @@ WebClient wraps fetch in a `Task` that handles HTTP errors, retries, and
 timeouts with a clean, composable API:
 
 ```ts
-import { WebClient } from "@anabranch/web-client";
+import { WebClient } from '@anabranch/web-client'
 
 const client = new WebClient({
-  baseUrl: "https://api.example.com",
-  headers: { Authorization: "Bearer token" },
+  baseUrl: 'https://api.example.com',
+  headers: { Authorization: 'Bearer token' },
   timeout: 10_000,
-});
+})
 
-const result = await client.get("/users/me").run();
-console.log(result.data);
+const result = await client.get('/users/me').run()
+console.log(result.data)
 
 // Retry with exponential backoff
-await client.post("/items", { body })
+await client.post('/items', { body })
   .retry({ attempts: 3, delay: (i) => 1000 * 2 ** i })
-  .run();
+  .run()
 ```
 
 ## Installation
@@ -46,7 +46,7 @@ await client.post("/items", { body })
 **Deno (JSR)**
 
 ```ts
-import { WebClient } from "jsr:@anabranch/web-client";
+import { WebClient } from 'jsr:@anabranch/web-client'
 ```
 
 **Node / Bun (npm)**
@@ -61,57 +61,57 @@ npm install @anabranch/web-client
 
 ```ts
 const client = new WebClient({
-  baseUrl: "https://api.example.com",
-  headers: { "X-Custom-Header": "value" },
+  baseUrl: 'https://api.example.com',
+  headers: { 'X-Custom-Header': 'value' },
   timeout: 30_000,
   fetch: customFetch, // optional custom fetch implementation
   retry: {
     attempts: 3,
     delay: (attempt, error) => {
       // Rate-limit-aware delay: use Retry-After header if present
-      if (error?.retryAfter) return error.retryAfter;
-      return 1000 * 2 ** attempt;
+      if (error?.retryAfter) return error.retryAfter
+      return 1000 * 2 ** attempt
     },
     when: (res) => res.status >= 500 || res.status === 429,
   },
-});
+})
 ```
 
 ### Making requests
 
 ```ts
 // GET with query params
-const result = await client.get("/users/123").run();
-console.log(result.data);
+const result = await client.get('/users/123').run()
+console.log(result.data)
 
 // POST with body
-const created = await client.post("/users", { name: "Alice" }).run();
+const created = await client.post('/users', { name: 'Alice' }).run()
 
 // PUT, PATCH, DELETE
-await client.put("/users/123", { bio: "New bio" });
-await client.patch("/users/123", { name: "Bob" });
-await client.delete("/users/123");
+await client.put('/users/123', { bio: 'New bio' })
+await client.patch('/users/123', { name: 'Bob' })
+await client.delete('/users/123')
 
 // With custom options
 const result = await client.request(
-  "/endpoint",
-  "POST",
-  { headers: { "Content-Type": "application/json" } },
-  { key: "value" },
-).run();
+  '/endpoint',
+  'POST',
+  { headers: { 'Content-Type': 'application/json' } },
+  { key: 'value' },
+).run()
 ```
 
 ### Handling responses
 
 ```ts
-const result = await client.get("/data").run();
+const result = await client.get('/data').run()
 
 if (result.ok) {
-  console.log("Status:", result.status);
-  console.log("Data:", result.data);
-  console.log("Headers:", result.headers);
+  console.log('Status:', result.status)
+  console.log('Data:', result.data)
+  console.log('Headers:', result.headers)
 } else {
-  console.log("HTTP Error:", result.status, result.reason);
+  console.log('HTTP Error:', result.status, result.reason)
 }
 ```
 
@@ -119,41 +119,41 @@ if (result.ok) {
 
 ```ts
 // Transform success values
-const data = await client.get("/api").map((r) => r.data).run();
+const data = await client.get('/api').map((r) => r.data).run()
 
 // Recover from errors
-const cached = await client.get("/api")
+const cached = await client.get('/api')
   .recover(() => fallbackData)
-  .run();
+  .run()
 
 // FlatMap for chaining
-const userPosts = await client.get("/users/me")
+const userPosts = await client.get('/users/me')
   .flatMap((user) => client.get(`/users/${user.id}/posts`))
-  .run();
+  .run()
 
 // Timeout
-const response = await client.get("/slow-endpoint")
+const response = await client.get('/slow-endpoint')
   .timeout(5_000)
-  .run();
+  .run()
 ```
 
 ### Customizing retry behavior
 
 ```ts
 // Only retry on server errors
-client.get("/api").retry({
+client.get('/api').retry({
   attempts: 3,
   when: (res) => res.status >= 500,
-});
+})
 
 // Custom delay based on error
-client.get("/api").retry({
+client.get('/api').retry({
   attempts: 5,
   delay: (attempt, error) => {
-    if (error?.retryAfter) return error.retryAfter * 1000;
-    return 1000 * attempt;
+    if (error?.retryAfter) return error.retryAfter * 1000
+    return 1000 * attempt
   },
-});
+})
 ```
 
 ## API reference

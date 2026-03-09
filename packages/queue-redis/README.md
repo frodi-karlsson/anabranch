@@ -5,21 +5,21 @@ Redis adapter for @anabranch/queue using ioredis.
 ## Usage
 
 ```ts
-import { Queue } from "@anabranch/queue";
-import { createRedis } from "@anabranch/queue-redis";
+import { Queue } from '@anabranch/queue'
+import { createRedis } from '@anabranch/queue-redis'
 
-const connector = createRedis("redis://localhost:6379");
-const queue = await Queue.connect(connector).run();
+const connector = createRedis('redis://localhost:6379')
+const queue = await Queue.connect(connector).run()
 
-await queue.send("notifications", { userId: 123, type: "welcome" }).run();
+await queue.send('notifications', { userId: 123, type: 'welcome' }).run()
 
 const { successes, errors } = await queue
-  .stream("notifications")
+  .stream('notifications')
   .withConcurrency(5)
   .map(async (msg) => await sendNotification(msg.data))
-  .partition();
+  .partition()
 
-await queue.close().run();
+await queue.close().run()
 ```
 
 ## API
@@ -29,21 +29,21 @@ await queue.close().run();
 Creates a Redis queue connector.
 
 ```ts
-import { createRedis } from "@anabranch/queue-redis";
+import { createRedis } from '@anabranch/queue-redis'
 
 const connector = createRedis({
-  connection: "redis://localhost:6379",
-  prefix: "myapp",
+  connection: 'redis://localhost:6379',
+  prefix: 'myapp',
   queues: {
     orders: {
       maxAttempts: 5,
       visibilityTimeout: 60_000,
-      deadLetterQueue: "orders-dlq",
+      deadLetterQueue: 'orders-dlq',
     },
   },
   defaultVisibilityTimeout: 30_000,
   defaultMaxAttempts: 3,
-});
+})
 ```
 
 **Options:**
@@ -59,12 +59,12 @@ const connector = createRedis({
 Headers can be attached to messages for routing and correlation:
 
 ```ts
-await queue.send("orders", order, {
+await queue.send('orders', order, {
   headers: {
-    "x-correlation-id": "abc-123",
-    "x-source": "checkout-service",
+    'x-correlation-id': 'abc-123',
+    'x-source': 'checkout-service',
   },
-}).run();
+}).run()
 ```
 
 Headers are surfaced in `metadata.headers` on received messages.
@@ -72,21 +72,21 @@ Headers are surfaced in `metadata.headers` on received messages.
 ### Delayed Messages
 
 ```ts
-await queue.send("notifications", reminder, { delayMs: 30_000 }).run();
+await queue.send('notifications', reminder, { delayMs: 30_000 }).run()
 ```
 
 ### Dead Letter Queue
 
 ```ts
 const connector = createRedis({
-  connection: "redis://localhost:6379",
+  connection: 'redis://localhost:6379',
   queues: {
     orders: {
       maxAttempts: 3,
-      deadLetterQueue: "orders-dlq",
+      deadLetterQueue: 'orders-dlq',
     },
   },
-});
+})
 ```
 
 When a message exceeds max delivery attempts, it is routed to the dead letter

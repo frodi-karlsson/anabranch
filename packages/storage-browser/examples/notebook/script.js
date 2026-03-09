@@ -1,59 +1,59 @@
-import { createIndexedDB } from "https://cdn.jsdelivr.net/npm/@anabranch/storage-browser@0.1.3/+esm";
-import { Storage } from "https://cdn.jsdelivr.net/npm/@anabranch/storage@0.1.3/+esm";
+import { createIndexedDB } from 'https://cdn.jsdelivr.net/npm/@anabranch/storage-browser@0.1.3/+esm'
+import { Storage } from 'https://cdn.jsdelivr.net/npm/@anabranch/storage@0.1.3/+esm'
 
-const status = document.getElementById("status");
-const notesContainer = document.getElementById("notes");
+const status = document.getElementById('status')
+const notesContainer = document.getElementById('notes')
 
 function setStatus(msg) {
-  status.textContent = msg;
-  status.classList.add("visible");
-  setTimeout(() => status.classList.remove("visible"), 2000);
+  status.textContent = msg
+  status.classList.add('visible')
+  setTimeout(() => status.classList.remove('visible'), 2000)
 }
 
-const connector = createIndexedDB({ prefix: "notebook/" });
-const storage = await Storage.connect(connector).run();
-setStatus("Ready");
-loadNotes();
+const connector = createIndexedDB({ prefix: 'notebook/' })
+const storage = await Storage.connect(connector).run()
+setStatus('Ready')
+loadNotes()
 
-document.getElementById("saveBtn").addEventListener("click", async () => {
-  const title = document.getElementById("title").value.trim();
-  const content = document.getElementById("content").value.trim();
-  if (!title || !content) return;
+document.getElementById('saveBtn').addEventListener('click', async () => {
+  const title = document.getElementById('title').value.trim()
+  const content = document.getElementById('content').value.trim()
+  if (!title || !content) return
 
   const note = {
     id: Date.now().toString(),
     title,
     content,
     createdAt: new Date().toISOString(),
-  };
+  }
 
   await storage.put(`notes/${note.id}`, JSON.stringify(note))
-    .tapErr((err) => setStatus("Save failed: " + err.message))
-    .run();
+    .tapErr((err) => setStatus('Save failed: ' + err.message))
+    .run()
 
-  document.getElementById("title").value = "";
-  document.getElementById("content").value = "";
-  setStatus("Note saved!");
-  loadNotes();
-});
+  document.getElementById('title').value = ''
+  document.getElementById('content').value = ''
+  setStatus('Note saved!')
+  loadNotes()
+})
 
 async function loadNotes() {
-  notesContainer.innerHTML = "";
+  notesContainer.innerHTML = ''
 
-  const notes = await storage.list("notes/")
+  const notes = await storage.list('notes/')
     .tryMap(
       async (entry) => {
-        const { body } = await storage.get(entry.key).run();
-        return JSON.parse(await new Response(body).text());
+        const { body } = await storage.get(entry.key).run()
+        return JSON.parse(await new Response(body).text())
       },
       () => {
-        setStatus("Load error - skipping note");
-        return null;
+        setStatus('Load error - skipping note')
+        return null
       },
     )
     .filter((note) => note !== null)
     .collect()
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
 
   if (notes.length === 0) {
     notesContainer.innerHTML = `
@@ -63,50 +63,50 @@ async function loadNotes() {
         </svg>
         <p>No notes yet. Add one above!</p>
       </div>
-    `;
-    return;
+    `
+    return
   }
 
   for (const note of notes) {
-    const div = document.createElement("div");
-    div.className = "note-item";
+    const div = document.createElement('div')
+    div.className = 'note-item'
     div.innerHTML = `
       <div class="note-title">${escapeHtml(note.title)}</div>
       <div class="note-preview">${escapeHtml(note.content.substring(0, 100))}${
-      note.content.length > 100 ? "..." : ""
+      note.content.length > 100 ? '...' : ''
     }</div>
       <div class="note-meta">${new Date(note.createdAt).toLocaleString()}</div>
       <div class="actions">
         <button class="load-note" data-id="${note.id}">Load</button>
         <button class="danger delete-note" data-id="${note.id}">Delete</button>
       </div>
-    `;
-    notesContainer.appendChild(div);
+    `
+    notesContainer.appendChild(div)
   }
 
-  notesContainer.querySelectorAll(".load-note").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const note = notes.find((n) => n.id === btn.dataset.id);
+  notesContainer.querySelectorAll('.load-note').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const note = notes.find((n) => n.id === btn.dataset.id)
       if (note) {
-        document.getElementById("title").value = note.title;
-        document.getElementById("content").value = note.content;
+        document.getElementById('title').value = note.title
+        document.getElementById('content').value = note.content
       }
-    });
-  });
+    })
+  })
 
-  notesContainer.querySelectorAll(".delete-note").forEach((btn) => {
-    btn.addEventListener("click", async () => {
+  notesContainer.querySelectorAll('.delete-note').forEach((btn) => {
+    btn.addEventListener('click', async () => {
       await storage.delete(`notes/${btn.dataset.id}`)
-        .tapErr((err) => setStatus("Delete failed: " + err.message))
-        .run();
-      setStatus("Note deleted");
-      loadNotes();
-    });
-  });
+        .tapErr((err) => setStatus('Delete failed: ' + err.message))
+        .run()
+      setStatus('Note deleted')
+      loadNotes()
+    })
+  })
 }
 
 function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
+  const div = document.createElement('div')
+  div.textContent = str
+  return div.innerHTML
 }

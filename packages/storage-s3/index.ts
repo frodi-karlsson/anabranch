@@ -99,6 +99,6 @@
  *
  * @module
  */
-export { S3Adapter } from "./s3.ts";
-export { createS3 } from "./connector.ts";
-export type { S3StorageOptions } from "./connector.ts";
+export { S3Adapter } from './s3.ts'
+export { createS3 } from './connector.ts'
+export type { S3StorageOptions } from './connector.ts'

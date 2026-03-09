@@ -1,11 +1,11 @@
-import { Source, Task } from "@anabranch/anabranch";
+import { Source, Task } from '@anabranch/anabranch'
 import type {
   QueueAdapter,
   QueueConnector,
   QueueMessage,
   SendOptions,
   StreamAdapter,
-} from "./adapter.ts";
+} from './adapter.ts'
 import {
   QueueAckFailed,
   QueueCloseFailed,
@@ -13,21 +13,21 @@ import {
   QueueMaxAttemptsExceeded,
   QueueReceiveFailed,
   QueueSendFailed,
-} from "./errors.ts";
+} from './errors.ts'
 
 async function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-  if (signal?.aborted) return;
+  if (signal?.aborted) return
   await new Promise<void>((resolve) => {
-    const timerId = setTimeout(resolve, ms);
+    const timerId = setTimeout(resolve, ms)
     signal?.addEventListener(
-      "abort",
+      'abort',
       () => {
-        clearTimeout(timerId);
-        resolve();
+        clearTimeout(timerId)
+        resolve()
       },
       { once: true },
-    );
-  });
+    )
+  })
 }
 
 /**
@@ -83,14 +83,14 @@ export class Queue {
   ): Task<Queue, QueueConnectionFailed> {
     return Task.of(async () => {
       try {
-        return new Queue(await connector.connect());
+        return new Queue(await connector.connect())
       } catch (error) {
         throw new QueueConnectionFailed(
           error instanceof Error ? error.message : String(error),
           error,
-        );
+        )
       }
-    });
+    })
   }
 
   /**
@@ -104,14 +104,14 @@ export class Queue {
   close(): Task<void, QueueCloseFailed> {
     return Task.of(async () => {
       try {
-        await this.adapter.close();
+        await this.adapter.close()
       } catch (error) {
         throw new QueueCloseFailed(
           error instanceof Error ? error.message : String(error),
           error,
-        );
+        )
       }
-    });
+    })
   }
 
   /**
@@ -129,15 +129,15 @@ export class Queue {
   ): Task<string, QueueSendFailed> {
     return Task.of(async () => {
       try {
-        return await this.adapter.send(queue, data, options);
+        return await this.adapter.send(queue, data, options)
       } catch (error) {
         throw new QueueSendFailed(
           error instanceof Error ? error.message : String(error),
           queue,
           error,
-        );
+        )
       }
-    });
+    })
   }
 
   /**
@@ -162,7 +162,7 @@ export class Queue {
     options?: SendOptions & { parallel?: boolean },
   ): Task<string[], QueueSendFailed> {
     return Task.of(async () => {
-      const ids: string[] = [];
+      const ids: string[] = []
 
       if (options?.parallel) {
         const promises = data.map((item) =>
@@ -171,19 +171,19 @@ export class Queue {
               e instanceof Error ? e.message : String(e),
               queue,
               e,
-            );
+            )
           })
-        );
-        const results = await Promise.all(promises);
-        return results;
+        )
+        const results = await Promise.all(promises)
+        return results
       }
 
       for (const item of data) {
-        const id = await this.adapter.send(queue, item, options);
-        ids.push(id);
+        const id = await this.adapter.send(queue, item, options)
+        ids.push(id)
       }
-      return ids;
-    });
+      return ids
+    })
   }
 
   /**
@@ -207,24 +207,24 @@ export class Queue {
     queue: string,
     options?: { count?: number; concurrency?: number },
   ): Source<QueueMessage<T>, QueueReceiveFailed> {
-    const adapter = this.adapter;
-    const count = options?.count ?? 10;
+    const adapter = this.adapter
+    const count = options?.count ?? 10
     return Source.from<QueueMessage<T>, QueueReceiveFailed>(
       async function* () {
         try {
-          const messages = await adapter.receive<T>(queue, count);
+          const messages = await adapter.receive<T>(queue, count)
           for (const msg of messages) {
-            yield msg;
+            yield msg
           }
         } catch (error) {
           throw new QueueReceiveFailed(
             error instanceof Error ? error.message : String(error),
             queue,
             error,
-          );
+          )
         }
       },
-    ).withConcurrency(options?.concurrency ?? Infinity);
+    ).withConcurrency(options?.concurrency ?? Infinity)
   }
 
   /**
@@ -252,58 +252,58 @@ export class Queue {
     queue: string,
     options?: { count?: number; signal?: AbortSignal; prefetch?: number },
   ): Source<QueueMessage<T>, QueueReceiveFailed> {
-    const count = options?.count ?? 10;
-    const signal = options?.signal;
-    const prefetch = options?.prefetch;
-    const adapter = this.adapter;
+    const count = options?.count ?? 10
+    const signal = options?.signal
+    const prefetch = options?.prefetch
+    const adapter = this.adapter
 
-    const isStreamAdapter = "subscribe" in adapter;
+    const isStreamAdapter = 'subscribe' in adapter
 
     return Source.fromResults<QueueMessage<T>, QueueReceiveFailed>(
       async function* () {
         if (isStreamAdapter) {
-          const streamAdapter = adapter as StreamAdapter;
+          const streamAdapter = adapter as StreamAdapter
           const iterable = streamAdapter.subscribe<T>(queue, {
             signal,
             prefetch,
-          });
+          })
 
           for await (const msg of iterable) {
-            if (signal?.aborted) return;
-            yield { type: "success", value: msg };
+            if (signal?.aborted) return
+            yield { type: 'success', value: msg }
           }
-          return;
+          return
         }
 
-        const baseDelay = 50;
-        let currentDelay = baseDelay;
+        const baseDelay = 50
+        let currentDelay = baseDelay
 
         while (!signal?.aborted) {
           try {
-            const messages = await adapter.receive<T>(queue, count);
-            currentDelay = baseDelay;
+            const messages = await adapter.receive<T>(queue, count)
+            currentDelay = baseDelay
 
             for (const msg of messages) {
-              if (signal?.aborted) return;
-              yield { type: "success", value: msg };
+              if (signal?.aborted) return
+              yield { type: 'success', value: msg }
             }
 
             if (!signal?.aborted && messages.length === 0) {
-              await sleep(currentDelay, signal);
-              currentDelay = Math.min(currentDelay * 2, 5000);
+              await sleep(currentDelay, signal)
+              currentDelay = Math.min(currentDelay * 2, 5000)
             }
           } catch (error) {
-            if (signal?.aborted) return;
+            if (signal?.aborted) return
             const queueError = new QueueReceiveFailed(
               error instanceof Error ? error.message : String(error),
               queue,
               error,
-            );
-            yield { type: "error", error: queueError };
+            )
+            yield { type: 'error', error: queueError }
           }
         }
       },
-    );
+    )
   }
 
   /**
@@ -316,18 +316,18 @@ export class Queue {
    */
   ack(queue: string, ...ids: string[]): Task<void, QueueAckFailed> {
     return Task.of(async () => {
-      if (ids.length === 0) return;
+      if (ids.length === 0) return
       try {
-        await this.adapter.ack(queue, ...ids);
+        await this.adapter.ack(queue, ...ids)
       } catch (error) {
         throw new QueueAckFailed(
           error instanceof Error ? error.message : String(error),
           queue,
           ids[0],
           error,
-        );
+        )
       }
-    });
+    })
   }
 
   /**
@@ -347,25 +347,22 @@ export class Queue {
     queue: string,
     id: string,
     options?: {
-      requeue?: boolean;
-      delay?: number;
-      deadLetter?: boolean;
+      requeue?: boolean
+      delay?: number
+      deadLetter?: boolean
     },
   ): Task<void, QueueAckFailed | QueueMaxAttemptsExceeded> {
     return Task.of(async () => {
       try {
-        await this.adapter.nack(queue, id, options);
+        await this.adapter.nack(queue, id, options)
       } catch (error) {
         throw new QueueAckFailed(
           error instanceof Error ? error.message : String(error),
           queue,
           id,
           error,
-        );
+        )
       }
-    });
+    })
   }
 }
-
-/** Re-export QueueMessage for convenience */
-export type { QueueMessage } from "./adapter.ts";

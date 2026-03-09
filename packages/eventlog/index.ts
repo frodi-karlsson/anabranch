@@ -61,21 +61,20 @@
  *
  * @module
  */
-export { EventLog } from "./eventlog.ts";
+export { EventLog } from './eventlog.ts'
 export type {
   Event,
   EventBatch,
   EventLogAdapter,
   EventLogConnector,
-} from "./adapter.ts";
+} from './adapter.ts'
 export type {
   AppendOptions,
   ConsumeOptions,
   EventLogOptions,
-  ListOptions,
-} from "./adapter.ts";
-export * from "./errors.ts";
-export { createInMemory } from "./in-memory.ts";
-export type { InMemoryConnector, InMemoryOptions } from "./in-memory.ts";
-export { Task } from "@anabranch/anabranch";
-export type { Source, Stream } from "@anabranch/anabranch";
+} from './adapter.ts'
+export * from './errors.ts'
+export { createInMemory } from './in-memory.ts'
+export type { InMemoryConnector, InMemoryOptions } from './in-memory.ts'
+export { Task } from '@anabranch/anabranch'
+export type { Source, Stream } from '@anabranch/anabranch'

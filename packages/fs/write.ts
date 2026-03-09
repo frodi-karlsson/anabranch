@@ -1,5 +1,5 @@
-import { writeFile as fsWriteFile } from "node:fs/promises";
-import { Task } from "@anabranch/anabranch";
+import { writeFile as fsWriteFile } from 'node:fs/promises'
+import { Task } from '@anabranch/anabranch'
 import {
   type IsDirectory,
   nodeErrorToFSError,
@@ -7,7 +7,7 @@ import {
   type PermissionDenied,
   type Unknown,
   type WriteError,
-} from "./errors.ts";
+} from './errors.ts'
 
 /**
  * Writes a UTF-8 string to a file, creating or overwriting it.
@@ -18,11 +18,11 @@ export function writeTextFile(
 ): Task<void, WriteFileError> {
   return Task.of<void, WriteFileError>(async () => {
     try {
-      await fsWriteFile(path, content, "utf8");
+      await fsWriteFile(path, content, 'utf8')
     } catch (error) {
-      throw nodeErrorToFSError(error, path);
+      throw nodeErrorToFSError(error, path)
     }
-  });
+  })
 }
 
 /**
@@ -34,11 +34,11 @@ export function writeFile(
 ): Task<void, WriteFileError> {
   return Task.of<void, WriteFileError>(async () => {
     try {
-      await fsWriteFile(path, data);
+      await fsWriteFile(path, data)
     } catch (error) {
-      throw nodeErrorToFSError(error, path);
+      throw nodeErrorToFSError(error, path)
     }
-  });
+  })
 }
 
 /**
@@ -50,11 +50,11 @@ export function writeJson(
 ): Task<void, WriteFileError> {
   return Task.of<void, WriteFileError>(async () => {
     try {
-      await fsWriteFile(path, JSON.stringify(value), "utf8");
+      await fsWriteFile(path, JSON.stringify(value), 'utf8')
     } catch (error) {
-      throw nodeErrorToFSError(error, path);
+      throw nodeErrorToFSError(error, path)
     }
-  });
+  })
 }
 
 /** Errors that can occur when writing files. */
@@ -63,4 +63,4 @@ export type WriteFileError =
   | IsDirectory
   | PermissionDenied
   | WriteError
-  | Unknown;
+  | Unknown

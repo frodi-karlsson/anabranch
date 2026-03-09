@@ -9,16 +9,16 @@ export class QueueError extends Error {
     public readonly queue?: string,
     public readonly messageId?: string,
   ) {
-    super(message);
-    this.name = "QueueError";
+    super(message)
+    this.name = 'QueueError'
   }
 }
 
 /** Connection establishment failed. */
 export class QueueConnectionFailed extends QueueError {
   constructor(message: string, public readonly originalError?: unknown) {
-    super(`Connection failed: ${message}`, undefined, undefined);
-    this.name = "QueueConnectionFailed";
+    super(`Connection failed: ${message}`, undefined, undefined)
+    this.name = 'QueueConnectionFailed'
   }
 }
 
@@ -29,8 +29,8 @@ export class QueueSendFailed extends QueueError {
     queue: string,
     public readonly originalError?: unknown,
   ) {
-    super(message, queue);
-    this.name = "QueueSendFailed";
+    super(message, queue)
+    this.name = 'QueueSendFailed'
   }
 }
 
@@ -41,8 +41,8 @@ export class QueueReceiveFailed extends QueueError {
     queue: string,
     public readonly originalError?: unknown,
   ) {
-    super(message, queue);
-    this.name = "QueueReceiveFailed";
+    super(message, queue)
+    this.name = 'QueueReceiveFailed'
   }
 }
 
@@ -54,8 +54,21 @@ export class QueueAckFailed extends QueueError {
     messageId: string,
     public readonly originalError?: unknown,
   ) {
-    super(message, queue, messageId);
-    this.name = "QueueAckFailed";
+    super(message, queue, messageId)
+    this.name = 'QueueAckFailed'
+  }
+}
+
+/** Negative acknowledgment operation failed. */
+export class QueueNackFailed extends QueueError {
+  constructor(
+    message: string,
+    queue: string,
+    messageId: string,
+    public readonly originalError?: unknown,
+  ) {
+    super(message, queue, messageId)
+    this.name = 'QueueNackFailed'
   }
 }
 
@@ -67,8 +80,8 @@ export class QueueConsumeFailed extends QueueError {
     messageId: string,
     public readonly originalError?: unknown,
   ) {
-    super(message, queue, messageId);
-    this.name = "QueueConsumeFailed";
+    super(message, queue, messageId)
+    this.name = 'QueueConsumeFailed'
   }
 }
 
@@ -83,8 +96,8 @@ export class QueueMaxAttemptsExceeded extends QueueError {
       `Message ${messageId} exceeded ${attempts} delivery attempts in queue ${queue}`,
       queue,
       messageId,
-    );
-    this.name = "QueueMaxAttemptsExceeded";
+    )
+    this.name = 'QueueMaxAttemptsExceeded'
   }
 }
 
@@ -94,7 +107,7 @@ export class QueueCloseFailed extends QueueError {
     message: string,
     public readonly originalError?: unknown,
   ) {
-    super(message);
-    this.name = "QueueCloseFailed";
+    super(message)
+    this.name = 'QueueCloseFailed'
   }
 }

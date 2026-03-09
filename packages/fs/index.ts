@@ -23,14 +23,14 @@
  *
  * @module
  */
-export { readFile, readJson, readLines, readTextFile } from "./read.ts";
-export type { ReadFileError, ReadJsonError } from "./read.ts";
-export { writeFile, writeJson, writeTextFile } from "./write.ts";
-export type { WriteFileError } from "./write.ts";
-export { glob, readDir, walk } from "./dir.ts";
-export type { DirError } from "./dir.ts";
-export { watch } from "./watch.ts";
-export type { WatchError } from "./watch.ts";
+export { readFile, readJson, readLines, readTextFile } from './read.ts'
+export type { ReadFileError, ReadJsonError } from './read.ts'
+export { writeFile, writeJson, writeTextFile } from './write.ts'
+export type { WriteFileError } from './write.ts'
+export { glob, readDir, walk } from './dir.ts'
+export type { DirError } from './dir.ts'
+export { watch } from './watch.ts'
+export type { WatchError } from './watch.ts'
 export type {
   DirEntry,
   FsEvent,
@@ -38,8 +38,8 @@ export type {
   WalkEntry,
   WalkOptions,
   WatchOptions,
-} from "./types.ts";
-export { FSError, FSErrors } from "./errors.ts";
+} from './types.ts'
+export { FSError } from './errors.ts'
 export type {
   AlreadyExists,
   InvalidData,
@@ -50,4 +50,4 @@ export type {
   ReadError,
   Unknown,
   WriteError,
-} from "./errors.ts";
+} from './errors.ts'

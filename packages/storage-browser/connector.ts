@@ -6,7 +6,7 @@ import type {
   StorageEntry,
   StorageMetadata,
   StorageOptions,
-} from "@anabranch/storage";
+} from '@anabranch/storage'
 import {
   StorageDeleteFailed,
   StorageGetFailed,
@@ -14,39 +14,39 @@ import {
   StorageListFailed,
   StorageObjectNotFound,
   StoragePutFailed,
-} from "@anabranch/storage";
+} from '@anabranch/storage'
 
 function promisify<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error)
+  })
 }
 
 export function createIndexedDB(
   options?: StorageOptions & { dbName?: string },
 ): StorageConnector {
-  const prefix = options?.prefix ?? "";
-  const dbName = options?.dbName ?? "anabranch-storage";
-  const storeName = "objects";
+  const prefix = options?.prefix ?? ''
+  const dbName = options?.dbName ?? 'anabranch-storage'
+  const storeName = 'objects'
 
-  let dbRef: IDBDatabase | null = null;
+  let dbRef: IDBDatabase | null = null
 
   return {
     connect: (_signal?: AbortSignal) =>
       openDatabase(dbName, storeName).then((db) => {
-        dbRef = db;
-        return createAdapter(db, storeName, prefix);
+        dbRef = db
+        return createAdapter(db, storeName, prefix)
       }),
     end: () =>
       dbRef
         ? new Promise<void>((resolve) => {
-          dbRef!.close();
-          dbRef = null;
-          resolve();
+          dbRef!.close()
+          dbRef = null
+          resolve()
         })
         : Promise.resolve(),
-  };
+  }
 }
 
 function openDatabase(
@@ -54,17 +54,17 @@ function openDatabase(
   storeName: string,
 ): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(dbName, 1);
+    const request = indexedDB.open(dbName, 1)
     request.onerror = () =>
-      reject(new Error(`Failed to open IndexedDB: ${dbName}`));
-    request.onsuccess = () => resolve(request.result);
+      reject(new Error(`Failed to open IndexedDB: ${dbName}`))
+    request.onsuccess = () => resolve(request.result)
     request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
+      const db = (event.target as IDBOpenDBRequest).result
       if (!db.objectStoreNames.contains(storeName)) {
-        db.createObjectStore(storeName, { keyPath: "key" });
+        db.createObjectStore(storeName, { keyPath: 'key' })
       }
-    };
-  });
+    }
+  })
 }
 
 function createAdapter(
@@ -78,15 +78,15 @@ function createAdapter(
       body: BodyInput,
       options?: PutOptions,
     ) => {
-      const fullKey = prefix + key;
+      const fullKey = prefix + key
       const bytes = body instanceof ReadableStream
         ? await readStream(body)
-        : typeof body === "string"
+        : typeof body === 'string'
         ? new TextEncoder().encode(body)
-        : body;
+        : body
 
-      const transaction = db.transaction(storeName, "readwrite");
-      const store = transaction.objectStore(storeName);
+      const transaction = db.transaction(storeName, 'readwrite')
+      const store = transaction.objectStore(storeName)
 
       const record: IdbRecord = {
         key: fullKey,
@@ -98,179 +98,179 @@ function createAdapter(
           contentType: options?.contentType,
           custom: options?.custom,
         },
-      };
+      }
 
       try {
-        await promisify(store.put(record));
+        await promisify(store.put(record))
 
         await new Promise<void>((resolve, reject) => {
-          transaction.oncomplete = () => resolve();
-          transaction.onerror = () => reject(transaction.error);
-        });
+          transaction.oncomplete = () => resolve()
+          transaction.onerror = () => reject(transaction.error)
+        })
       } catch (error) {
         throw new StoragePutFailed(
           key,
           error instanceof Error ? error.message : String(error),
           error,
-        );
+        )
       }
     },
     get: (key: string) => {
-      const fullKey = prefix + key;
-      const transaction = db.transaction(storeName, "readonly");
-      const store = transaction.objectStore(storeName);
+      const fullKey = prefix + key
+      const transaction = db.transaction(storeName, 'readonly')
+      const store = transaction.objectStore(storeName)
 
       return new Promise((resolve, reject) => {
-        const request = store.get(fullKey);
+        const request = store.get(fullKey)
         request.onerror = () =>
           reject(
             new StorageGetFailed(
               key,
-              request.error?.message || "Unknown error",
+              request.error?.message || 'Unknown error',
               request.error,
             ),
-          );
+          )
         request.onsuccess = () => {
           if (!request.result) {
-            reject(new StorageObjectNotFound(key));
+            reject(new StorageObjectNotFound(key))
           } else {
-            const { bytes, metadata } = request.result;
+            const { bytes, metadata } = request.result
             resolve({
               body: new ReadableStream({
                 start(controller) {
-                  controller.enqueue(bytes);
-                  controller.close();
+                  controller.enqueue(bytes)
+                  controller.close()
                 },
               }),
               metadata: { ...metadata, key },
-            });
+            })
           }
-        };
-      });
+        }
+      })
     },
     delete: (key: string) => {
-      const fullKey = prefix + key;
-      const transaction = db.transaction(storeName, "readwrite");
-      const store = transaction.objectStore(storeName);
+      const fullKey = prefix + key
+      const transaction = db.transaction(storeName, 'readwrite')
+      const store = transaction.objectStore(storeName)
 
       try {
         return promisify(store.delete(fullKey)).then(() =>
           new Promise<void>((resolve, reject) => {
-            transaction.oncomplete = () => resolve();
+            transaction.oncomplete = () => resolve()
             transaction.onerror = () =>
               reject(
                 new StorageDeleteFailed(
                   key,
-                  transaction.error?.message || "Unknown error",
+                  transaction.error?.message || 'Unknown error',
                   transaction.error,
                 ),
-              );
+              )
           })
-        );
+        )
       } catch (error) {
         throw new StorageDeleteFailed(
           key,
           error instanceof Error ? error.message : String(error),
           error,
-        );
+        )
       }
     },
     head: (key: string) => {
-      const fullKey = prefix + key;
-      const transaction = db.transaction(storeName, "readonly");
-      const store = transaction.objectStore(storeName);
+      const fullKey = prefix + key
+      const transaction = db.transaction(storeName, 'readonly')
+      const store = transaction.objectStore(storeName)
 
       return new Promise((resolve, reject) => {
-        const request = store.get(fullKey);
+        const request = store.get(fullKey)
         request.onerror = () =>
           reject(
             new StorageHeadFailed(
               key,
-              request.error?.message || "Unknown error",
+              request.error?.message || 'Unknown error',
               request.error,
             ),
-          );
+          )
         request.onsuccess = () => {
           if (!request.result) {
-            reject(new StorageObjectNotFound(key));
+            reject(new StorageObjectNotFound(key))
           } else {
-            resolve({ ...request.result.metadata, key });
+            resolve({ ...request.result.metadata, key })
           }
-        };
-      });
+        }
+      })
     },
     list: (p?: string) => {
-      const searchPrefix = prefix + (p ?? "");
+      const searchPrefix = prefix + (p ?? '')
       return (async function* (): AsyncGenerator<StorageEntry> {
-        const transaction = db.transaction(storeName, "readonly");
-        const store = transaction.objectStore(storeName);
+        const transaction = db.transaction(storeName, 'readonly')
+        const store = transaction.objectStore(storeName)
         const range = IDBKeyRange.bound(
           searchPrefix,
-          searchPrefix + "\uffff",
-        );
+          searchPrefix + '\uffff',
+        )
 
         const items = await new Promise<StorageEntry[]>(
           (resolve, reject) => {
-            const results: StorageEntry[] = [];
-            const request = store.openCursor(range);
+            const results: StorageEntry[] = []
+            const request = store.openCursor(range)
 
             request.onsuccess = () => {
-              const cursor = request.result;
+              const cursor = request.result
               if (cursor) {
-                const { metadata, key: fullKey } = cursor.value as IdbRecord;
-                const key = fullKey.slice(prefix.length);
+                const { metadata, key: fullKey } = cursor.value as IdbRecord
+                const key = fullKey.slice(prefix.length)
                 results.push({
                   key,
                   size: metadata.size,
                   lastModified: metadata.lastModified,
-                });
-                cursor.continue();
+                })
+                cursor.continue()
               } else {
-                resolve(results);
+                resolve(results)
               }
-            };
+            }
 
             request.onerror = () => {
               reject(
                 new StorageListFailed(
                   p,
-                  request.error?.message || "Unknown error",
+                  request.error?.message || 'Unknown error',
                   request.error,
                 ),
-              );
-            };
+              )
+            }
           },
-        );
+        )
 
         for (const item of items) {
-          yield item;
+          yield item
         }
-      })();
+      })()
     },
     close: () => Promise.resolve(),
-  };
+  }
 }
 
 async function readStream(stream: ReadableStream): Promise<Uint8Array> {
-  const reader = stream.getReader();
-  const chunks: Uint8Array[] = [];
+  const reader = stream.getReader()
+  const chunks: Uint8Array[] = []
   while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
+    const { done, value } = await reader.read()
+    if (done) break
+    chunks.push(value)
   }
-  const total = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
-  const result = new Uint8Array(total);
-  let offset = 0;
+  const total = chunks.reduce((acc, chunk) => acc + chunk.length, 0)
+  const result = new Uint8Array(total)
+  let offset = 0
   for (const chunk of chunks) {
-    result.set(chunk, offset);
-    offset += chunk.length;
+    result.set(chunk, offset)
+    offset += chunk.length
   }
-  return result;
+  return result
 }
 
 interface IdbRecord {
-  key: string;
-  bytes: Uint8Array;
-  metadata: StorageMetadata;
+  key: string
+  bytes: Uint8Array
+  metadata: StorageMetadata
 }

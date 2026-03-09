@@ -80,7 +80,7 @@
  *
  * @module
  */
-export { Storage } from "./storage.ts";
+export { Storage } from './storage.ts'
 export type {
   BodyInput,
   PresignableAdapter,
@@ -92,6 +92,6 @@ export type {
   StorageMetadata,
   StorageObject,
   StorageOptions,
-} from "./adapter.ts";
-export * from "./errors.ts";
-export { createMemory } from "./connector.ts";
+} from './adapter.ts'
+export * from './errors.ts'
+export { createMemory } from './connector.ts'

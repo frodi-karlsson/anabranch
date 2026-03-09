@@ -12,12 +12,12 @@
  * ```
  */
 export class StorageConnectionFailed extends Error {
-  override name = "StorageConnectionFailed";
+  override name = 'StorageConnectionFailed'
   constructor(
     message: string,
     cause?: unknown,
   ) {
-    super(`Storage connection failed: ${message}`, { cause });
+    super(`Storage connection failed: ${message}`, { cause })
   }
 }
 
@@ -38,9 +38,9 @@ export class StorageConnectionFailed extends Error {
  * ```
  */
 export class StorageObjectNotFound extends Error {
-  override name = "StorageObjectNotFound";
+  override name = 'StorageObjectNotFound'
   constructor(key: string) {
-    super(`Storage object not found: ${key}`);
+    super(`Storage object not found: ${key}`)
   }
 }
 
@@ -48,12 +48,12 @@ export class StorageObjectNotFound extends Error {
  * Error thrown when closing a storage connection fails.
  */
 export class StorageCloseFailed extends Error {
-  override name = "StorageCloseFailed";
+  override name = 'StorageCloseFailed'
   constructor(
     message: string,
     cause?: unknown,
   ) {
-    super(`Storage close failed: ${message}`, { cause });
+    super(`Storage close failed: ${message}`, { cause })
   }
 }
 
@@ -61,13 +61,13 @@ export class StorageCloseFailed extends Error {
  * Error thrown when a put operation fails.
  */
 export class StoragePutFailed extends Error {
-  override name = "StoragePutFailed";
+  override name = 'StoragePutFailed'
   constructor(
     key: string,
     message: string,
     cause?: unknown,
   ) {
-    super(`Failed to put object ${key}: ${message}`, { cause });
+    super(`Failed to put object ${key}: ${message}`, { cause })
   }
 }
 
@@ -75,13 +75,13 @@ export class StoragePutFailed extends Error {
  * Error thrown when a get operation fails.
  */
 export class StorageGetFailed extends Error {
-  override name = "StorageGetFailed";
+  override name = 'StorageGetFailed'
   constructor(
     key: string,
     message: string,
     cause?: unknown,
   ) {
-    super(`Failed to get object ${key}: ${message}`, { cause });
+    super(`Failed to get object ${key}: ${message}`, { cause })
   }
 }
 
@@ -89,13 +89,13 @@ export class StorageGetFailed extends Error {
  * Error thrown when a delete operation fails.
  */
 export class StorageDeleteFailed extends Error {
-  override name = "StorageDeleteFailed";
+  override name = 'StorageDeleteFailed'
   constructor(
     key: string,
     message: string,
     cause?: unknown,
   ) {
-    super(`Failed to delete object ${key}: ${message}`, { cause });
+    super(`Failed to delete object ${key}: ${message}`, { cause })
   }
 }
 
@@ -103,13 +103,13 @@ export class StorageDeleteFailed extends Error {
  * Error thrown when a head operation fails.
  */
 export class StorageHeadFailed extends Error {
-  override name = "StorageHeadFailed";
+  override name = 'StorageHeadFailed'
   constructor(
     key: string,
     message: string,
     cause?: unknown,
   ) {
-    super(`Failed to head object ${key}: ${message}`, { cause });
+    super(`Failed to head object ${key}: ${message}`, { cause })
   }
 }
 
@@ -117,13 +117,13 @@ export class StorageHeadFailed extends Error {
  * Error thrown when generating a presigned URL fails.
  */
 export class StoragePresignFailed extends Error {
-  override name = "StoragePresignFailed";
+  override name = 'StoragePresignFailed'
   constructor(
     key: string,
     message: string,
     cause?: unknown,
   ) {
-    super(`Failed to presign object ${key}: ${message}`, { cause });
+    super(`Failed to presign object ${key}: ${message}`, { cause })
   }
 }
 
@@ -148,9 +148,9 @@ export class StoragePresignFailed extends Error {
  * ```
  */
 export class StoragePresignNotSupported extends Error {
-  override name = "StoragePresignNotSupported";
+  override name = 'StoragePresignNotSupported'
   constructor() {
-    super("Presigned URLs are not supported by this storage adapter.");
+    super('Presigned URLs are not supported by this storage adapter.')
   }
 }
 
@@ -158,7 +158,7 @@ export class StoragePresignNotSupported extends Error {
  * Error thrown when a list operation fails.
  */
 export class StorageListFailed extends Error {
-  override name = "StorageListFailed";
+  override name = 'StorageListFailed'
   constructor(
     prefix: string | undefined,
     message: string,
@@ -166,9 +166,9 @@ export class StorageListFailed extends Error {
   ) {
     super(
       `Failed to list objects${
-        prefix ? ` with prefix "${prefix}"` : ""
+        prefix ? ` with prefix "${prefix}"` : ''
       }: ${message}`,
       { cause },
-    );
+    )
   }
 }

@@ -23,11 +23,11 @@
  *
  * @module
  */
-export { WebClient } from "./client.ts";
+export { WebClient } from './client.ts'
 export type {
   HttpError,
   Method,
   RequestOptions,
   ResponseResult,
   RetryOptions,
-} from "./types.ts";
+} from './types.ts'

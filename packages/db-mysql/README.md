@@ -8,29 +8,29 @@ databases.
 ## Usage
 
 ```ts
-import { DB } from "@anabranch/db";
-import { createMySQL } from "@anabranch/db-mysql";
+import { DB } from '@anabranch/db'
+import { createMySQL } from '@anabranch/db-mysql'
 
 const db = new DB(
   await createMySQL({
-    connectionString: "mysql://user:pass@localhost:3306/mydb",
+    connectionString: 'mysql://user:pass@localhost:3306/mydb',
   }).connect(),
-);
+)
 
 // Query
 const users = await db
-  .query<{ id: number; name: string }>("SELECT * FROM users")
-  .run();
+  .query<{ id: number; name: string }>('SELECT * FROM users')
+  .run()
 
 // Transactions with automatic rollback on error
 const result = await DB.withConnection(
   createMySQL({ connectionString }),
   (db) =>
     db.withTransaction(async (tx) => {
-      await tx.execute("INSERT INTO users (name) VALUES ('Alice')");
-      return db.query("SELECT * FROM users");
+      await tx.execute("INSERT INTO users (name) VALUES ('Alice')")
+      return db.query('SELECT * FROM users')
     }),
-).run();
+).run()
 ```
 
 ## API
@@ -40,31 +40,31 @@ const result = await DB.withConnection(
 Creates a MySQL connector with a connection pool.
 
 ```ts
-import { createMySQL } from "@anabranch/db-mysql";
+import { createMySQL } from '@anabranch/db-mysql'
 
 const connector = createMySQL({
   // Connection string (alternative to individual options)
-  connectionString: "mysql://user:pass@localhost:3306/mydb",
+  connectionString: 'mysql://user:pass@localhost:3306/mydb',
 
   // Or individual options
-  host: "localhost",
+  host: 'localhost',
   port: 3306,
-  user: "root",
-  password: "secret",
-  database: "mydb",
+  user: 'root',
+  password: 'secret',
+  database: 'mydb',
 
   // Pool options
   connectionLimit: 10,
   waitForConnections: true,
   connectionTimeoutMillis: 10000,
-});
+})
 
 // Connect returns a DBAdapter
-const adapter = await connector.connect();
-await adapter.close();
+const adapter = await connector.connect()
+await adapter.close()
 
 // End terminates the connection pool (for cleanup)
-await connector.end();
+await connector.end()
 ```
 
 ### Environment Variables
@@ -89,7 +89,7 @@ environment variables:
 **Deno:**
 
 ```ts
-import { createMySQL } from "@anabranch/db-mysql";
+import { createMySQL } from '@anabranch/db-mysql'
 ```
 
 **Node.js:**

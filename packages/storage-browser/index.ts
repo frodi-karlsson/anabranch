@@ -57,4 +57,4 @@
  *
  * @module
  */
-export { createIndexedDB } from "./connector.ts";
+export { createIndexedDB } from './connector.ts'

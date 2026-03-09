@@ -8,28 +8,28 @@ returns adapters with cursor-based streaming support via `pg-cursor`.
 ## Usage
 
 ```ts
-import { DB } from "@anabranch/db";
-import { createPostgres } from "@anabranch/db-postgres";
+import { DB } from '@anabranch/db'
+import { createPostgres } from '@anabranch/db-postgres'
 
 const db = new DB(
   await createPostgres({
-    connectionString: "postgresql://user:pass@localhost:5432/mydb",
+    connectionString: 'postgresql://user:pass@localhost:5432/mydb',
   }).connect(),
-);
+)
 
 // Query
 const users = await db
-  .query<{ id: number; name: string }>("SELECT * FROM users")
-  .run();
+  .query<{ id: number; name: string }>('SELECT * FROM users')
+  .run()
 
 // Stream large result sets
 for await (
   const row of db.stream<{ id: number; name: string }>(
-    "SELECT * FROM large_table",
+    'SELECT * FROM large_table',
   )
 ) {
-  if (row.type === "success") {
-    console.log(row.value);
+  if (row.type === 'success') {
+    console.log(row.value)
   }
 }
 
@@ -38,10 +38,10 @@ const result = await DB.withConnection(
   createPostgres({ connectionString }),
   (db) =>
     db.withTransaction(async (tx) => {
-      await tx.execute("INSERT INTO users (name) VALUES ('Alice')");
-      return db.query("SELECT * FROM users");
+      await tx.execute("INSERT INTO users (name) VALUES ('Alice')")
+      return db.query('SELECT * FROM users')
     }),
-).run();
+).run()
 ```
 
 ## API
@@ -51,31 +51,31 @@ const result = await DB.withConnection(
 Creates a PostgreSQL connector with a connection pool.
 
 ```ts
-import { createPostgres } from "@anabranch/db-postgres";
+import { createPostgres } from '@anabranch/db-postgres'
 
 const connector = createPostgres({
   // Connection string (alternative to individual options)
-  connectionString: "postgresql://user:pass@localhost:5432/mydb",
+  connectionString: 'postgresql://user:pass@localhost:5432/mydb',
 
   // Or individual options
-  host: "localhost",
+  host: 'localhost',
   port: 5432,
-  user: "postgres",
-  password: "secret",
-  database: "mydb",
+  user: 'postgres',
+  password: 'secret',
+  database: 'mydb',
 
   // Pool options
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
-});
+})
 
 // Connect returns a DBAdapter
-const adapter = await connector.connect();
-await adapter.close();
+const adapter = await connector.connect()
+await adapter.close()
 
 // End terminates the connection pool (for cleanup)
-await connector.end();
+await connector.end()
 ```
 
 ### Environment Variables
@@ -100,7 +100,7 @@ environment variables:
 **Deno:**
 
 ```ts
-import { createPostgres } from "@anabranch/db-postgres";
+import { createPostgres } from '@anabranch/db-postgres'
 ```
 
 **Node.js:**
