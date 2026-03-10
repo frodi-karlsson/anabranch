@@ -70,7 +70,7 @@ async function startServices(services: ServiceConfig[]): Promise<void> {
         console.log(`Started ${service.name} container`)
         return output
       }).timeout(
-        15_000,
+        60_000,
         new Error(`Failed to start ${service.name} container in time`),
       )
     ),
