@@ -1,7 +1,7 @@
 # Anabranch
 
-A Deno-first TypeScript monorepo for async utilities with first-class error
-handling.
+A TypeScript monorepo for async utilities with first-class error handling.
+Compatible with Deno, Node.js, and, occasionally, browsers.
 
 ## Scripts
 
