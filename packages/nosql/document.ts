@@ -45,10 +45,9 @@ export interface DocumentAdapter<TDoc, TQuery, TKey> {
 export interface DocumentConnector<TDoc, TQuery, TKey> {
   /**
    * Acquires a connected adapter.
-   * @param signal Optional AbortSignal for cancellation
    * @throws Error if connection cannot be established
    */
-  connect(signal?: AbortSignal): Promise<DocumentAdapter<TDoc, TQuery, TKey>>
+  connect(): Promise<DocumentAdapter<TDoc, TQuery, TKey>>
 
   /**
    * Closes all connections and cleans up resources.
