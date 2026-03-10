@@ -12,14 +12,15 @@
  * ## Core Types
  *
  * - {@linkcode KafkaConnector} - Connection factory for Kafka
- * - {@linkcode KafkaAdapter} - Low-level event log operations (internal use)
- * - {@linkcode KafkaConnectorOptions} - Configuration options for the connector
+ * - {@linkcode KafkaOptions} - Configuration options for the connector
+ * - {@linkcode KafkaCursor} - Cursor type for Kafka (partition/offset mappings)
  *
  * ## Error Types
  *
  * All errors are typed for catchable handling:
  * - {@linkcode EventLogKafkaConnectionFailed} - Connection establishment failed
  * - {@linkcode EventLogKafkaAppendFailed} - Append operation failed
+ * - {@linkcode EventLogKafkaConsumeFailed} - Consume operation failed
  * - {@linkcode EventLogKafkaGetFailed} - Get event operation failed
  * - {@linkcode EventLogKafkaListFailed} - List events operation failed
  * - {@linkcode EventLogKafkaCommitCursorFailed} - Cursor commit failed
@@ -28,13 +29,13 @@
  *
  * @example Basic usage with Task semantics
  * ```ts
- * import { EventLog, createKafka } from "@anabranch/eventlog-kafka";
+ * import { EventLog } from "@anabranch/eventlog";
+ * import { createKafka } from "@anabranch/eventlog-kafka";
  *
  * const connector = createKafka({ brokers: ["localhost:9092"] });
  * const log = await EventLog.connect(connector).run();
  *
  * const eventId = await log.append("users", { action: "created", userId: 123 }).run();
- * const events = await log.list("users").run();
  * ```
  *
  * @example Consuming events as a stream with manual cursor commit
@@ -71,5 +72,7 @@
  *
  * @module
  */
+export { createKafka } from './kafka.ts'
+export type { KafkaConnector, KafkaCursor, KafkaOptions } from './kafka.ts'
 export * from './errors.ts'
 export { EventLog } from '@anabranch/eventlog'

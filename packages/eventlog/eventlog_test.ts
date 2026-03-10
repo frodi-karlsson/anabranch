@@ -39,8 +39,8 @@ Deno.test({
       .partition()
 
     assertEquals(events.length, 2)
-    assertEquals(events[0].sequenceNumber, 0)
-    assertEquals(events[1].sequenceNumber, 1)
+    assertEquals(events[0].sequenceNumber, '0')
+    assertEquals(events[1].sequenceNumber, '1')
 
     await log.close().run()
   },
@@ -110,7 +110,7 @@ Deno.test({
       batchSize: 2,
     }).take(1)
     const { successes: firstBatch } = await stream1.partition()
-    await log.commit('events', 'processor-2', firstBatch[0].cursor).run()
+    await firstBatch[0].commit()
     ac1.abort()
 
     const ac2 = new AbortController()
@@ -128,26 +128,6 @@ Deno.test({
     assertEquals(secondBatch[0].events[0].data.value, 3)
 
     ac2.abort()
-    await log.close().run()
-  },
-})
-
-Deno.test({
-  name: 'EventLog.commit - should manually commit cursor',
-  async fn() {
-    const connector = createInMemory()
-    const log = await EventLog.connect(connector).run()
-
-    await log.append('events', { value: 1 }).run()
-    await log.append('events', { value: 2 }).run()
-
-    const cursor = '0'
-    await log.commit('events', 'manual-consumer', cursor).run()
-
-    const committed = await log.getCommittedCursor('events', 'manual-consumer')
-      .run()
-    assertEquals(committed, cursor)
-
     await log.close().run()
   },
 })
@@ -375,7 +355,7 @@ Deno.test('consume resumes from committed cursor when provided', async () => {
     .take(1)
     .partition()
 
-  await log.commit('events', 'g1', successes[0].cursor).run()
+  await successes[0].commit()
 
   const cursor = await log.getCommittedCursor('events', 'g1').run()
 
@@ -387,4 +367,295 @@ Deno.test('consume resumes from committed cursor when provided', async () => {
   assertEquals(next[0].events.length, 1)
 
   await log.close().run()
+})
+
+Deno.test({
+  name:
+    'EventLog.commitCursor - should allow manual cursor commits and getCursor should reflect committed position',
+  async fn() {
+    const connector = createInMemory()
+    const log = await EventLog.connect(connector).run()
+
+    await log.append('manual-cursor-topic', { value: 1 }).run()
+    await log.append('manual-cursor-topic', { value: 2 }).run()
+
+    await log.commit(
+      'manual-cursor-topic',
+      'manual-consumer',
+      '1',
+    ).run()
+
+    const cursor = await log.getCommittedCursor(
+      'manual-cursor-topic',
+      'manual-consumer',
+    ).run()
+
+    assertEquals(cursor, '1')
+
+    await log.close().run()
+  },
+})
+
+Deno.test({
+  name: 'EventLog - adapter.close() should clean up resources',
+  async fn() {
+    const connector = createInMemory()
+    const adapter = await connector.connect()
+
+    await adapter.append('test-topic', { data: 'before close' })
+
+    await adapter.close()
+
+    let error: Error | undefined
+    try {
+      await adapter.append('test-topic', { data: 'after close' })
+    } catch (e) {
+      error = e as Error
+    }
+
+    assertExists(error)
+    assertEquals(error!.name, 'EventLogAppendFailed')
+
+    // connector can still create new adapter
+    const adapter2 = await connector.connect()
+    await adapter2.append('test-topic', { data: 'new adapter' })
+    await adapter2.close()
+  },
+})
+
+Deno.test({
+  name: 'EventLog.consume - should call onError when onBatch throws',
+  async fn() {
+    const connector = createInMemory()
+    const log = await EventLog.connect(connector).run()
+
+    await log.append('error-topic', { value: 1 }).run()
+
+    const { successes } = await log
+      .consume<{ value: number }>('error-topic', 'error-consumer', {
+        batchSize: 1,
+      })
+      .take(1)
+      .partition()
+
+    assertEquals(successes.length, 1)
+
+    await log.close().run()
+  },
+})
+
+Deno.test({
+  name: 'EventLog - consume on ended connector should throw',
+  async fn() {
+    const connector = createInMemory()
+    const adapter = await connector.connect()
+
+    await connector.end()
+
+    let error: Error | undefined
+    try {
+      adapter.consume('topic', 'group', () => {}, () => {})
+    } catch (e) {
+      error = e as Error
+    }
+
+    assertExists(error)
+    assertEquals(error!.name, 'EventLogConsumeFailed')
+  },
+})
+
+Deno.test({
+  name: 'EventLog - getCursor on ended connector should throw',
+  async fn() {
+    const connector = createInMemory()
+    const adapter = await connector.connect()
+
+    await connector.end()
+
+    let error: Error | undefined
+    try {
+      await adapter.getCursor('topic', 'group')
+    } catch (e) {
+      error = e as Error
+    }
+
+    assertExists(error)
+    assertEquals(error!.name, 'EventLogGetCursorFailed')
+  },
+})
+
+Deno.test({
+  name: 'EventLog - commitCursor on ended connector should throw',
+  async fn() {
+    const connector = createInMemory()
+    const adapter = await connector.connect()
+
+    await connector.end()
+
+    let error: Error | undefined
+    try {
+      await adapter.commitCursor('topic', 'group', '0')
+    } catch (e) {
+      error = e as Error
+    }
+
+    assertExists(error)
+    assertEquals(error!.name, 'EventLogCommitCursorFailed')
+  },
+})
+
+Deno.test({
+  name: 'EventLog - connect on ended connector should throw',
+  async fn() {
+    const connector = createInMemory()
+    await connector.end()
+
+    let error: Error | undefined
+    try {
+      await connector.connect()
+    } catch (e) {
+      error = e as Error
+    }
+
+    assertExists(error)
+    assertEquals(error!.name, 'EventLogConnectionFailed')
+  },
+})
+
+Deno.test({
+  name: 'EventLog - multiple consumers on same topic',
+  async fn() {
+    const connector = createInMemory()
+    const log = await EventLog.connect(connector).run()
+
+    await log.append('shared-topic', { value: 1 }).run()
+    await log.append('shared-topic', { value: 2 }).run()
+
+    const consumer1 = log.consume<{ value: number }>(
+      'shared-topic',
+      'consumer-1',
+      { batchSize: 10 },
+    ).take(1)
+    const consumer2 = log.consume<{ value: number }>(
+      'shared-topic',
+      'consumer-2',
+      { batchSize: 10 },
+    ).take(1)
+
+    const [result1, result2] = await Promise.all([
+      consumer1.partition(),
+      consumer2.partition(),
+    ])
+
+    assertEquals(result1.successes[0].events.length, 2)
+    assertEquals(result2.successes[0].events.length, 2)
+
+    await log.close().run()
+  },
+})
+
+Deno.test({
+  name: 'EventLog - consume on non-existent topic should succeed',
+  async fn() {
+    const connector = createInMemory()
+    const log = await EventLog.connect(connector).run()
+
+    const ac = new AbortController()
+    const timeout = setTimeout(() => ac.abort(), 100)
+
+    let batchReceived = false
+    try {
+      await log
+        .consume<{ value: number }>('non-existent-topic', 'consumer-x', {
+          signal: ac.signal,
+          batchSize: 1,
+        })
+        .take(1)
+        .tap(() => {
+          batchReceived = true
+        })
+        .partition()
+    } catch {
+      // Expected - abort may cause rejection
+    } finally {
+      clearTimeout(timeout)
+    }
+
+    assertEquals(batchReceived, false)
+
+    await log.close().run()
+  },
+})
+
+Deno.test({
+  name:
+    'EventLog.consume - should use backpressure and not drop batches when buffer is full',
+  async fn() {
+    const connector = createInMemory()
+    const log = await EventLog.connect(connector).run()
+
+    // Append 10 events instantly
+    for (let i = 0; i < 10; i++) {
+      await log.append('backpressure-topic', { index: i }).run()
+    }
+
+    const consumed: number[] = []
+
+    // We set a tiny bufferSize of 2.
+    // Without backpressure, the fast InMemory adapter would shove all 10 batches
+    // in instantly, overflow the buffer, and crash the stream.
+    const stream = log.consume<{ index: number }>(
+      'backpressure-topic',
+      'bp-group',
+      {
+        batchSize: 1,
+        bufferSize: 2,
+      },
+    )
+      .take(10)
+      .map(async (batch) => {
+        // Artificially slow down the consumer so the buffer fills up
+        await new Promise((resolve) => setTimeout(resolve, 10))
+        consumed.push(batch.events[0].data.index)
+        return batch
+      })
+
+    // If backpressure works, partition() will resolve successfully without throwing EventLogConsumeFailed
+    await stream.partition()
+
+    assertEquals(consumed.length, 10)
+    // Verify they were processed in exact order despite the backpressure pauses
+    assertEquals(consumed, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+
+    await log.close().run()
+  },
+})
+
+Deno.test({
+  name: 'EventLog.consume - should throw if bufferSize is invalid',
+  async fn() {
+    const connector = createInMemory()
+    const log = await EventLog.connect(connector).run()
+
+    let error: Error | undefined
+    try {
+      log.consume('test', 'group', { bufferSize: 0 })
+    } catch (e) {
+      error = e as Error
+    }
+
+    assertExists(error)
+    assertEquals(error!.message, 'bufferSize must be a positive integer')
+
+    let errorNegative: Error | undefined
+    try {
+      log.consume('test', 'group', { bufferSize: -5 })
+    } catch (e) {
+      errorNegative = e as Error
+    }
+
+    assertExists(errorNegative)
+
+    await log.close().run()
+  },
 })

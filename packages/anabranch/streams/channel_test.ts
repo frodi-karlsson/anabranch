@@ -259,3 +259,127 @@ Deno.test('Channel.onClose - should call onClose once per consumer', async () =>
   await ch.toArray()
   assertEquals(closeCount, 2)
 })
+
+Deno.test('Channel.waitForCapacity - should block until capacity frees up', async () => {
+  const ch = new Channel<number, string>({ bufferSize: 2 })
+
+  ch.send(1)
+  ch.send(2)
+
+  let waitResolved = false
+  const waitPromise = ch.waitForCapacity().then(() => {
+    waitResolved = true
+  })
+
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  assertEquals(waitResolved, false, 'Should be blocked because buffer is full')
+
+  const iterator = ch[Symbol.asyncIterator]()
+  await iterator.next()
+
+  await waitPromise
+  assertEquals(waitResolved, true, 'Should resolve after an item is consumed')
+
+  ch.close()
+})
+
+Deno.test('Channel.waitForCapacity - should resolve instantly if bufferSize is Infinity', async () => {
+  const ch = new Channel<number, string>()
+
+  for (let i = 0; i < 100; i++) {
+    ch.send(i)
+  }
+
+  const t0 = performance.now()
+  await ch.waitForCapacity()
+  const t1 = performance.now()
+
+  assertEquals(t1 - t0 < 50, true, 'Should resolve instantly without blocking')
+
+  ch.close()
+})
+
+Deno.test('Channel.waitForCapacity - should unblock waiting producers when channel closes', async () => {
+  const ch = new Channel<number, string>({ bufferSize: 1 })
+
+  ch.send(1)
+
+  let waitResolved = false
+  const waitPromise = ch.waitForCapacity().then(() => {
+    waitResolved = true
+  })
+
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  assertEquals(waitResolved, false, 'Should be blocked initially')
+
+  ch.close()
+
+  await waitPromise
+  assertEquals(waitResolved, true, 'Should unblock when closed')
+})
+
+Deno.test('Channel - take should unblock blocked producers via close in finally', async () => {
+  const ch = new Channel<number, string>({ bufferSize: 1 })
+
+  const producerDone = (async () => {
+    for (let i = 0; i < 10; i++) {
+      await ch.waitForCapacity()
+      ch.send(i)
+    }
+    ch.close()
+  })()
+
+  await ch.take(2).collect()
+
+  let timeoutId: number
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(
+      () => reject(new Error('deadlock: producer never unblocked')),
+      500,
+    )
+  })
+
+  await Promise.race([producerDone, timeout]).finally(() =>
+    clearTimeout(timeoutId!)
+  )
+})
+
+Deno.test('Channel - should respect AbortSignal in constructor', async () => {
+  const controller = new AbortController()
+  const { signal } = controller
+
+  const ch = new Channel<number, string>({ signal })
+
+  // 1. Send some data
+  ch.send(1)
+  ch.send(2)
+
+  // 2. Abort the controller
+  controller.abort()
+
+  // 3. Sending after abort should ideally be ignored or handled
+  ch.send(3)
+  ch.close()
+
+  // 4. Consuming should stop/throw based on the abort
+  // Most implementations will throw the abort reason or just return an empty/partial stream
+  const results = await ch.toArray()
+  // If your implementation finishes early on abort:
+  assertEquals(results.length < 3, true)
+})
+
+Deno.test('Channel.waitForCapacity - should close when signal is aborted', async () => {
+  const controller = new AbortController()
+  const { signal } = controller
+
+  const ch = new Channel<number, string>({ bufferSize: 1, signal })
+
+  for (let i = 0; i < 10; i++) {
+    ch.send(i)
+  }
+  const promise = ch.waitForCapacity()
+  controller.abort()
+
+  await promise
+  assertEquals(ch.isClosed(), true)
+})

@@ -7,23 +7,48 @@ Confluent Cloud, Redpanda, and other Kafka-compatible services.
 ## Usage
 
 ```ts
-import { createKafka, EventLog } from '@anabranch/eventlog-kafka'
+import { EventLog } from '@anabranch/eventlog'
+import { createKafka } from '@anabranch/eventlog-kafka'
 
-const connector = createKafka({ brokers: ['localhost:9092'] })
+const connector = createKafka({
+  brokers: ['localhost:9092'],
+  clientId: 'my-app',
+  consumer: {
+    maxWaitTimeInMs: 100,
+    sessionTimeout: 6000,
+  },
+})
+
 const log = await EventLog.connect(connector).run()
 
-const eventId = await log.append('users', { action: 'created', userId: 123 })
-  .run()
-const events = await log.list('users').run()
+// Append events with partition keys
+const eventId = await log.append('users', {
+  type: 'UserCreated',
+  userId: 'user-123',
+  email: 'alice@example.com',
+}, { partitionKey: 'user-123' }).run()
 
-await log.close().run()
+// Consume events as a stream
+await log
+  .consume<UserEvent>('users', 'my-processor', {
+    batchSize: 50,
+  })
+  .tap((batch) => {
+    for (const event of batch.events) {
+      console.log(event.data)
+    }
+  })
+  .map(async (batch) => {
+    await batch.commit()
+  })
+  .partition()
 ```
 
 ## API
 
-### `createKafka(options)`
+### createKafka(options)
 
-Creates a Kafka connector for the event log.
+Creates a Kafka connector.
 
 ```ts
 import { createKafka } from '@anabranch/eventlog-kafka'
@@ -31,78 +56,57 @@ import { createKafka } from '@anabranch/eventlog-kafka'
 const connector = createKafka({
   brokers: ['localhost:9092'],
   clientId: 'my-app',
-  groupId: 'my-consumer-group',
   sasl: {
     mechanism: 'plain',
     username: 'admin',
     password: 'secret',
   },
   ssl: true,
+  consumer: {
+    maxWaitTimeInMs: 100,
+    sessionTimeout: 6000,
+  },
 })
 ```
 
 #### Options
 
 - `brokers` (required): Array of Kafka broker addresses
-- `clientId`: Client ID for the producer/consumer (default:
-  `"anabranch-eventlog"`)
-- `groupId`: Consumer group ID (default: `"anabranch-eventlog"`)
+- `clientId`: Client ID for the producer
 - `sasl`: SASL authentication configuration
 - `ssl`: Enable SSL/TLS (default: `false`)
-- `defaultPartition`: Default partition for operations (default: `0`)
-- `connectionTimeout`: Connection timeout in ms (default: `10000`)
-- `requestTimeout`: Request timeout in ms (default: `30000`)
-- `defaultPartitionKey`: Default partition key if not specified (default:
-  `"default"`)
+- `consumer`: Kafka consumer configuration (passed to kafkajs)
+- `producer`: Kafka producer configuration (passed to kafkajs)
+- `admin`: Kafka admin configuration (passed to kafkajs)
+- `onMalformedMessage`: Callback for unparseable messages
 
-### EventLog operations
+### Environment Variables
 
-All EventLog methods return `Task` types for composable error handling:
+- `KAFKA_URL`: Comma-separated list of broker addresses (alternative to
+  `brokers`)
 
-```ts
-const log = await EventLog.connect(connector).run()
+## Requirements
 
-// Append events
-const eventId = await log.append('topic', data, { partitionKey: 'user-123' })
-  .run()
+- Node.js 24+ or Deno
+- Kafka server (local or remote)
 
-// List events
-const events = await log.list('topic', { fromSequenceNumber: 0, limit: 100 })
-  .run()
+## Installation
 
-// Consume as a stream
-const { successes, errors } = await log
-  .consume('topic', 'consumer-group', { batchSize: 50 })
-  .withConcurrency(5)
-  .map(async (batch) => {
-    for (const event of batch.events) {
-      await processEvent(event.data)
-    }
-    await log.commit(batch.topic, batch.consumerGroup, batch.cursor).run()
-  })
-  .partition()
-```
-
-## Error Handling
-
-All operations throw typed errors that can be caught and handled:
+**Deno:**
 
 ```ts
-try {
-  await log.append('topic', data).run()
-} catch (error) {
-  if (error instanceof EventLogKafkaAppendFailed) {
-    console.error(`Failed to append to ${error.topic}:`, error.message)
-  }
-  throw error
-}
+import { createKafka } from '@anabranch/eventlog-kafka'
 ```
 
-## Testing
-
-This package requires a running Kafka instance for integration tests. Unit tests
-mock the Kafka client for isolated testing.
+**Node.js:**
 
 ```bash
-deno test packages/eventlog-kafka/
+npm install @anabranch/eventlog-kafka @anabranch/eventlog kafkajs
 ```
+
+See [@anabranch/eventlog](https://jsr.io/@anabranch/eventlog) for the core event
+log abstraction.
+
+See
+[generated documentation](https://frodi-karlsson.github.io/anabranch/eventlog-kafka)
+for full API details.

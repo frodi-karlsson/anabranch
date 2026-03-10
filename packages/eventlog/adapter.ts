@@ -1,109 +1,143 @@
-/**
- * Event log adapter interface for event-sourced systems.
- *
- * Implement this interface to create drivers for specific event stores.
- * The EventLog class wraps adapters with Task/Stream semantics.
- *
- * For connection lifecycle management, use EventLogConnector which produces adapters.
- * The adapter's close() method releases the connection rather than terminating it.
- */
+import { Promisable } from '@anabranch/anabranch'
+import { EventLogConsumeFailed } from './errors.ts'
 
-/** A single event in the log. */
+/**
+ * A single event in the event log.
+ */
 export interface Event<T = unknown> {
-  /** Unique event identifier (globally unique) */
+  /** Unique identifier for this event. */
   id: string
-  /** Topic/stream this event belongs to */
+  /** The topic this event belongs to. */
   topic: string
-  /** Event payload */
+  /** The event data payload. */
   data: T
-  /** Partition key for ordering guarantees */
+  /** Partition key for ordering guarantees. */
   partitionKey: string
-  /** Event sequence number within the topic */
-  sequenceNumber: number
-  /** Timestamp when the event was created */
+  /** Monotonically increasing sequence number within the topic. Represented as a string to support bigint while remaining serializable. */
+  sequenceNumber: string
+  /** Unix timestamp in milliseconds when the event was created. */
   timestamp: number
-  /** Optional metadata attached to the event */
+  /** Optional metadata associated with the event. */
   metadata?: Record<string, unknown>
 }
 
-/** A batch of events consumed from a topic. */
-export interface EventBatch<T = unknown> {
-  /** Topic these events belong to */
+/**
+ * A batch of events delivered to a consumer.
+ */
+export interface EventBatch<T = unknown, Cursor = string> {
+  /** The topic this batch was received from. */
   topic: string
-  /** Consumer group that consumed these events */
+  /** The consumer group that received this batch. */
   consumerGroup: string
-  /** Events in this batch */
+  /** Events in this batch. */
   events: Event<T>[]
-  /** Cursor position for this batch (opaque to caller) */
-  cursor: string
+  /** Cursor representing the position after this batch. Use for manual commits. */
+  cursor: Cursor
+  /**
+   * Commit this batch's cursor to mark progress.
+   *
+   * After processing events successfully, call this to save the cursor position.
+   * On restart, the consumer will resume from this position.
+   */
+  commit(): Promise<void>
 }
 
 /**
- * Event log adapter interface for low-level operations.
+ * Low-level adapter interface for event log implementations.
+ *
+ * Adapters handle the actual communication with the underlying event store
+ * (in-memory, Kafka, etc.). Use connectors to create adapter instances.
  */
-export interface EventLogAdapter {
-  /** Append an event to a topic. Returns the event ID. */
+export interface EventLogAdapter<Cursor = string> {
+  /**
+   * Append an event to a topic.
+   */
   append<T>(
     topic: string,
     data: T,
     options?: AppendOptions,
   ): Promise<string>
 
-  /** Consume events from a topic as a streaming async iterable. */
+  /**
+   * Consume events from a topic.
+   */
   consume<T>(
     topic: string,
     consumerGroup: string,
-    options?: ConsumeOptions,
-  ): AsyncIterable<EventBatch<T>>
+    onBatch: (batch: EventBatch<T, Cursor>) => Promisable<void>,
+    onError: (error: EventLogConsumeFailed) => Promisable<void>,
+    options?: ConsumeOptions<Cursor>,
+  ): { close: () => Promise<void> }
 
-  /** Commit a cursor position for a consumer group. */
-  commitCursor(
-    topic: string,
-    consumerGroup: string,
-    cursor: string,
-  ): Promise<void>
-
-  /** Get the committed cursor position for a consumer group. */
+  /**
+   * Get the last committed cursor for a consumer group.
+   */
   getCursor(
     topic: string,
     consumerGroup: string,
-  ): Promise<string | null>
+  ): Promise<Cursor | null>
 
-  /** Close the adapter connection. */
+  /**
+   * Commit a cursor for a consumer group.
+   */
+  commitCursor(
+    topic: string,
+    consumerGroup: string,
+    cursor: Cursor,
+  ): Promise<void>
+
+  /** Close the adapter and release resources. */
   close(): Promise<void>
 }
 
-/** Options for appending an event. */
+/** Options for appending events. */
 export interface AppendOptions {
-  /** Partition key for ordering guarantees within the topic */
+  /** Key for partitioning and ordering. Events with the same key are ordered. */
   partitionKey?: string
-  /** Optional metadata attached to the event */
+  /** Custom metadata to attach to the event. */
   metadata?: Record<string, unknown>
-  /** Timestamp for the event (defaults to now) */
+  /** Custom timestamp in milliseconds. Defaults to Date.now(). */
   timestamp?: number
 }
 
 /** Options for consuming events. */
-export interface ConsumeOptions {
-  /** Signal for cancellation */
+export interface ConsumeOptions<Cursor = string> {
+  /** Abort signal to cancel consumption. */
   signal?: AbortSignal
-  /** Starting cursor (null means from beginning) */
-  cursor?: string | null
-  /** Batch size for events */
+  /** Cursor to resume from. If null, starts from the beginning. */
+  cursor?: Cursor | null
+  /** Maximum number of events per batch. Defaults to adapter-specific value. */
   batchSize?: number
+  /** Maximum number of batches to buffer. Defaults to adapter-specific value.
+   * When the buffer is full, new batches will be dropped and onError will be called with an EventLogConsumeFailed error.
+   * @default Infinity
+   */
+  bufferSize?: number
 }
 
-/** Connector that produces connected EventLogAdapter instances. */
-export interface EventLogConnector {
-  /** Acquire a connected adapter. */
-  connect(signal?: AbortSignal): Promise<EventLogAdapter>
+/**
+ * Factory for creating event log connections.
+ *
+ * Connectors manage connection lifecycle and produce adapter instances.
+ * Use connectors in production code to properly manage resources.
+ */
+export interface EventLogConnector<Cursor = string> {
+  /**
+   * Connect to the event log.
+   */
+  connect(signal?: AbortSignal): Promise<EventLogAdapter<Cursor>>
 
-  /** Close all connections and clean up resources. */
+  /**
+   * End the connector and release all resources.
+   *
+   * After calling end(), all adapters created by this connector become
+   * invalid and subsequent connect() calls will fail.
+   */
   end(): Promise<void>
 }
 
-/** Event log configuration options. */
+/** Configuration options for event log implementations. */
 export interface EventLogOptions {
-  /** Default partition key if not specified */
+  /** Default partition key for events without explicit keys. */
   defaultPartitionKey?: string
 }

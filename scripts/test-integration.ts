@@ -1,52 +1,43 @@
 import { Task } from '../packages/anabranch/index.ts'
-import { glob } from '@anabranch/fs'
-import { resolve } from 'node:path'
+import {
+  loadMetadataWithServices,
+  type PackageMetadata,
+  parsePackageArgs,
+  type ServiceConfig,
+} from './utils.ts'
 
 await main()
 
 async function main(): Promise<void> {
-  const { packages, services } = await loadMetadata()
+  const requestedPackages = await parsePackageArgs([...Deno.args])
+  const filter = Deno.args.includes('--filter')
+    ? Deno.args[Deno.args.indexOf('--filter') + 1]
+    : undefined
+  const { packages, services } = await loadMetadataWithServices(
+    requestedPackages,
+  )
 
-  await startServices(services)
-
-  try {
-    await waitForServices(services)
-
-    await runTests(packages)
-
-    console.log('All integration tests passed!')
-  } finally {
-    await cleanupServices(services)
+  if (packages.length === 0) {
+    console.log('No matching packages with integration tests found')
+    return
   }
-}
-
-async function loadMetadata(): Promise<
-  { packages: PackageMetadata[]; services: ServiceConfig[] }
-> {
-  const packagesDir = resolve(Deno.cwd(), 'packages')
-  const entries = await glob(packagesDir, '*/metadata.json').collect()
-  const packages: PackageMetadata[] = []
-  const serviceMap = new Map<string, ServiceConfig>()
-
-  for (const entry of entries) {
-    const content = await Deno.readTextFile(entry.path)
-    const metadata = JSON.parse(content) as PackageMetadata
-    if (metadata.service) {
-      packages.push(metadata)
-      if (!serviceMap.has(metadata.service.name)) {
-        serviceMap.set(metadata.service.name, metadata.service)
-      }
-    }
-  }
-
-  packages.sort((a, b) => a.name.localeCompare(b.name))
 
   console.log(`Found ${packages.length} packages with integration tests`)
   for (const pkg of packages) {
     console.log(`  - ${pkg.name}`)
   }
 
-  return { packages, services: Array.from(serviceMap.values()) }
+  await startServices(services)
+
+  try {
+    await waitForServices(services)
+
+    await runTests(packages, filter)
+
+    console.log('All integration tests passed!')
+  } finally {
+    await cleanupServices(services)
+  }
 }
 
 async function startServices(services: ServiceConfig[]): Promise<void> {
@@ -103,11 +94,14 @@ async function waitForServices(services: ServiceConfig[]): Promise<void> {
   ).run()
 }
 
-async function runTests(packages: PackageMetadata[]): Promise<void> {
+async function runTests(
+  packages: PackageMetadata[],
+  filter?: string,
+): Promise<void> {
   for (const pkg of packages) {
     console.log(`Running ${pkg.name} integration tests...`)
     const testPath = `./packages/${pkg.name}/${pkg.name}_test.ts`
-    await Task.of(() => runTest(testPath, pkg.env ?? {})).timeout(
+    await Task.of(() => runTest(testPath, pkg.env ?? {}, filter)).timeout(
       45_000,
       new Error(`Tests for ${pkg.name} did not complete in time`),
     ).run()
@@ -144,17 +138,22 @@ function httpProbe(url: string): Promise<void> {
 async function runTest(
   file: string,
   additionalEnv: Record<string, string>,
+  filter?: string,
 ): Promise<void> {
+  const args = [
+    'test',
+    '--allow-read',
+    '--allow-write',
+    '--allow-sys',
+    '--allow-env',
+    '--allow-net',
+  ]
+  if (filter) {
+    args.push('--filter', filter)
+  }
+  args.push(file)
   const testProc = await new Deno.Command('deno', {
-    args: [
-      'test',
-      '--allow-read',
-      '--allow-write',
-      '--allow-sys',
-      '--allow-env',
-      '--allow-net',
-      file,
-    ],
+    args,
     env: { ...Deno.env.toObject(), ...additionalEnv },
   }).output()
 
@@ -207,28 +206,4 @@ function createProbe(
     readyMessage: `${service.name} is ready!`,
     check: () => Promise.resolve(),
   }
-}
-
-interface PackageMetadata {
-  name: string
-  description: string
-  env?: Record<string, string>
-  service?: ServiceConfig
-}
-
-interface ServiceConfig {
-  name: string
-  image: string
-  env?: Record<string, string>
-  ports: string[]
-  args?: string[]
-  dockerOptions?: string[]
-  probe?: ProbeConfig
-}
-
-interface ProbeConfig {
-  type: 'exec' | 'http'
-  command?: string[]
-  url?: string
-  delay?: number
 }

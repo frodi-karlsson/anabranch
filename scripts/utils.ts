@@ -42,7 +42,9 @@ export function loadAllMetadata(): Stream<PackageMetadata, unknown> {
     })
 }
 
-export async function loadMetadataWithServices(): Promise<{
+export async function loadMetadataWithServices(
+  requestedPackages?: string[],
+): Promise<{
   packages: PackageMetadata[]
   services: ServiceConfig[]
 }> {
@@ -52,7 +54,11 @@ export async function loadMetadataWithServices(): Promise<{
   const serviceMap = new Map<string, ServiceConfig>()
   const packagesWithTests: PackageMetadata[] = []
 
-  for (const pkg of packages) {
+  const filteredPackages = requestedPackages
+    ? packages.filter((pkg) => requestedPackages.includes(pkg.name))
+    : packages
+
+  for (const pkg of filteredPackages) {
     if (pkg.service) {
       packagesWithTests.push(pkg)
       if (!serviceMap.has(pkg.service.name)) {
