@@ -24,6 +24,7 @@ import {
   EventLogKafkaConsumeFailed,
   EventLogKafkaGetCursorFailed,
 } from './errors.ts'
+import crypto from 'node:crypto'
 
 /**
  * Creates a Kafka event log connector for production use.

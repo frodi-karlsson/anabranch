@@ -36,6 +36,9 @@ await build({
       '@anabranch/eventlog': '^0',
       kafkajs: '^2',
     },
+    devDependencies: {
+      '@types/node': '^24',
+    },
   },
   mappings: {
     [new URL(`file://${eventlogPath}`).href]: {
