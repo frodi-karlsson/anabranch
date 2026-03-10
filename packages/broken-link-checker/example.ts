@@ -2,7 +2,7 @@
  * Example: Check a website for broken links
  *
  * Usage:
- *   deno run -A --watch=clear example.ts
+ *   deno run -A packages/broken-link-checker/example.ts
  *
  * This script crawls a website and reports any broken links it finds.
  */

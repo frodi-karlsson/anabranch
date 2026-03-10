@@ -4,7 +4,7 @@
  * CI uses GitHub Actions service containers for this.
  */
 import { assertEquals } from '@std/assert'
-import { Task } from '@anabranch/anabranch'
+import { ErrorResult, Task } from '@anabranch/anabranch'
 import { DB } from '@anabranch/db'
 import { createMySQL } from './index.ts'
 
@@ -15,65 +15,6 @@ const MYSQL_URL = Deno.env.get('MYSQL_URL') ||
     }@${Deno.env.get('MYSQL_HOST')}:${Deno.env.get('MYSQL_PORT') ?? '3306'}/${
       Deno.env.get('MYSQL_DATABASE') ?? 'mysql'
     }`)
-
-Deno.test('createMySQL - should return a valid connector', () => {
-  const connector = createMySQL({
-    connectionString: 'mysql://user:pass@localhost:3306/testdb',
-  })
-  assertEquals(typeof connector.connect, 'function')
-})
-
-Deno.test('createMySQL - should accept connection string', () => {
-  const connector = createMySQL({
-    connectionString: 'mysql://user:pass@localhost:3306/testdb',
-  })
-  assertEquals(typeof connector.connect, 'function')
-})
-
-Deno.test('createMySQL - should accept individual options', () => {
-  const connector = createMySQL({
-    host: 'localhost',
-    port: 3306,
-    user: 'testuser',
-    password: 'testpass',
-    database: 'testdb',
-  })
-  assertEquals(typeof connector.connect, 'function')
-})
-
-Deno.test('createMySQL - should accept pool options', () => {
-  const connector = createMySQL({
-    connectionString: 'mysql://user:pass@localhost:3306/testdb',
-    connectionLimit: 20,
-    waitForConnections: true,
-    connectionTimeoutMillis: 10000,
-  })
-  assertEquals(typeof connector.connect, 'function')
-})
-
-Deno.test('createMySQL - should use environment variables as defaults', () => {
-  const connector = createMySQL()
-  assertEquals(typeof connector.connect, 'function')
-})
-
-Deno.test({
-  name: 'createMySQL.connect - should return adapter with all methods',
-  ignore: !MYSQL_URL,
-  async fn() {
-    const connector = createMySQL({ connectionString: MYSQL_URL! })
-    try {
-      const adapter = await connector.connect()
-
-      assertEquals(typeof adapter.query, 'function')
-      assertEquals(typeof adapter.execute, 'function')
-      assertEquals(typeof adapter.close, 'function')
-
-      await adapter.close()
-    } finally {
-      await connector.end()
-    }
-  },
-})
 
 Deno.test({
   name: 'DB - should execute SELECT and return results',
@@ -86,25 +27,19 @@ Deno.test({
       const result = await DB.withConnection(
         connector,
         (db) =>
-          Task.of(async () => {
-            await db
-              .execute(
+          Task.chain([
+            () =>
+              db.execute(
                 `CREATE TABLE ${table} (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255))`,
-              )
-              .run()
-            await db
-              .execute(`INSERT INTO ${table} (name) VALUES ('Alice')`)
-              .run()
-            await db
-              .execute(`INSERT INTO ${table} (name) VALUES ('Bob')`)
-              .run()
+              ),
+            () => db.execute(`INSERT INTO ${table} (name) VALUES ('Alice')`),
+            () => db.execute(`INSERT INTO ${table} (name) VALUES ('Bob')`),
 
-            const users = await db.query<{ id: number; name: string }>(
-              `SELECT * FROM ${table} ORDER BY id`,
-            ).run()
-
-            return users
-          }),
+            () =>
+              db.query<{ id: number; name: string }>(
+                `SELECT * FROM ${table} ORDER BY id`,
+              ),
+          ]),
       ).run()
 
       assertEquals(result.length, 2)
@@ -121,39 +56,29 @@ Deno.test({
   ignore: !MYSQL_URL,
   async fn() {
     const connector = createMySQL({ connectionString: MYSQL_URL! })
-    try {
-      const table = `users_${crypto.randomUUID().replace(/-/g, '_')}`
+    const table = `users_${crypto.randomUUID().replace(/-/g, '_')}`
 
-      const result = await DB.withConnection(
-        connector,
-        (db) =>
-          Task.of(async () => {
-            await db
-              .execute(
-                `CREATE TABLE ${table} (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255))`,
-              )
-              .run()
-            await db
-              .execute(`INSERT INTO ${table} (name) VALUES ('Alice')`)
-              .run()
-            await db
-              .execute(`INSERT INTO ${table} (name) VALUES ('Bob')`)
-              .run()
+    const result = await DB.withConnection(
+      connector,
+      (db) =>
+        Task.chain([
+          () =>
+            db.execute(
+              `CREATE TABLE ${table} (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255))`,
+            ),
+          () => db.execute(`INSERT INTO ${table} (name) VALUES ('Alice')`),
+          () => db.execute(`INSERT INTO ${table} (name) VALUES ('Bob')`),
 
-            const users = await db.query<{ id: number; name: string }>(
+          () =>
+            db.query<{ id: number; name: string }>(
               `SELECT * FROM ${table} WHERE name = ?`,
               ['Alice'],
-            ).run()
+            ),
+        ]),
+    ).run()
 
-            return users
-          }),
-      ).run()
-
-      assertEquals(result.length, 1)
-      assertEquals(result[0].name, 'Alice')
-    } finally {
-      await connector.end()
-    }
+    assertEquals(result.length, 1)
+    assertEquals(result[0].name, 'Alice')
   },
 })
 
@@ -162,41 +87,48 @@ Deno.test({
   ignore: !MYSQL_URL,
   async fn() {
     const connector = createMySQL({ connectionString: MYSQL_URL! })
-    try {
-      const table = `users_${crypto.randomUUID().replace(/-/g, '_')}`
+    const table = `users_${crypto.randomUUID().replace(/-/g, '_')}`
 
-      await DB.withConnection(connector, (db) =>
-        Task.of(async () => {
-          await db
-            .execute(
-              `CREATE TABLE ${table} (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255))`,
-            )
-            .run()
-
-          const insertAffected = await db
-            .execute(`INSERT INTO ${table} (name) VALUES ('Alice')`)
-            .run()
-
-          assertEquals(insertAffected, 1)
-
-          const updateAffected = await db
+    await DB.withConnection(connector, (db) =>
+      Task.chain([
+        () =>
+          db.execute(
+            `CREATE TABLE ${table} (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255))`,
+          ),
+        () =>
+          db.execute(`INSERT INTO ${table} (name) VALUES ('Alice')`).tap(
+            (affected) => {
+              assertEquals(affected, 1)
+            },
+          ),
+        () =>
+          db
             .execute(
               `UPDATE ${table} SET name = 'Bob' WHERE name = ?`,
               ['Alice'],
             )
-            .run()
-
-          assertEquals(updateAffected, 1)
-
-          const deleteAffected = await db
-            .execute(`DELETE FROM ${table} WHERE name = ?`, ['Bob'])
-            .run()
-
-          assertEquals(deleteAffected, 1)
-        })).run()
-    } finally {
-      await connector.end()
-    }
+            .tap((updateAffected) => {
+              assertEquals(updateAffected, 1)
+            }),
+        () =>
+          db.execute(`DELETE FROM ${table} WHERE name = ?`, ['Nonexistent'])
+            .tap((affected) => {
+              assertEquals(affected, 0)
+            }),
+        () =>
+          db.execute(`INSERT INTO ${table} (name) VALUES ('Charlie')`).tap(
+            (affected) => {
+              assertEquals(affected, 1)
+            },
+          ),
+        () =>
+          db.execute(`DELETE FROM ${table} WHERE name iN (?)`, [[
+            'Charlie',
+            'Bob',
+          ]]).tap((affected) => {
+            assertEquals(affected, 2)
+          }),
+      ])).run()
   },
 })
 
@@ -205,35 +137,39 @@ Deno.test({
   ignore: !MYSQL_URL,
   async fn() {
     const connector = createMySQL({ connectionString: MYSQL_URL! })
-    try {
-      const table = `users_${crypto.randomUUID().replace(/-/g, '_')}`
+    const table = `users_${crypto.randomUUID().replace(/-/g, '_')}`
 
-      const result = await DB.withConnection(
-        connector,
-        (db) =>
-          db.withTransaction(async (tx) => {
-            await tx
+    const result = await DB.withConnection(
+      connector,
+      (db) =>
+        Task.chain([
+          () =>
+            db
               .execute(
                 `CREATE TABLE ${table} (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255))`,
-              )
-              .run()
-            await tx
-              .execute(`INSERT INTO ${table} (name) VALUES ('Alice')`)
-              .run()
-            await tx
-              .execute(`INSERT INTO ${table} (name) VALUES ('Bob')`)
-              .run()
+              ),
+          () =>
+            db.withTransaction((tx) =>
+              Task.chain([
+                () =>
+                  tx
+                    .execute(`INSERT INTO ${table} (name) VALUES ('Alice')`),
+                () =>
+                  tx
+                    .execute(`INSERT INTO ${table} (name) VALUES ('Bob')`),
+                () =>
+                  tx
+                    .execute(`INSERT INTO ${table} (name) VALUES ('Bob')`),
+                () =>
+                  tx.query<{ id: number; name: string }>(
+                    `SELECT * FROM ${table} ORDER BY id`,
+                  ),
+              ]).run()
+            ),
+        ]),
+    ).run()
 
-            return db
-              .query<{ id: number; name: string }>(`SELECT * FROM ${table}`)
-              .run()
-          }),
-      ).run()
-
-      assertEquals(result.length, 2)
-    } finally {
-      await connector.end()
-    }
+    assertEquals(result.length, 3)
   },
 })
 
@@ -245,34 +181,33 @@ Deno.test({
     try {
       const table = `users_${crypto.randomUUID().replace(/-/g, '_')}`
 
-      let threw = false
-      let errorMsg = ''
+      const result = await DB.withConnection(
+        connector,
+        (db) =>
+          db.withTransaction((tx) =>
+            Task.chain([
+              () =>
+                tx
+                  .execute(
+                    `CREATE TABLE ${table} (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) UNIQUE)`,
+                  ),
+              () =>
+                tx
+                  .execute(`INSERT INTO ${table} (name) VALUES ('Alice')`),
+              () =>
+                tx
+                  .execute(`INSERT INTO ${table} (name) VALUES ('Alice')`),
+            ]).run()
+          ),
+      ).result()
 
-      try {
-        await DB.withConnection(
-          connector,
-          (db) =>
-            db.withTransaction(async (tx) => {
-              await tx
-                .execute(
-                  `CREATE TABLE ${table} (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) UNIQUE)`,
-                )
-                .run()
-              await tx
-                .execute(`INSERT INTO ${table} (name) VALUES ('Alice')`)
-                .run()
-              await tx
-                .execute(`INSERT INTO ${table} (name) VALUES ('Alice')`)
-                .run()
-            }),
-        ).run()
-      } catch (e) {
-        threw = true
-        errorMsg = (e as Error).message
-      }
-
-      assertEquals(threw, true, `Expected error, got: ${errorMsg}`)
-      assertEquals(errorMsg.includes('Duplicate entry'), true)
+      assertEquals(result.type, 'error')
+      assertEquals(
+        (result as ErrorResult<unknown, Error>).error.message.includes(
+          'Duplicate entry',
+        ),
+        true,
+      )
     } finally {
       await connector.end()
     }

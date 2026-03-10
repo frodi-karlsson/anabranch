@@ -182,12 +182,10 @@ Deno.test('StorageBrowser - should use Source.from for bulk operations', async (
     { key: 'bulk/file3.txt', content: 'Third file' },
   ]
 
-  await Source.from<string, never>(async function* () {
-    for (const file of files) yield file.key
-  })
-    .tap(async (key) => {
-      const file = files.find((f) => f.key === key)!
-      await storage.put(key, file.content).run()
+  await Source.fromArray(files)
+    .tap(async (file) => {
+      const other = files.find((f) => f.key === file.key)!
+      await storage.put(file.key, other.content).run()
     })
     .collect()
 

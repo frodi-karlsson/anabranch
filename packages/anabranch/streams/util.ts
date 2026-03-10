@@ -16,8 +16,8 @@ export class AggregateError extends Error {
  * A result emitted by a {@link Stream}. Either a successful value or a
  * collected error.
  */
-export type Result<T, E> = E extends never ? SuccessResult<T, E>
-  : T extends never ? ErrorResult<T, E>
+export type Result<T, E> = [T] extends [never] ? ErrorResult<T, E>
+  : [E] extends [never] ? SuccessResult<T, E>
   : SuccessResult<T, E> | ErrorResult<T, E>
 
 /**

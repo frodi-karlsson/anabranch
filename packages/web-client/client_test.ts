@@ -139,8 +139,8 @@ Deno.test('WebClient - should set isRetryable for 429', async () => {
   assertEquals(result.type, 'error')
   if (result.type === 'error') {
     const error = result.error as HttpError
-    assertEquals(error.isRetryable, true)
-    assertEquals(error.isRateLimited, true)
+    assertEquals(error.details.isRetryable, true)
+    assertEquals(error.details.isRateLimited, true)
   }
 })
 
@@ -176,8 +176,8 @@ Deno.test('WebClient - should capture Retry-After header in error', async () => 
   assertEquals(result.type, 'error')
   if (result.type === 'error') {
     const error = result.error as HttpError
-    assertEquals(error.retryAfter, 0.05)
-    assertEquals(error.isRateLimited, true)
+    assertEquals(error.details.retryAfter, 0.05)
+    assertEquals(error.details.isRateLimited, true)
   }
 })
 
@@ -207,7 +207,7 @@ Deno.test('WebClient.request - should use custom when predicate', async () => {
     .withRetry({
       attempts: 3,
       delay: 0,
-      when: (error) => (error as HttpError).status === 500,
+      when: (error) => error.details.status === 500,
     })
 
   await assertRejects(() => client.get('https://example.com/error').run())

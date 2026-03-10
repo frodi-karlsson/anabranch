@@ -81,16 +81,14 @@ export class Queue {
   static connect(
     connector: QueueConnector,
   ): Task<Queue, QueueConnectionFailed> {
-    return Task.of(async () => {
-      try {
-        return new Queue(await connector.connect())
-      } catch (error) {
-        throw new QueueConnectionFailed(
-          error instanceof Error ? error.message : String(error),
-          error,
-        )
-      }
-    })
+    return Task.of(async () => new Queue(await connector.connect())).mapErr((
+      error,
+    ) =>
+      new QueueConnectionFailed(
+        error instanceof Error ? error.message : String(error),
+        error,
+      )
+    )
   }
 
   /**
@@ -102,16 +100,13 @@ export class Queue {
    * ```
    */
   close(): Task<void, QueueCloseFailed> {
-    return Task.of(async () => {
-      try {
-        await this.adapter.close()
-      } catch (error) {
-        throw new QueueCloseFailed(
+    return Task.of(async () => await this.adapter.close())
+      .mapErr((error) =>
+        new QueueCloseFailed(
           error instanceof Error ? error.message : String(error),
           error,
         )
-      }
-    })
+      )
   }
 
   /**
@@ -127,17 +122,14 @@ export class Queue {
     data: T,
     options?: SendOptions,
   ): Task<string, QueueSendFailed> {
-    return Task.of(async () => {
-      try {
-        return await this.adapter.send(queue, data, options)
-      } catch (error) {
-        throw new QueueSendFailed(
+    return Task.of(async () => await this.adapter.send(queue, data, options))
+      .mapErr((error) =>
+        new QueueSendFailed(
           error instanceof Error ? error.message : String(error),
           queue,
           error,
         )
-      }
-    })
+      )
   }
 
   /**
@@ -204,8 +196,16 @@ export class Queue {
    * ```
    */
   stream<T>(
+    /**
+     * Name of the queue to consume messages from.
+     */
     queue: string,
-    options?: { count?: number; concurrency?: number },
+    options?: {
+      /**
+       * Number of messages to fetch per batch. The stream will yield messages one at a time, but this controls how many are fetched from the broker in each request. Defaults to 10.
+       */
+      count?: number
+    },
   ): Source<QueueMessage<T>, QueueReceiveFailed> {
     const adapter = this.adapter
     const count = options?.count ?? 10
@@ -224,7 +224,7 @@ export class Queue {
           )
         }
       },
-    ).withConcurrency(options?.concurrency ?? Infinity)
+    )
   }
 
   /**
@@ -250,7 +250,36 @@ export class Queue {
    */
   continuousStream<T>(
     queue: string,
-    options?: { count?: number; signal?: AbortSignal; prefetch?: number },
+    options?: {
+      /**
+       * Number of messages to fetch per batch when using polling-based adapter. Ignored for StreamAdapter which delivers messages one at a time. Defaults to 10.
+       */
+      count?: number
+      /**       * AbortSignal to stop the continuous stream. When signaled, the stream will cease fetching new messages and complete after processing any in-flight messages.
+       */
+      signal?: AbortSignal
+      /**
+       * Number of messages to prefetch and hold in memory for processing when using a StreamAdapter. This allows for higher throughput by having multiple messages available concurrently. Ignored for polling-based adapters. Defaults to 0 (no prefetch).
+       */
+      prefetch?: number
+      /**
+       * Backoff strategy for polling when using a non-streaming adapter. If provided, the stream will wait before retrying after a failure or empty poll, with delays increasing exponentially up to a maximum.
+       */
+      backoff?: {
+        /**
+         * Initial delay in ms before retrying after a failure or empty poll. Defaults to 50ms.
+         */
+        initialDelay?: number
+        /**
+         * Multiplier for exponential backoff when polling fails or returns no messages. Defaults to 2 (doubling delay each time).
+         */
+        multiplier?: number
+        /**
+         * Maximum delay in ms between polls when using exponential backoff. Defaults to 30 seconds.
+         */
+        maxDelay?: number
+      }
+    },
   ): Source<QueueMessage<T>, QueueReceiveFailed> {
     const count = options?.count ?? 10
     const signal = options?.signal
@@ -275,22 +304,25 @@ export class Queue {
           return
         }
 
-        const baseDelay = 50
+        const baseDelay = options?.backoff?.initialDelay ?? 50
+        const multiplier = options?.backoff?.multiplier ?? 2
+        const maxDelay = options?.backoff?.maxDelay ?? 30000
         let currentDelay = baseDelay
 
         while (!signal?.aborted) {
           try {
             const messages = await adapter.receive<T>(queue, count)
-            currentDelay = baseDelay
 
-            for (const msg of messages) {
-              if (signal?.aborted) return
-              yield { type: 'success', value: msg }
-            }
+            if (messages.length > 0) {
+              currentDelay = baseDelay
 
-            if (!signal?.aborted && messages.length === 0) {
+              for (const msg of messages) {
+                if (signal?.aborted) return
+                yield { type: 'success', value: msg }
+              }
+            } else {
               await sleep(currentDelay, signal)
-              currentDelay = Math.min(currentDelay * 2, 5000)
+              currentDelay = Math.min(currentDelay * multiplier, maxDelay)
             }
           } catch (error) {
             if (signal?.aborted) return
@@ -300,6 +332,9 @@ export class Queue {
               error,
             )
             yield { type: 'error', error: queueError }
+
+            await sleep(currentDelay, signal)
+            currentDelay = Math.min(currentDelay * multiplier, maxDelay)
           }
         }
       },
@@ -317,17 +352,15 @@ export class Queue {
   ack(queue: string, ...ids: string[]): Task<void, QueueAckFailed> {
     return Task.of(async () => {
       if (ids.length === 0) return
-      try {
-        await this.adapter.ack(queue, ...ids)
-      } catch (error) {
-        throw new QueueAckFailed(
-          error instanceof Error ? error.message : String(error),
-          queue,
-          ids[0],
-          error,
-        )
-      }
-    })
+      return await this.adapter.ack(queue, ...ids)
+    }).mapErr((error) =>
+      new QueueAckFailed(
+        error instanceof Error ? error.message : String(error),
+        queue,
+        ids[0],
+        error,
+      )
+    )
   }
 
   /**
@@ -352,17 +385,14 @@ export class Queue {
       deadLetter?: boolean
     },
   ): Task<void, QueueAckFailed | QueueMaxAttemptsExceeded> {
-    return Task.of(async () => {
-      try {
-        await this.adapter.nack(queue, id, options)
-      } catch (error) {
-        throw new QueueAckFailed(
+    return Task.of(async () => await this.adapter.nack(queue, id, options))
+      .mapErr((error) =>
+        new QueueAckFailed(
           error instanceof Error ? error.message : String(error),
           queue,
           id,
           error,
         )
-      }
-    })
+      )
   }
 }

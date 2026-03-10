@@ -1,5 +1,5 @@
 import { Task } from '@anabranch/anabranch'
-import type {
+import {
   HttpError,
   Method,
   RequestOptions,
@@ -128,33 +128,47 @@ export class WebClient {
     const retryDelay = options?.retry?.delay ?? defaultRetry.delay
     const retryWhen = options?.retry?.when ?? defaultRetry.when
 
-    const performRequest = Task.of<ResponseResult, HttpError>(
-      async (signal) => {
-        const response = await fetch(url.href, {
+    return Task.of<Response, Error>((signal) =>
+      fetch(url.href, {
+        method,
+        headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal,
+      })
+    ).map<Response, HttpError>((response) => {
+      const retryAfter = parseRetryAfter(
+        response.headers.get('retry-after'),
+      )
+      const rateLimited = response.status === 429
+
+      if (!response.ok) {
+        const reason = response.statusText || `HTTP ${response.status}`
+        throw new HttpError({
+          url,
           method,
-          headers,
-          body: body !== undefined ? JSON.stringify(body) : undefined,
-          signal,
+          status: response.status,
+          reason,
+          isRetryable: RETRYABLE_STATUS_CODES.includes(response.status),
+          isRateLimited: rateLimited,
+          retryAfter,
         })
+      }
 
-        const retryAfter = parseRetryAfter(
-          response.headers.get('retry-after'),
-        )
-        const rateLimited = response.status === 429
-
-        if (!response.ok) {
-          const reason = response.statusText || `HTTP ${response.status}`
-          throw {
-            url,
-            method,
-            status: response.status,
-            reason,
-            isRetryable: RETRYABLE_STATUS_CODES.includes(response.status),
-            isRateLimited: rateLimited,
-            retryAfter,
-          } as HttpError
-        }
-
+      return response
+    })
+      .mapErr((error) => {
+        if (error instanceof HttpError) return error
+        return new HttpError({
+          url,
+          method,
+          status: undefined,
+          reason: error instanceof Error ? error.message : String(error),
+          isRetryable: true, // Network errors may be transient, so retry by default
+          isRateLimited: false,
+          retryAfter: undefined,
+        })
+      })
+      .map(async (response) => {
         const contentType = response.headers.get('content-type') ?? ''
         let data: unknown
         if (contentType.includes('application/json')) {
@@ -173,24 +187,23 @@ export class WebClient {
           ok: response.ok,
           data,
         }
-      },
-    )
-
-    return performRequest
-      .timeout(timeout, {
-        url,
-        method,
-        status: undefined,
-        reason: `Timeout after ${timeout}ms`,
-        isRetryable: true, // Timeouts may be transient, so retry by default
-        isRateLimited: false,
-        retryAfter: undefined,
-      })
+      }).timeout(
+        timeout,
+        new HttpError({
+          url,
+          method,
+          status: undefined,
+          reason: `Timeout after ${timeout}ms`,
+          isRetryable: true, // Timeouts may be transient, so retry by default
+          isRateLimited: false,
+          retryAfter: undefined,
+        }),
+      )
       .retry({
         attempts: retryAttempts,
         delay: (attempt, error) => {
-          if (error.isRateLimited && error.retryAfter) {
-            return error.retryAfter * 1000
+          if (error.details.isRateLimited && error.details.retryAfter) {
+            return error.details.retryAfter * 1000
           }
           return typeof retryDelay === 'function'
             ? retryDelay(attempt, error)
@@ -344,8 +357,11 @@ function mergeHeaders(
 }
 
 function isRetryable(error: HttpError): boolean {
-  if (error.isRateLimited) return true
-  if (error.status && RETRYABLE_STATUS_CODES.includes(error.status)) {
+  if (error.details.isRateLimited) return true
+  if (
+    error.details.status &&
+    RETRYABLE_STATUS_CODES.includes(error.details.status)
+  ) {
     return true
   }
   return false

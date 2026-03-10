@@ -210,8 +210,8 @@ export class BrokenLinkChecker {
           url,
           parent,
           ok: false,
-          status: error.status,
-          reason: error.reason,
+          status: error.details.status,
+          reason: error.details.reason,
           isPath,
           durationMs: Date.now() - start,
         }))

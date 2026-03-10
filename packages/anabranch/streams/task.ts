@@ -60,7 +60,7 @@ export class Task<T, E> {
   /**
    * Maps the successful value. Errors are passed through unchanged.
    */
-  map<U>(fn: (value: T) => Promisable<U>): Task<U, E> {
+  map<U, E2 = E>(fn: (value: T) => Promisable<U>): Task<U, E | E2> {
     return new Task(async (signal) => {
       const value = await this.runWithSignal(signal)
       return await fn(value)
@@ -87,6 +87,24 @@ export class Task<T, E> {
         return await this.runWithSignal(signal)
       } catch (error) {
         throw await fn(error as E)
+      }
+    })
+  }
+
+  /**
+   * Maps successful values with `fn` and transforms errors with `errFn`. Both
+   * receive the original value so you can contextualize the mapping.
+   */
+  tryMap<U, F = never>(
+    fn: (value: T) => Promisable<U>,
+    errFn: (error: unknown, value: T) => Promisable<F>,
+  ): Task<U, E | F> {
+    return new Task(async (signal) => {
+      const value = await this.runWithSignal(signal)
+      try {
+        return await fn(value)
+      } catch (error) {
+        throw await errFn(error, value)
       }
     })
   }
@@ -149,6 +167,57 @@ export class Task<T, E> {
   }
 
   /**
+   * Throws the specified error types if encountered, propagating them to the caller.
+   */
+  throwOn<E2 extends E>(
+    guard: (error: E) => error is E2,
+  ): Task<T, Exclude<E, E2>> {
+    return new Task(async (signal) => {
+      try {
+        return await this.runWithSignal(signal)
+      } catch (error) {
+        if (guard(error as E)) {
+          throw error
+        }
+        throw error
+      }
+    })
+  }
+
+  /**
+   * Chains another task based on the successful value, with error handling for the mapper.
+   * If the mapper fails, errFn can recover by returning a success value.
+   */
+  tryFlatMap<U, F>(
+    fn: (value: T) => Task<U, F>,
+    errFn: (error: unknown) => Promisable<U>,
+  ): Task<U, E> {
+    return new Task(async (signal) => {
+      const value = await this.runWithSignal(signal)
+      const next = fn(value)
+      try {
+        return await next.runWithSignal(signal)
+      } catch (error) {
+        return await errFn(error) as U
+      }
+    })
+  }
+
+  /**
+   * Chains another task based on the error value.
+   */
+  flatMapErr<F>(fn: (error: E) => Task<T, F>): Task<T, F> {
+    return new Task(async (signal) => {
+      try {
+        return await this.runWithSignal(signal)
+      } catch (error) {
+        const next = fn(error as E)
+        return await next.runWithSignal(signal)
+      }
+    })
+  }
+
+  /**
    * Retries the task when the predicate returns true.
    */
   retry(options: {
@@ -186,21 +255,30 @@ export class Task<T, E> {
    */
   timeout(ms: number, error?: E): Task<T, E> {
     return new Task(async (signal) => {
+      const controller = new AbortController()
+      const onOuterAbort = () => controller.abort(signal?.reason)
+      signal?.addEventListener('abort', onOuterAbort, { once: true })
+
       let timeoutId: ReturnType<typeof setTimeout> | undefined
       const timeoutPromise = new Promise<T>((_, reject) => {
         timeoutId = setTimeout(() => {
-          reject(error ?? (new Error(`Timeout after ${ms}ms`) as E))
+          const timeoutErr = error ?? (new Error(`Timeout after ${ms}ms`) as E)
+          controller.abort(timeoutErr)
+          reject(timeoutErr)
         }, ms)
       })
 
       try {
         return await Promise.race([
-          this.runWithSignal(signal),
+          this.runWithSignal(controller.signal),
           timeoutPromise,
         ])
       } finally {
         if (timeoutId !== undefined) {
           clearTimeout(timeoutId)
+        }
+        if (signal) {
+          signal.removeEventListener('abort', onOuterAbort)
         }
       }
     })
@@ -322,6 +400,82 @@ export class Task<T, E> {
           })
         })
       })
+    })
+  }
+
+  /**
+   * Runs tasks sequentially, passing the successful value from one to the next.
+   * If any task fails, the chain is short-circuited and the error is returned.
+   *
+   * Return types -> parameter type inference is supported up to an arbitrary 7 tasks.
+   * If you need more, you can just chain two chains.
+   *
+   * Example usage:
+   * ```ts
+   * Task.chain([
+   *   () => Task.of(() => 1),
+   *   (prev) => Task.of(() => prev + 1),
+   *   (prev) => Task.of(() => `Result: ${prev}`),
+   * ]).tap((result) => {
+   *   console.log(result) // "Result: 2"
+   * }).run()
+   * ```
+   */
+  static chain(arr: []): Task<void, never>
+  static chain<R, E1>(tasks: [() => Task<R, E1>]): Task<R, E1>
+  static chain<A, R, E1, E2>(tasks: [
+    () => Task<A, E1>,
+    (prev: A) => Task<R, E2>,
+  ]): Task<R, E1 | E2>
+  static chain<A, B, R, E1, E2, E3>(tasks: [
+    () => Task<A, E1>,
+    (prev: A) => Task<B, E2>,
+    (prev: B) => Task<R, E3>,
+  ]): Task<R, E1 | E2 | E3>
+  static chain<A, B, C, R, E1, E2, E3, E4>(tasks: [
+    () => Task<A, E1>,
+    (prev: A) => Task<B, E2>,
+    (prev: B) => Task<C, E3>,
+    (prev: C) => Task<R, E4>,
+  ]): Task<R, E1 | E2 | E3 | E4>
+  static chain<A, B, C, D, R, E1, E2, E3, E4, E5>(tasks: [
+    () => Task<A, E1>,
+    (prev: A) => Task<B, E2>,
+    (prev: B) => Task<C, E3>,
+    (prev: C) => Task<D, E4>,
+    (prev: D) => Task<R, E5>,
+  ]): Task<R, E1 | E2 | E3 | E4 | E5>
+  static chain<A, B, C, D, E, R, E1, E2, E3, E4, E5, E6>(tasks: [
+    () => Task<A, E1>,
+    (prev: A) => Task<B, E2>,
+    (prev: B) => Task<C, E3>,
+    (prev: C) => Task<D, E4>,
+    (prev: D) => Task<E, E5>,
+    (prev: E) => Task<R, E6>,
+  ]): Task<R, E1 | E2 | E3 | E4 | E5 | E6>
+  static chain<A, B, C, D, E, F, R, E1, E2, E3, E4, E5, E6, E7>(tasks: [
+    () => Task<A, E1>,
+    (prev: A) => Task<B, E2>,
+    (prev: B) => Task<C, E3>,
+    (prev: C) => Task<D, E4>,
+    (prev: D) => Task<E, E5>,
+    (prev: E) => Task<F, E6>,
+    (prev: F) => Task<R, E7>,
+  ]): Task<R, E1 | E2 | E3 | E4 | E5 | E6 | E7>
+  static chain<R, E>(
+    tasks: [
+      // deno-lint-ignore no-explicit-any
+      ...Array<(prevResult: unknown) => Task<unknown, any>>,
+      (prevResult: unknown) => Task<R, E>,
+    ] | [],
+  ): Task<R, unknown> {
+    if (tasks.length === 0) return Task.of(() => undefined) as Task<R, E>
+    return new Task(async (signal) => {
+      let result: unknown = undefined
+      for (const taskFn of tasks) {
+        result = await taskFn(result).runWithSignal(signal)
+      }
+      return result as R
     })
   }
 

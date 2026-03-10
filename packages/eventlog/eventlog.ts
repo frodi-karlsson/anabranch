@@ -69,16 +69,13 @@ export class EventLog<Cursor = string> {
   static connect<Cursor = string>(
     connector: EventLogConnector<Cursor>,
   ): Task<EventLog<Cursor>, EventLogConnectionFailed> {
-    return Task.of(async () => {
-      try {
-        return new EventLog<Cursor>(await connector.connect())
-      } catch (error) {
-        throw new EventLogConnectionFailed(
+    return Task.of(async () => new EventLog<Cursor>(await connector.connect()))
+      .mapErr((error) => {
+        return new EventLogConnectionFailed(
           error instanceof Error ? error.message : String(error),
           error,
         )
-      }
-    })
+      })
   }
 
   /**
@@ -92,15 +89,11 @@ export class EventLog<Cursor = string> {
    * ```
    */
   close(): Task<void, EventLogCloseFailed> {
-    return Task.of(async () => {
-      try {
-        await this.adapter.close()
-      } catch (error) {
-        throw new EventLogCloseFailed(
-          error instanceof Error ? error.message : String(error),
-          error,
-        )
-      }
+    return Task.of(async () => await this.adapter.close()).mapErr((error) => {
+      return new EventLogCloseFailed(
+        error instanceof Error ? error.message : String(error),
+        error,
+      )
     })
   }
 
@@ -125,17 +118,14 @@ export class EventLog<Cursor = string> {
     data: T,
     options?: AppendOptions,
   ): Task<string, EventLogAppendFailed> {
-    return Task.of(async () => {
-      try {
-        return await this.adapter.append(topic, data, options)
-      } catch (error) {
-        throw new EventLogAppendFailed(
+    return Task.of(async () => await this.adapter.append(topic, data, options))
+      .mapErr((error) => {
+        return new EventLogAppendFailed(
           topic,
           error instanceof Error ? error.message : String(error),
           error,
         )
-      }
-    })
+      })
   }
 
   /**
@@ -251,17 +241,15 @@ export class EventLog<Cursor = string> {
     consumerGroup: string,
     cursor: Cursor,
   ): Task<void, EventLogCommitCursorFailed> {
-    return Task.of(async () => {
-      try {
-        await this.adapter.commitCursor(topic, consumerGroup, cursor)
-      } catch (error) {
-        throw new EventLogCommitCursorFailed(
-          topic,
-          consumerGroup,
-          error instanceof Error ? error.message : String(error),
-          error,
-        )
-      }
+    return Task.of(async () =>
+      await this.adapter.commitCursor(topic, consumerGroup, cursor)
+    ).mapErr((error) => {
+      return new EventLogCommitCursorFailed(
+        topic,
+        consumerGroup,
+        error instanceof Error ? error.message : String(error),
+        error,
+      )
     })
   }
 
@@ -284,17 +272,15 @@ export class EventLog<Cursor = string> {
     topic: string,
     consumerGroup: string,
   ): Task<Cursor | null, EventLogGetCursorFailed> {
-    return Task.of(async () => {
-      try {
-        return await this.adapter.getCursor(topic, consumerGroup)
-      } catch (error) {
-        throw new EventLogGetCursorFailed(
-          topic,
-          consumerGroup,
-          error instanceof Error ? error.message : String(error),
-          error,
-        )
-      }
+    return Task.of(async () =>
+      await this.adapter.getCursor(topic, consumerGroup)
+    ).mapErr((error) => {
+      return new EventLogGetCursorFailed(
+        topic,
+        consumerGroup,
+        error instanceof Error ? error.message : String(error),
+        error,
+      )
     })
   }
 }

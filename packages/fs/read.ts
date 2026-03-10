@@ -3,7 +3,6 @@ import { readFile as fsReadFile } from 'node:fs/promises'
 import { createInterface } from 'node:readline'
 import { Source, Task } from '@anabranch/anabranch'
 import {
-  FSError,
   InvalidData,
   nodeErrorToFSError,
   type NotFound,
@@ -38,13 +37,8 @@ export function readLines(path: string | URL): Source<string, ReadFileError> {
 export function readTextFile(
   path: string | URL,
 ): Task<string, ReadFileError> {
-  return Task.of<string, ReadFileError>(async () => {
-    try {
-      return await fsReadFile(path, 'utf8')
-    } catch (error) {
-      throw nodeErrorToFSError(error, path)
-    }
-  })
+  return Task.of(async () => await fsReadFile(path, 'utf8'))
+    .mapErr((error) => nodeErrorToFSError(error, path) as ReadFileError)
 }
 
 /**
@@ -53,14 +47,10 @@ export function readTextFile(
 export function readFile(
   path: string | URL,
 ): Task<Uint8Array, ReadFileError> {
-  return Task.of<Uint8Array, ReadFileError>(async () => {
-    try {
-      const buf = await fsReadFile(path)
-      return new Uint8Array(buf)
-    } catch (error) {
-      throw nodeErrorToFSError(error, path)
-    }
-  })
+  return Task.of(async () => {
+    const buf = await fsReadFile(path)
+    return new Uint8Array(buf)
+  }).mapErr((error) => nodeErrorToFSError(error, path) as ReadFileError)
 }
 
 /**
@@ -70,23 +60,17 @@ export function readFile(
 export function readJson<T extends Record<string, any> = Record<string, any>>(
   path: string | URL,
 ): Task<T, ReadJsonError> {
-  return Task.of<T, ReadJsonError>(async () => {
-    try {
-      const text = await fsReadFile(path, 'utf8')
-      try {
-        return JSON.parse(text) as T
-      } catch (error) {
-        throw new InvalidData(
-          path,
-          (error as Error).message,
-          error,
-        )
-      }
-    } catch (error) {
-      if (error instanceof FSError) throw error
-      throw nodeErrorToFSError(error, path)
-    }
-  })
+  return Task.of<string, ReadFileError>(async () =>
+    await fsReadFile(path, 'utf8')
+  )
+    .mapErr((error) => nodeErrorToFSError(error, path) as ReadFileError)
+    .tryMap((text) => JSON.parse(text) as T, (error) => {
+      return new InvalidData(
+        path,
+        (error as Error).message,
+        error,
+      )
+    })
 }
 
 /** Errors that can occur when reading files. */

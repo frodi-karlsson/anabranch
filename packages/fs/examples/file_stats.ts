@@ -4,6 +4,12 @@ const root = Deno.args[0] ?? '.'
 
 const { successes, errors } = await glob(root, '**/*.{ts,js,json,md}')
   .withConcurrency(8)
+  .filter((entry) =>
+    entry.isFile &&
+    ['/node_modules/', 'package-lock.json'].every((exclude) =>
+      !entry.path.includes(exclude)
+    )
+  )
   .map(async (entry) => {
     const content = await readTextFile(entry.path).run()
     return {

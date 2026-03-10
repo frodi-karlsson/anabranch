@@ -26,6 +26,8 @@ export class FSError extends Error {
 }
 
 export class NotFound extends FSError {
+  override name = 'NotFound' as const
+
   constructor(path: string | URL, message: string) {
     super('NotFound', path, message)
   }
@@ -33,6 +35,8 @@ export class NotFound extends FSError {
 
 /** File already exists when it should not. */
 export class AlreadyExists extends FSError {
+  override name = 'AlreadyExists' as const
+
   constructor(path: string | URL, message: string) {
     super('AlreadyExists', path, message)
   }
@@ -40,6 +44,8 @@ export class AlreadyExists extends FSError {
 
 /** Path is a directory when a file was expected. */
 export class IsDirectory extends FSError {
+  override name = 'IsDirectory' as const
+
   constructor(path: string | URL, message: string) {
     super('IsDirectory', path, message)
   }
@@ -47,6 +53,8 @@ export class IsDirectory extends FSError {
 
 /** Path is not a directory when a directory was expected. */
 export class NotDirectory extends FSError {
+  override name = 'NotDirectory' as const
+
   constructor(path: string | URL, message: string) {
     super('NotDirectory', path, message)
   }
@@ -54,6 +62,8 @@ export class NotDirectory extends FSError {
 
 /** Permission denied accessing the file system. */
 export class PermissionDenied extends FSError {
+  override name = 'PermissionDenied' as const
+
   constructor(path: string | URL, message: string) {
     super('PermissionDenied', path, message)
   }
@@ -61,6 +71,8 @@ export class PermissionDenied extends FSError {
 
 /** Error reading from the file system. */
 export class ReadError extends FSError {
+  override name = 'ReadError' as const
+
   constructor(path: string | URL, message: string) {
     super('ReadError', path, message)
   }
@@ -68,6 +80,8 @@ export class ReadError extends FSError {
 
 /** Error writing to the file system. */
 export class WriteError extends FSError {
+  override name = 'WriteError' as const
+
   constructor(path: string | URL, message: string) {
     super('WriteError', path, message)
   }
@@ -76,6 +90,7 @@ export class WriteError extends FSError {
 /** File content is invalid (e.g., malformed JSON). */
 export class InvalidData extends FSError {
   override readonly cause?: unknown
+  override name = 'InvalidData' as const
 
   constructor(path: string | URL, message: string, cause?: unknown) {
     super('InvalidData', path, message)
@@ -86,7 +101,7 @@ export class InvalidData extends FSError {
 /** Unknown file system error. */
 export class Unknown extends FSError {
   override readonly cause?: unknown
-
+  override name = 'Unknown' as const
   constructor(path: string | URL, message: string, cause?: unknown) {
     super('Unknown', path, message)
     this.cause = cause

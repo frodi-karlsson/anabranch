@@ -53,7 +53,7 @@ export function watch(
 
     watcher.once(
       'error',
-      (err) => channel.fail(nodeErrorToFSError(err, path)),
+      (err) => channel.fail(nodeErrorToFSError(err, path) as WatchError),
     )
 
     watcher.once('close', () => channel.close())

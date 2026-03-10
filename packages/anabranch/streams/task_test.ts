@@ -1,6 +1,7 @@
 import { assertEquals, assertRejects } from '@std/assert'
 import { Task } from '../index.ts'
 import { deferred } from '../test_utils.ts'
+import { ErrorResult } from './util.ts'
 
 Deno.test('Task.result - should return success', async () => {
   const task = Task.of<number, string>(() => Promise.resolve(42))
@@ -354,4 +355,381 @@ Deno.test('Task.timeout - should resolve when task completes within timeout', as
 
   const value = await task.run()
   assertEquals(value, 'success')
+})
+
+Deno.test('Task.throwOn - should throw matching errors', async () => {
+  const task = Task.of<number, 'boom' | 'other'>(() => Promise.reject('boom'))
+
+  await assertRejects(
+    () => task.throwOn((e): e is 'boom' => e === 'boom').run(),
+    'boom',
+  )
+})
+
+Deno.test('Task.throwOn - should pass through non-matching errors', async () => {
+  const task = Task.of<number, 'boom' | 'other'>(() => Promise.reject('other'))
+
+  const result = await task.throwOn((e): e is 'boom' => e === 'boom').result()
+
+  assertEquals(result, { type: 'error', error: 'other' })
+})
+
+Deno.test('Task.tryFlatMap - should chain tasks and handle mapper errors', async () => {
+  const task = Task.of<number, string>(() => Promise.resolve(2)).tryFlatMap(
+    (value) => Task.of<number, never>(() => Promise.resolve(value * 3)),
+    (error) => `handled: ${error}` as never,
+  )
+
+  const result = await task.run()
+
+  assertEquals(result, 6)
+})
+
+Deno.test('Task.tryFlatMap - should use error handler when mapper fails', async () => {
+  const task = Task.of<number, never>(() => Promise.resolve(2)).tryFlatMap(
+    (_value) => Task.of<string, never>(() => Promise.reject('mapper error')),
+    (_error) => 'recovered' as const,
+  )
+
+  const result = await task.run()
+
+  assertEquals(result, 'recovered')
+})
+
+Deno.test('Task.tryFlatMap - should propagate errors from original task', async () => {
+  const task = Task.of<number, string>(() => Promise.reject('original error'))
+    .tryFlatMap(
+      (value) => Task.of(() => Promise.resolve(value * 2)),
+      (_error) => {
+        throw new Error('should not be called')
+      },
+    )
+
+  const result = await task.result()
+
+  assertEquals(result, { type: 'error', error: 'original error' })
+})
+
+Deno.test('Task.tryMap - should transform success value', async () => {
+  const task = Task.of<number, string>(() => Promise.resolve(5)).tryMap(
+    (value) => value * 2,
+    (error) => `handled: ${error}`,
+  )
+
+  const result = await task.run()
+
+  assertEquals(result, 10)
+})
+
+Deno.test('Task.tryMap - should use error handler when mapper throws', async () => {
+  const task = Task.of<number, string>(() => Promise.resolve(5)).tryMap(
+    (value) => {
+      if (value > 3) throw new Error('too big')
+      return value * 2
+    },
+    (error, value) =>
+      new Error(`failed at ${value}: ${(error as Error).message}`),
+  )
+
+  const result = await task.result()
+
+  assertEquals(result.type, 'error')
+  assertEquals(
+    (result as { error: Error }).error.message,
+    'failed at 5: too big',
+  )
+})
+
+Deno.test('Task.tryMap - should propagate original errors', async () => {
+  const task = Task.of<number, string>(() => Promise.reject('original')).tryMap(
+    (value) => value * 2,
+    (error) => `mapped: ${error}`,
+  )
+
+  const result = await task.result()
+
+  assertEquals(result, { type: 'error', error: 'original' })
+})
+
+Deno.test('Task.tryMap - should allow async mapper', async () => {
+  const task = Task.of<string, string>(() => Promise.resolve('hello')).tryMap(
+    (value) => value.toUpperCase(),
+    (error) => `handled: ${error}`,
+  )
+
+  const result = await task.run()
+
+  assertEquals(result, 'HELLO')
+})
+
+Deno.test('Task.tryMap - should allow async error handler', async () => {
+  const task = Task.of<number, string>(() => Promise.resolve(5)).tryMap(
+    (value) => {
+      if (value > 3) throw new Error('too big')
+      return value * 2
+    },
+    async (error) => {
+      await Promise.resolve()
+      return new Error(`failed: ${(error as Error).message}`)
+    },
+  )
+
+  const result = await task.result()
+
+  assertEquals(result.type, 'error')
+  assertEquals((result as { error: Error }).error.message, 'failed: too big')
+})
+
+Deno.test('Task.tryMap - should change error type', async () => {
+  const task = Task.of<number, string>(() => Promise.resolve(5)).tryMap(
+    (value) => {
+      if (value > 3) throw new Error('custom')
+      return value
+    },
+    () => 'recovered' as const,
+  )
+
+  const result = await task.result()
+
+  assertEquals(result, { type: 'error', error: 'recovered' })
+})
+
+Deno.test('Task.flatMapErr - should chain task on error', async () => {
+  const task = Task.of<number, string>(() => Promise.reject('error'))
+    .flatMapErr(
+      (_error) => Task.of<number, string>(() => Promise.reject('mapped')),
+    )
+
+  const result = await task.result()
+
+  assertEquals(result, { type: 'error', error: 'mapped' })
+})
+
+Deno.test('Task.flatMapErr - should pass through success values', async () => {
+  const task = Task.of<number, string>(() => Promise.resolve(42)).flatMapErr(
+    (_error) => Task.of<number, string>(() => Promise.reject('should not run')),
+  )
+
+  const result = await task.run()
+
+  assertEquals(result, 42)
+})
+
+Deno.test('Task.chain - should run single task', async () => {
+  const task = Task.chain([
+    () => Task.of<number, string>(() => Promise.resolve(42)),
+  ])
+
+  const result = await task.run()
+
+  assertEquals(result, 42)
+})
+
+Deno.test('Task.chain - should chain two tasks', async () => {
+  const task = Task.chain([
+    () => Task.of<number, string>(() => Promise.resolve(2)),
+    (prev) => Task.of(() => Promise.resolve(prev * 3)),
+  ])
+
+  const result = await task.run()
+
+  assertEquals(result, 6)
+})
+
+Deno.test('Task.chain - should chain three tasks', async () => {
+  const task = Task.chain([
+    () => Task.of<number, string>(() => Promise.resolve(1)),
+    (prev) => Task.of(() => Promise.resolve(prev + 1)),
+    (prev) => Task.of(() => Promise.resolve(prev * 2)),
+  ])
+
+  const result = await task.run()
+
+  assertEquals(result, 4)
+})
+
+Deno.test('Task.chain - should chain four tasks', async () => {
+  const task = Task.chain([
+    () => Task.of<number, string>(() => Promise.resolve(1)),
+    (a) => Task.of(() => Promise.resolve(a + 1)),
+    (b) => Task.of(() => Promise.resolve(b + 2)),
+    (c) => Task.of(() => Promise.resolve(c + 3)),
+  ])
+
+  const result = await task.run()
+
+  assertEquals(result, 7)
+})
+
+Deno.test('Task.chain - should chain five tasks', async () => {
+  const task = Task.chain([
+    () => Task.of(() => 1),
+    (a) => Task.of(() => a * 2),
+    (b) => Task.of(() => b + 1),
+    (c) => Task.of(() => c * 3),
+    (d) => Task.of(() => d - 1),
+  ])
+
+  const result = await task.run()
+
+  assertEquals(result, 8)
+})
+
+Deno.test('Task.chain - should chain six tasks', async () => {
+  const task = Task.chain([
+    () => Task.of(() => Promise.resolve(1)),
+    (a) => Task.of(() => Promise.resolve(a + 1)),
+    (b) => Task.of(() => Promise.resolve(b * 2)),
+    (c) => Task.of(() => Promise.resolve(c - 1)),
+    (d) => Task.of(() => Promise.resolve(d + 3)),
+    (e) => Task.of(() => Promise.resolve(e * 2)),
+  ])
+
+  const result = await task.run()
+
+  assertEquals(result, 12)
+})
+
+Deno.test('Task.chain - should chain seven tasks', async () => {
+  const task = Task.chain([
+    () => Task.of(() => Promise.resolve(1)),
+    (a) => Task.of(() => Promise.resolve(a + 1)),
+    (b) => Task.of(() => Promise.resolve(b * 2)),
+    (c) => Task.of(() => Promise.resolve(c - 1)),
+    (d) => Task.of(() => Promise.resolve(d + 3)),
+    (e) => Task.of(() => Promise.resolve(e * 2)),
+    (f) => Task.of(() => Promise.resolve(f - 5)),
+  ])
+
+  const result = await task.run()
+
+  assertEquals(result, 7)
+})
+
+Deno.test('Task.chain - should pass strings through chain', async () => {
+  const task = Task.chain([
+    () => Task.of(() => Promise.resolve('hello')),
+    (prev) => Task.of(() => Promise.resolve(`${prev} world`)),
+    (prev) => Task.of(() => Promise.resolve(prev + '!')),
+  ])
+
+  const result = await task.run()
+
+  assertEquals(result, 'hello world!')
+})
+
+Deno.test('Task.chain - should short-circuit on first error', async () => {
+  let secondRan = false
+  let thirdRan = false
+
+  const task = Task.chain([
+    () =>
+      Task.of<never, Error>(() => {
+        throw new Error('first error')
+      }),
+    () => {
+      secondRan = true
+      return Task.of(() => 2)
+    },
+    () => {
+      thirdRan = true
+      return Task.of<never, Error>(() => {
+        throw new Error('third error')
+      })
+    },
+  ])
+
+  const result = await task.result()
+
+  assertEquals((result.error as Error).message, 'first error')
+  assertEquals(secondRan, false)
+  assertEquals(thirdRan, false)
+})
+
+Deno.test('ask.chain - should short-circuit on second error', async () => {
+  let thirdRan = false
+
+  const task = Task.chain([
+    () => Task.of(() => 1),
+    () =>
+      Task.of(() => {
+        throw new Error('second error')
+      }),
+    () => {
+      thirdRan = true
+      return Task.of(() => 3)
+    },
+  ])
+
+  const result = await task.result()
+
+  assertEquals(result.type, 'error')
+  assertEquals(
+    (result as ErrorResult<never, Error>).error.message,
+    'second error',
+  )
+  assertEquals(thirdRan, false)
+})
+
+Deno.test('Task.chain - should propagate error type correctly', async () => {
+  const task = Task.chain([
+    () => Task.of(() => Promise.reject('specific' as const)),
+    (_prev) => Task.of(() => Promise.resolve(2)),
+  ])
+
+  const result = await task.result()
+
+  assertEquals(result.type, 'error')
+  assertEquals((result as { error: 'specific' }).error, 'specific')
+})
+
+Deno.test('Task.chain - should support async tasks', async () => {
+  const task = Task.chain([
+    () =>
+      Task.of(async () => {
+        await Promise.resolve()
+        return 1
+      }),
+    (prev) =>
+      Task.of(async () => {
+        await Promise.resolve()
+        return prev + 1
+      }),
+  ])
+
+  const result = await task.run()
+
+  assertEquals(result, 2)
+})
+
+Deno.test('Task.chain - should handle empty array', async () => {
+  const task = Task.chain([])
+
+  const result = await task.run()
+
+  assertEquals(result, undefined)
+})
+
+Deno.test('Task.chain - should support different types in chain', async () => {
+  const task = Task.chain([
+    () => Task.of(() => 5),
+    (n) => Task.of(() => String(n)),
+    (s) => Task.of(() => s.length),
+  ])
+
+  const result = await task.run()
+
+  assertEquals(result, 1)
+})
+
+Deno.test('Task.chain - should support mixed sync and async tasks', async () => {
+  const task = Task.chain([
+    () => Task.of(() => 1),
+    (a) => Task.of(() => a + 1),
+    (b) => Task.of(() => b * 2),
+  ])
+
+  const result = await task.run()
+
+  assertEquals(result, 4)
 })

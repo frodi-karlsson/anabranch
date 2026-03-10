@@ -66,7 +66,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * ```
    * @see {@link Stream.mapErr}
    */
-  map<U>(fn: (value: T) => Promisable<U>): Stream<U, E>
+  map<U, E2 = E>(fn: (value: T) => Promisable<U>): Stream<U, E | E2>
   /**
    * Maps successful values with `fn` and transforms errors with `errFn`. Both
    * receive the original value so you can contextualize the mapping.
@@ -433,6 +433,54 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * ```
    */
   chunks(size: number): Stream<T[], E>
+  /**
+   * Combines this stream with another into tuples, yielding one result per
+   * pair of values. The shorter stream determines when zipping completes.
+   *
+   * @example
+   * ```ts
+   * import { Source } from "anabranch";
+   *
+   * const stream1 = Source.from<number, never>(async function* () {
+   *   yield 1;
+   *   yield 2;
+   *   yield 3;
+   * });
+   *
+   * const stream2 = Source.from<string, never>(async function* () {
+   *   yield "a";
+   *   yield "b";
+   * });
+   *
+   * const zipped = stream1.zip(stream2);
+   * // Emits: { type: "success", value: [1, "a"] }, { type: "success", value: [2, "b"] }
+   * ```
+   */
+  zip<U, F>(other: Stream<U, F>): Stream<[T, U], E | F>
+  /**
+   * Merges two streams by interleaving their results. Both streams must have
+   * compatible error types. The merged stream yields values from either stream
+   * as they become available.
+   *
+   * @example
+   * ```ts
+   * import { Source } from "anabranch";
+   *
+   * const stream1 = Source.from<number, never>(async function* () {
+   *   yield 1;
+   *   yield 3;
+   * });
+   *
+   * const stream2 = Source.from<number, never>(async function* () {
+   *   yield 2;
+   *   yield 4;
+   * });
+   *
+   * const merged = stream1.merge(stream2);
+   * // Emits values in completion order: 1, 2, 3, 4 (order may vary)
+   * ```
+   */
+  merge(other: Stream<T, E>): Stream<T, E>
 
   [Symbol.asyncIterator](): AsyncIterator<Result<T, E>>
 }
@@ -520,21 +568,21 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
     )
   }
 
-  private concurrentMap<U>(
+  private concurrentMap<U, E2>(
     fn: (value: T) => Promisable<U>,
     concurrency: number,
     bufferSize: number,
-  ): AsyncGenerator<Result<U, E>> {
-    return this.concurrentTransform(
+  ): AsyncGenerator<Result<U, E2>> {
+    return this.concurrentTransform<U, E2>(
       async (result) => {
         if (result.type !== 'success') {
-          return [result as unknown as Result<U, E>]
+          return [result as unknown as Result<U, E2>]
         }
         try {
           const value = await fn(result.value)
-          return [{ type: 'success', value } as Result<U, E>]
+          return [{ type: 'success', value } as Result<U, E2>]
         } catch (error) {
-          return [{ type: 'error', error: error as E } as Result<U, E>]
+          return [{ type: 'error', error: error as E2 } as Result<U, E2>]
         }
       },
       concurrency,
@@ -631,9 +679,9 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
     })()
   }
 
-  private sequentialMap<U>(
+  private sequentialMap<U, E2>(
     fn: (value: T) => Promisable<U>,
-  ): AsyncGenerator<Result<U, E>> {
+  ): AsyncGenerator<Result<U, E2>> {
     const source = this.source
     return (async function* () {
       for await (const result of source()) {
@@ -644,18 +692,18 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
               yield {
                 type: 'success',
                 value: await mappedValue,
-              } as Result<U, E>
+              } as Result<U, E2>
             } else {
               yield {
                 type: 'success',
                 value: mappedValue,
-              } as Result<U, E>
+              } as Result<U, E2>
             }
           } catch (error) {
-            yield { type: 'error', error: error as E } as Result<U, E>
+            yield { type: 'error', error: error as E2 } as Result<U, E2>
           }
         } else {
-          yield result as unknown as Result<U, E>
+          yield result as unknown as Result<U, E2>
         }
       }
     })()
@@ -711,18 +759,18 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
     )
   }
 
-  map<U>(fn: (value: T) => Promisable<U>): Stream<U, E> {
+  map<U, E2 = E>(fn: (value: T) => Promisable<U>): Stream<U, E | E2> {
     const concurrency = this.concurrency
     const bufferSize = this.bufferSize
     if (Number.isFinite(concurrency) && concurrency > 1) {
-      return new _StreamImpl<U, E>(
-        () => this.concurrentMap(fn, concurrency, bufferSize),
+      return new _StreamImpl<U, E | E2>(
+        () => this.concurrentMap<U, E2>(fn, concurrency, bufferSize),
         concurrency,
         bufferSize,
       )
     }
-    return new _StreamImpl<U, E>(
-      () => this.sequentialMap(fn),
+    return new _StreamImpl<U, E | E2>(
+      () => this.sequentialMap<U, E2>(fn),
       concurrency,
       bufferSize,
     )
@@ -1142,6 +1190,113 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
             throw result.error
           }
           yield result as unknown as Result<T, Exclude<E, E2>>
+        }
+      },
+      this.concurrency,
+      this.bufferSize,
+    )
+  }
+
+  zip<U, F>(other: Stream<U, F>): Stream<[T, U], E | F> {
+    const left = this.source
+    const right = (other as _StreamImpl<U, F>).source
+
+    return new _StreamImpl<[T, U], E | F>(
+      async function* () {
+        const leftIter = left()
+        const rightIter = right()
+
+        try {
+          while (true) {
+            const [leftRes, rightRes] = await Promise.all([
+              leftIter.next(),
+              rightIter.next(),
+            ])
+
+            if (leftRes.done || rightRes.done) {
+              break
+            }
+
+            const lVal = leftRes.value as Result<T, E>
+            const rVal = rightRes.value as Result<U, F>
+
+            if (lVal.type === 'error' || rVal.type === 'error') {
+              if (lVal.type === 'error') {
+                yield { type: 'error', error: lVal.error } as Result<
+                  [T, U],
+                  E | F
+                >
+              }
+              if (rVal.type === 'error') {
+                yield { type: 'error', error: rVal.error } as Result<
+                  [T, U],
+                  E | F
+                >
+              }
+              continue
+            }
+
+            yield {
+              type: 'success',
+              value: [lVal.value, rVal.value],
+            } as Result<[T, U], E | F>
+          }
+        } finally {
+          await Promise.all([
+            leftIter.return?.(undefined),
+            rightIter.return?.(undefined),
+          ])
+        }
+      },
+      this.concurrency,
+      this.bufferSize,
+    )
+  }
+
+  merge(other: Stream<T, E>): Stream<T, E> {
+    const left = this.source
+    const right = (other as _StreamImpl<T, E>).source
+
+    return new _StreamImpl<T, E>(
+      async function* () {
+        const pullNext = async (iter: AsyncGenerator<Result<T, E>>) => {
+          try {
+            const result = await iter.next()
+            return { iter, result }
+          } catch (error) {
+            return { iter, error: error as E }
+          }
+        }
+
+        const pending = new Map<
+          AsyncGenerator<Result<T, E>>,
+          Promise<
+            {
+              iter: AsyncGenerator<Result<T, E>>
+              result?: IteratorResult<Result<T, E>>
+              error?: E
+            }
+          >
+        >()
+
+        const leftIter = left()
+        const rightIter = right()
+
+        pending.set(leftIter, pullNext(leftIter))
+        pending.set(rightIter, pullNext(rightIter))
+
+        while (pending.size > 0) {
+          const { iter, result, error } = await Promise.race(pending.values())
+
+          if (error) {
+            yield { type: 'error', error } as Result<T, E>
+            pending.delete(iter)
+          } else if (result?.done) {
+            pending.delete(iter)
+          } else {
+            yield result!.value
+            pending.set(iter, pullNext(iter))
+          }
         }
       },
       this.concurrency,

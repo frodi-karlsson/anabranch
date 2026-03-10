@@ -40,7 +40,7 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
 async function loadNotes() {
   notesContainer.innerHTML = ''
 
-  const notes = await storage.list('notes/')
+  const unsortedNotes = await storage.list('notes/')
     .tryMap(
       async (entry) => {
         const { body } = await storage.get(entry.key).run()
@@ -53,6 +53,8 @@ async function loadNotes() {
     )
     .filter((note) => note !== null)
     .collect()
+
+  const notes = unsortedNotes
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
 
   if (notes.length === 0) {

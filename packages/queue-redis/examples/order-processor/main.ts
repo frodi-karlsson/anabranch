@@ -7,6 +7,9 @@
  * - Handle transient errors with retry (nack with requeue)
  * - Route permanently failed orders to dead letter queue
  *
+ * You can expect transient errors for orders with IDs divisible by 11, and permanent failures for IDs divisible by 7.
+ * All other orders will be processed successfully.
+ *
  * ## Setup
  *
  * Start Redis:
@@ -16,7 +19,7 @@
  *
  * Run:
  * ```
- * deno run -A examples/order-processor/main.ts
+ * deno run -A packages/queue-redis/examples/order-processor/main.ts
  * ```
  *
  * Clean up:
@@ -56,7 +59,7 @@ async function main() {
     const results: OrderResult[] = []
 
     const { errors } = await queue
-      .stream<Order>('orders', { count: 10, concurrency: 5 })
+      .stream<Order>('orders', { count: 10 }).withConcurrency(5)
       .map(async (msg) => {
         const order = msg.data
         console.log(
@@ -96,11 +99,11 @@ async function main() {
       errors.forEach((e) => console.log(`  - ${e.message}`))
     }
 
-    const dlqResults = await queue.stream<DlqOrder>('orders-dlq', { count: 10 })
-      .toArray()
-    const dlqMessages = dlqResults.filter((r) => r.type === 'success').map((
-      r,
-    ) => r.value)
+    const { successes: dlqMessages } = await queue.stream<DlqOrder>(
+      'orders-dlq',
+      { count: 10 },
+    )
+      .partition()
     if (dlqMessages.length > 0) {
       console.log(
         `\nDead Letter Queue contains ${dlqMessages.length} failed orders:`,

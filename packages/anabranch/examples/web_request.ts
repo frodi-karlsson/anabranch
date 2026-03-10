@@ -7,13 +7,9 @@ const urls = Deno.args.length ? Deno.args : [
   'https://jsonplaceholder.typicode.com/todos/4',
 ]
 
-const { successes, errors } = await Source.from<string, Error>(
-  async function* () {
-    yield* urls
-  },
-)
+const { successes, errors } = await Source.fromArray(urls)
   .withConcurrency(4)
-  .map(async (url) => {
+  .map<{ url: string; id: number; title: string }, Error>(async (url) => {
     const response = await fetch(url)
     if (!response.ok) {
       throw new Error(`HTTP ${response.status} for ${url}`)

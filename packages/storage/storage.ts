@@ -68,16 +68,13 @@ export class Storage {
   static connect(
     connector: StorageConnector,
   ): Task<Storage, StorageConnectionFailed> {
-    return Task.of(async () => {
-      try {
-        return new Storage(await connector.connect())
-      } catch (error) {
-        throw new StorageConnectionFailed(
+    return Task.of(async () => new Storage(await connector.connect()))
+      .mapErr((error) =>
+        new StorageConnectionFailed(
           error instanceof Error ? error.message : String(error),
           error,
         )
-      }
-    })
+      )
   }
 
   /**
@@ -89,16 +86,13 @@ export class Storage {
    * ```
    */
   close(): Task<void, StorageCloseFailed> {
-    return Task.of(async () => {
-      try {
-        await this.adapter.close()
-      } catch (error) {
-        throw new StorageCloseFailed(
+    return Task.of(async () => await this.adapter.close())
+      .mapErr((error) =>
+        new StorageCloseFailed(
           error instanceof Error ? error.message : String(error),
           error,
         )
-      }
-    })
+      )
   }
 
   /**
@@ -114,17 +108,14 @@ export class Storage {
     body: BodyInput,
     options?: PutOptions,
   ): Task<void, StoragePutFailed> {
-    return Task.of(async () => {
-      try {
-        await this.adapter.put(key, body, options)
-      } catch (error) {
-        throw new StoragePutFailed(
+    return Task.of(async () => await this.adapter.put(key, body, options))
+      .mapErr((error) =>
+        new StoragePutFailed(
           key,
           error instanceof Error ? error.message : String(error),
           error,
         )
-      }
-    })
+      )
   }
 
   /**
@@ -139,19 +130,13 @@ export class Storage {
   get(
     key: string,
   ): Task<StorageObject, StorageGetFailed | StorageObjectNotFound> {
-    return Task.of(async () => {
-      try {
-        return await this.adapter.get(key)
-      } catch (error) {
-        if (error instanceof StorageObjectNotFound) {
-          throw error
-        }
-        throw new StorageGetFailed(
-          key,
-          error instanceof Error ? error.message : String(error),
-          error,
-        )
-      }
+    return Task.of(async () => await this.adapter.get(key)).mapErr((error) => {
+      if (error instanceof StorageObjectNotFound) return error
+      return new StorageGetFailed(
+        key,
+        error instanceof Error ? error.message : String(error),
+        error,
+      )
     })
   }
 
@@ -189,20 +174,13 @@ export class Storage {
   head(
     key: string,
   ): Task<StorageMetadata, StorageHeadFailed | StorageObjectNotFound> {
-    return Task.of(async () => {
-      try {
-        return await this.adapter.head(key)
-      } catch (error) {
-        if (error instanceof StorageObjectNotFound) {
-          throw error
-        }
-        throw new StorageHeadFailed(
-          key,
-          error instanceof Error ? error.message : String(error),
-          error,
-        )
-      }
-    })
+    return Task.of(async () => await this.adapter.head(key)).mapErr((error) =>
+      error instanceof StorageObjectNotFound ? error : new StorageHeadFailed(
+        key,
+        error instanceof Error ? error.message : String(error),
+        error,
+      )
+    )
   }
 
   /**

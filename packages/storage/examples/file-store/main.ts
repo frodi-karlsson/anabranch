@@ -7,10 +7,13 @@
  * - Handle transient failures with retry and collect errors separately
  * - Use Source.partition() to separate successes from errors
  *
+ * You should see the uploaded files listed with their metadata, followed by concurrent fetches of metadata and content.
+ * Finally, all files are deleted and the store is confirmed empty.
+ *
  * ## Run
  *
  * ```
- * deno run -A examples/file-store/main.ts
+ * deno run -A packages/storage/examples/file-store/main.ts
  * ```
  */
 
@@ -47,9 +50,7 @@ async function main() {
 
     console.log(`Uploading ${files.length} files...\n`)
 
-    await Source.from<UploadedFile, never>(async function* () {
-      for (const file of files) yield file
-    })
+    await Source.fromArray(files)
       .tap((file) =>
         storage.put(file.filename, file.content, {
           contentType: file.contentType,
@@ -70,11 +71,7 @@ async function main() {
 
     console.log('\nFetching metadata and content concurrently...\n')
 
-    await Source.from<UploadedFile, never>(
-      async function* () {
-        for (const file of files) yield file
-      },
-    )
+    await Source.fromArray(files)
       .withConcurrency(3)
       .map(async (file) => {
         const metadata = await storage.head(file.filename)
@@ -96,9 +93,7 @@ async function main() {
 
     console.log('\n--- Cleanup ---\n')
 
-    await Source.from<UploadedFile, never>(async function* () {
-      for (const file of files) yield file
-    })
+    await Source.fromArray(files)
       .tap((file) => storage.delete(file.filename).run())
       .tap((file) => console.log(`  Deleted: ${file.filename}`))
       .collect()

@@ -16,13 +16,10 @@ export function writeTextFile(
   path: string | URL,
   content: string,
 ): Task<void, WriteFileError> {
-  return Task.of<void, WriteFileError>(async () => {
-    try {
-      await fsWriteFile(path, content, 'utf8')
-    } catch (error) {
-      throw nodeErrorToFSError(error, path)
-    }
-  })
+  return Task.of<void, WriteFileError>(async () =>
+    await fsWriteFile(path, content, 'utf8')
+  )
+    .mapErr((error) => nodeErrorToFSError(error, path) as WriteFileError)
 }
 
 /**
@@ -32,13 +29,10 @@ export function writeFile(
   path: string | URL,
   data: Uint8Array,
 ): Task<void, WriteFileError> {
-  return Task.of<void, WriteFileError>(async () => {
-    try {
-      await fsWriteFile(path, data)
-    } catch (error) {
-      throw nodeErrorToFSError(error, path)
-    }
-  })
+  return Task.of<void, WriteFileError>(async () =>
+    await fsWriteFile(path, data)
+  )
+    .mapErr((error) => nodeErrorToFSError(error, path) as WriteFileError)
 }
 
 /**
@@ -48,13 +42,10 @@ export function writeJson(
   path: string | URL,
   value: unknown,
 ): Task<void, WriteFileError> {
-  return Task.of<void, WriteFileError>(async () => {
-    try {
-      await fsWriteFile(path, JSON.stringify(value), 'utf8')
-    } catch (error) {
-      throw nodeErrorToFSError(error, path)
-    }
-  })
+  return Task.of<void, WriteFileError>(async () =>
+    await fsWriteFile(path, JSON.stringify(value), 'utf8')
+  )
+    .mapErr((error) => nodeErrorToFSError(error, path) as WriteFileError)
 }
 
 /** Errors that can occur when writing files. */

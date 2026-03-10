@@ -40,7 +40,7 @@ export type {
   WatchOptions,
 } from './types.ts'
 export { FSError } from './errors.ts'
-export type {
+export {
   AlreadyExists,
   InvalidData,
   IsDirectory,

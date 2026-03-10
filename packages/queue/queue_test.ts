@@ -69,15 +69,12 @@ Deno.test({
       await queue.send('test-queue', { index: i }).run()
     }
 
-    const stream = queue.stream<{ index: number }>('test-queue', {
-      concurrency: 3,
-    })
-    const { successes } = await stream
-      .map(async (msg) => {
+    const stream = queue.stream<{ index: number }>('test-queue')
+      .withConcurrency(3).map(async (msg) => {
         await new Promise((resolve) => setTimeout(resolve, 10))
         return msg.data?.index
       })
-      .partition()
+    const { successes } = await stream.partition()
 
     assertEquals(successes.length, 5)
 
@@ -454,13 +451,12 @@ Deno.test({
         streamError = err
         ac.abort()
       })
+      .partition()
 
-    const consumePromise = stream.partition()
-
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    await new Promise((resolve) => setTimeout(resolve, 100))
     await connector.end()
-
-    await consumePromise
+    await stream
+    ac.abort()
 
     assertExists(streamError)
     assertEquals(streamError.name, 'QueueReceiveFailed')

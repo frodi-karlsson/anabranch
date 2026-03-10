@@ -1,5 +1,6 @@
 import { _StreamImpl } from './stream.ts'
 import type { Result } from './util.ts'
+import type { Task } from './task.ts'
 
 /**
  * The entry point for creating a {@link Stream}. Wraps an async generator so
@@ -92,6 +93,24 @@ export class Source<T, E> extends _StreamImpl<T, E> {
     source: () => AsyncGenerator<Result<T, E>>,
   ): Source<T, E> {
     return new Source(source)
+  }
+
+  /**
+   * Creates a {@link Source} from a Task.
+   */
+  static fromTask<T, E>(task: Task<T, E>): Source<T, E> {
+    return Source.fromResults<T, E>(async function* () {
+      yield await task.result()
+    })
+  }
+
+  /**
+   * Creates a {@link Source} from an array of values.
+   */
+  static fromArray<T>(items: T[]): Source<T, never> {
+    return Source.from(async function* () {
+      yield* items
+    })
   }
 
   /**

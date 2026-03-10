@@ -15,9 +15,7 @@ const urls = [
   'https://jsonplaceholder.typicode.com/todos/5',
 ]
 
-const stream = Source.from<string, Error>(async function* () {
-  yield* urls
-})
+const stream = Source.fromArray(urls)
   .withConcurrency(3)
   .tryMap(
     async (url) => {

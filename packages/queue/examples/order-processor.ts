@@ -1,3 +1,14 @@
+/**
+ * Example of a simple order processor using the in-memory queue connector.
+ *
+ * Run:
+ *
+ * ```
+ * deno run -A packages/queue/examples/order-processor.ts
+ * ```
+ *
+ * This will enqueue 5 orders and process them with a concurrency of 2. One order is simulated to fail and will be moved to the dead letter queue.
+ */
 import { createInMemory, Queue } from '../index.ts'
 
 const connector = createInMemory()
@@ -33,7 +44,7 @@ async function main() {
   console.log('\nProcessing with error handling...\n')
 
   const { successes, errors } = await queue
-    .stream<Order>('orders', { count: 5, concurrency: 2 })
+    .stream<Order>('orders', { count: 5 }).withConcurrency(2)
     .map(async (msg) => {
       if (msg.data?.id === 'ORD-3') throw new Error('Simulated failure')
       await processOrder(msg.data)

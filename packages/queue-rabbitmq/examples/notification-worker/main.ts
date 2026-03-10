@@ -17,7 +17,7 @@
  *
  * Run:
  * ```
- * deno run -A examples/notification-worker/main.ts
+ * deno run -A packages/queue-rabbitmq/examples/notification-worker/main.ts
  * ```
  *
  * Clean up:

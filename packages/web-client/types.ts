@@ -37,16 +37,26 @@ export interface ResponseResult {
 }
 
 /**
- * Error details for a failed HTTP request.
+ * Error for a failed HTTP request.
  */
-export interface HttpError {
-  url: URL
-  method: string
-  status?: number
-  reason: string
-  isRetryable: boolean
-  isRateLimited: boolean
-  retryAfter?: number
+export class HttpError extends Error {
+  override name = 'HttpError'
+
+  constructor(
+    public details: {
+      url: URL
+      method: string
+      status?: number
+      reason: string
+      isRetryable: boolean
+      isRateLimited: boolean
+      retryAfter?: number
+    },
+  ) {
+    super(
+      `${details.method} ${details.url} failed with status ${details.status}: ${details.reason}`,
+    )
+  }
 }
 
 /**

@@ -1285,3 +1285,132 @@ Deno.test('Stream.chunks - should flush chunk on error', async () => {
     { type: 'success', value: [4] },
   ])
 })
+
+Deno.test('Stream.zip - should combine two streams into tuples', async () => {
+  const stream1 = streamFrom<number, string>([
+    success(1),
+    success(2),
+    success(3),
+  ])
+  const stream2 = streamFrom<string, string>([success('a'), success('b')])
+
+  const zipped = stream1.zip(stream2)
+
+  const results = await zipped.collect()
+
+  assertEquals(results, [[1, 'a'], [2, 'b']])
+})
+
+Deno.test('Stream.zip - should stop at shorter stream', async () => {
+  const stream1 = streamFrom<number, string>([success(1)])
+  const stream2 = streamFrom<number, string>([
+    success(10),
+    success(20),
+    success(30),
+  ])
+
+  const zipped = stream1.zip(stream2)
+
+  const results = await zipped.collect()
+
+  assertEquals(results, [[1, 10]])
+})
+
+Deno.test('Stream.zip - should handle errors from left stream', async () => {
+  const stream1 = streamFrom<number, string>([
+    success(1),
+    failure('boom'),
+    success(3),
+  ])
+  const stream2 = streamFrom<number, string>([success(10), success(20)])
+
+  const zipped = stream1.zip(stream2)
+
+  const results = await zipped.toArray()
+
+  assertEquals(results, [
+    { type: 'success', value: [1, 10] },
+    { type: 'error', error: 'boom' },
+  ])
+})
+
+Deno.test('Stream.zip - should handle errors from right stream', async () => {
+  const stream1 = streamFrom<number, string>([success(1), success(2)])
+  const stream2 = streamFrom<number, string>([success(10), failure('boom')])
+
+  const zipped = stream1.zip(stream2)
+
+  const results = await zipped.toArray()
+
+  assertEquals(results, [
+    { type: 'success', value: [1, 10] },
+    { type: 'error', error: 'boom' },
+  ])
+})
+
+Deno.test('Stream.merge - should interleave two streams', async () => {
+  const stream1 = Source.from<number, never>(async function* () {
+    yield 1
+    yield 3
+  })
+  const stream2 = Source.from<number, never>(async function* () {
+    yield 2
+    yield 4
+  })
+
+  const merged = stream1.merge(stream2)
+
+  const results = await merged.collect()
+
+  assertEquals(results.sort((a, b) => a - b), [1, 2, 3, 4])
+})
+
+Deno.test('Stream.merge - should pass through errors', async () => {
+  const stream1 = Source.from<number, Error>(async function* () {
+    yield 1
+    yield 2
+  })
+  const stream2 = Source.from<number, Error>(async function* () {
+    yield 3
+    throw new Error('boom')
+  })
+
+  const merged = stream1.merge(stream2)
+
+  const { errors } = await merged.partition()
+
+  assertEquals(errors.length, 1)
+  assertEquals(errors[0]?.message, 'boom')
+})
+
+Deno.test('Stream.merge - should handle empty streams', async () => {
+  const stream1 = Source.from<number, never>(async function* () {
+    // empty
+  })
+  const stream2 = Source.from<number, never>(async function* () {
+    yield 1
+    yield 2
+  })
+
+  const merged = stream1.merge(stream2)
+
+  const results = await merged.collect()
+
+  assertEquals(results, [1, 2])
+})
+
+Deno.test('Stream.merge - should complete when both streams are done', async () => {
+  const stream1 = Source.from<number, never>(async function* () {
+    yield 1
+  })
+  const stream2 = Source.from<number, never>(async function* () {
+    yield 2
+  })
+
+  const merged = stream1.merge(stream2)
+  const results = await merged.collect()
+
+  assertEquals(results.length, 2)
+  assertEquals(results.includes(1), true)
+  assertEquals(results.includes(2), true)
+})
