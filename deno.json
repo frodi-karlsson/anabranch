@@ -17,7 +17,8 @@
     "./packages/storage-gcs",
     "./packages/eventlog",
     "./packages/eventlog-kafka",
-    "./packages/nosql"
+    "./packages/nosql",
+    "./packages/nosql-datastore"
   ],
   "lint": {
     "rules": {

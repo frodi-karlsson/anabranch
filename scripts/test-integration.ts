@@ -147,6 +147,7 @@ async function runTest(
     '--allow-sys',
     '--allow-env',
     '--allow-net',
+    '--trace-leaks',
   ]
   if (filter) {
     args.push('--filter', filter)

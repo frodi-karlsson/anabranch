@@ -1,0 +1,28 @@
+{
+  "name": "nosql-datastore",
+  "description": "Google Cloud Datastore adapter for @anabranch/nosql",
+  "env": {
+    "DATASTORE_PROJECT_ID": "test-project",
+    "DATASTORE_EMULATOR_HOST": "localhost:3232"
+  },
+  "service": {
+    "name": "datastore-emulator",
+    "image": "google/cloud-sdk:emulators",
+    "args": [
+      "gcloud",
+      "beta",
+      "emulators",
+      "datastore",
+      "start",
+      "--host-port=0.0.0.0:3232",
+      "--project=test-project"
+    ],
+    "ports": [
+      "3232:3232"
+    ],
+    "probe": {
+      "type": "http",
+      "url": "http://127.0.0.1:3232/"
+    }
+  }
+}
