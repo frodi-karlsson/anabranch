@@ -114,6 +114,18 @@ export class Source<T, E> extends _StreamImpl<T, E> {
   }
 
   /**
+   * Creates a {@link Source} that emits a range of numbers from `start` (inclusive) to `end` (exclusive).
+   * Each number is emitted as a success result.
+   */
+  static fromRange(start: number, end: number): Source<number, never> {
+    return Source.from(async function* () {
+      for (let i = start; i < end; i++) {
+        yield i
+      }
+    })
+  }
+
+  /**
    * Sets the maximum number of concurrent operations for the stream.
    */
   withConcurrency(n: number): Source<T, E> {

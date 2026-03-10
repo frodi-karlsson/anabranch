@@ -1,0 +1,4 @@
+{
+  "name": "nosql",
+  "description": "NoSQL document collection primitives with Task/Stream semantics"
+}
