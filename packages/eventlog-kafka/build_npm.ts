@@ -9,7 +9,7 @@ const { description } = JSON.parse(
 
 await emptyDir(`${dir}/npm`)
 
-const anabranchPath = resolve(dir, '../anabranch/index.ts')
+const eventlogPath = resolve(dir, '../eventlog/index.ts')
 
 await build({
   entryPoints: [`${dir}/index.ts`],
@@ -33,13 +33,13 @@ await build({
       url: 'https://github.com/frodi-karlsson/anabranch.git',
     },
     dependencies: {
-      anabranch: '^0',
+      '@anabranch/eventlog': '^0',
       kafkajs: '^2',
     },
   },
   mappings: {
-    [new URL(`file://${anabranchPath}`).href]: {
-      name: 'anabranch',
+    [new URL(`file://${eventlogPath}`).href]: {
+      name: '@anabranch/eventlog',
       version: '^0',
     },
   },

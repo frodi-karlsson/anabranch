@@ -10,14 +10,14 @@
     ]
   },
   "imports": {
-    "@anabranch/anabranch": "jsr:@anabranch/anabranch@^0",
+    "@anabranch/eventlog": "jsr:@anabranch/eventlog@^0",
     "kafkajs": "npm:kafkajs@^2",
     "@deno/dnt": "jsr:@deno/dnt@^0",
     "@std/assert": "jsr:@std/assert@^1"
   },
   "mappings": {
-    "@anabranch/anabranch": {
-      "name": "anabranch",
+    "@anabranch/eventlog": {
+      "name": "@anabranch/eventlog",
       "version": "^0"
     }
   }

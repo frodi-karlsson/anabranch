@@ -1910,7 +1910,7 @@
       },
       "packages/eventlog-kafka": {
         "dependencies": [
-          "jsr:@anabranch/anabranch@0",
+          "jsr:@anabranch/eventlog@0",
           "jsr:@deno/dnt@0",
           "jsr:@std/assert@1",
           "npm:kafkajs@2"
