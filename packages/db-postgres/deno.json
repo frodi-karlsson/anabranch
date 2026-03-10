@@ -1,6 +1,6 @@
 {
   "name": "@anabranch/db-postgres",
-  "version": "0.1.14",
+  "version": "0.2.0",
   "exports": "./index.ts",
   "publish": {
     "exclude": [
