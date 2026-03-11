@@ -12,11 +12,15 @@ export const failure = <T = never, E = never>(error: E): ErrorResult<T, E> => ({
 })
 
 export const streamFrom = <T, E>(items: Result<T, E>[]) =>
-  new _StreamImpl<T, E>(async function* () {
-    for (const item of items) {
-      yield item
-    }
-  })
+  new _StreamImpl<T, E>(
+    async function* () {
+      for (const item of items) {
+        yield item
+      }
+    },
+    1,
+    items.length,
+  )
 
 export const deferred = <T = void>() => {
   let resolve!: (value: T | PromiseLike<T>) => void

@@ -36,14 +36,15 @@ async function loadNotes() {
   notesContainer.innerHTML = ''
 
   const notes = await storage.list('notes/')
-    .tryMap(
+    .map(
       async (entry) => {
-        const { body } = await storage.get(entry.key).run()
-        return JSON.parse(await new Response(body).text())
-      },
-      () => {
-        setStatus('Load error - skipping note')
-        return null
+        try {
+          const { body } = await storage.get(entry.key).run()
+          return JSON.parse(await new Response(body).text())
+        } catch {
+          setStatus('Load error - skipping note')
+          return null
+        }
       },
     )
     .filter((note) => note !== null)

@@ -282,6 +282,7 @@ Deno.test({
 
     ac.abort()
     await queue.close().run()
+    await connector.end()
   },
 })
 
@@ -340,6 +341,7 @@ Deno.test({
 
     ac.abort()
     await queue.close().run()
+    await connector.end()
   },
 })
 
@@ -369,6 +371,10 @@ Deno.test({
 
     assertEquals(successes.length, 2)
     assertEquals(errors.length, 1)
+
+    ac.abort()
+    await queue.close().run()
+    await connector.end()
   },
 })
 

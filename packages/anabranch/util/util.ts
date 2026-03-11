@@ -40,3 +40,15 @@ export type SuccessResult<T, _E> = {
   type: 'success'
   value: T
 }
+
+export function isSuccess<T, E>(
+  result: Result<T, E>,
+): result is Result<T, E> & SuccessResult<T, E> {
+  return result.type === 'success'
+}
+
+export function isError<T, E>(
+  result: Result<T, E>,
+): result is Result<T, E> & ErrorResult<T, E> {
+  return result.type === 'error'
+}

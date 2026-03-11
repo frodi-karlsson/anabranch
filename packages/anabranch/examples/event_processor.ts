@@ -5,7 +5,6 @@
  * Key features:
  * - Create a stream of events and filter out non-essential ones
  * - Map events to a new structure while handling potential errors
- * - Use `throwOn` to stop processing on critical errors
  * - Use `fold` to aggregate error statistics at the end
  *
  * Run with:

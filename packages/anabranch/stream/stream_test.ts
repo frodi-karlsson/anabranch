@@ -1,9 +1,4 @@
-import {
-  assertEquals,
-  assertObjectMatch,
-  assertRejects,
-  assertThrows,
-} from '@std/assert'
+import { assertEquals, assertRejects, assertThrows } from '@std/assert'
 import { PumpError, type Result, Source } from '../index.ts'
 import { deferred, failure, streamFrom, success } from '../test_utils.ts'
 import { ErrorResult } from '../util/util.ts'
@@ -1011,131 +1006,6 @@ Deno.test('Stream.tapErr - should provide correct arrivalIndex', async () => {
   ])
 })
 
-Deno.test('Stream.tryMap - should transform successes and errors', async () => {
-  const stream = streamFrom<number, string>([
-    success(1),
-    success(2),
-    failure('original'),
-    success(4),
-  ])
-  const mapped = stream.tryMap(
-    (v) => v * 10,
-    (e, val) => `mapped: ${e} from ${val}`,
-  )
-
-  const results = await mapped.toArray()
-
-  assertEquals(results, [
-    { type: 'success', value: 10 },
-    { type: 'success', value: 20 },
-    { type: 'error', error: 'original' },
-    { type: 'success', value: 40 },
-  ])
-})
-
-Deno.test('Stream.tryMap - should collect errors from fn', async () => {
-  const stream = streamFrom<number, Error>([
-    success(1),
-    success(2),
-    success(3),
-  ])
-  const mapped = stream.tryMap(
-    (v) => {
-      if (v === 2) throw new Error('cannot map 2')
-      return v * 10
-    },
-    (e, val) => new Error(`wrapped: ${val}: ${(e as Error).message}`),
-  )
-
-  const results = await mapped.toArray()
-
-  assertEquals(results.length, 3)
-  assertEquals(results[0], { type: 'success', value: 10 })
-  assertEquals(results[1].type, 'error')
-  assertObjectMatch(results[1], {
-    type: 'error',
-    error: { message: 'wrapped: 2: cannot map 2' },
-  })
-  assertEquals(results[2], { type: 'success', value: 30 })
-})
-
-Deno.test(
-  'Stream.tryMap - should honor concurrency limit',
-  async () => {
-    let inFlight = 0
-    let maxObserved = 0
-    const started = deferred<void>()
-    const gates = [
-      deferred<void>(),
-      deferred<void>(),
-      deferred<void>(),
-      deferred<void>(),
-    ]
-    const stream = Source.from<number, string>(async function* () {
-      yield 1
-      yield 2
-      yield 3
-      yield 4
-    }).withConcurrency(2)
-
-    const mapped = stream.tryMap(
-      async (value) => {
-        inFlight += 1
-        maxObserved = Math.max(maxObserved, inFlight)
-        if (inFlight === 2) {
-          started.resolve()
-        }
-        await gates[value - 1].promise
-        inFlight -= 1
-        return value * 10
-      },
-      (error) => `error: ${error}`,
-    )
-
-    const resultsPromise = mapped.toArray()
-    await started.promise
-    assertEquals(maxObserved, 2)
-
-    for (const gate of gates) {
-      gate.resolve()
-    }
-
-    await resultsPromise
-    assertEquals(maxObserved, 2)
-  },
-)
-
-Deno.test('Stream.tryMap - should provide correct arrivalIndex', async () => {
-  // 1. Only yield successes from upstream
-  const stream = streamFrom<number, string>([
-    success(10),
-    success(20),
-    success(30),
-  ])
-
-  const seen: Array<{ value?: number; error?: unknown; index: number }> = []
-
-  await stream.tryMap(
-    (value, index) => {
-      // deno-lint-ignore no-throw-literal
-      if (value === 20) throw 'bad'
-
-      seen.push({ value, index })
-      return value
-    },
-    (error, _, index) => {
-      seen.push({ error, index })
-      return error
-    },
-  ).toArray()
-
-  assertEquals(seen, [
-    { value: 10, index: 0 },
-    { error: 'bad', index: 1 }, // 20 failed, correctly capturing index 1
-    { value: 30, index: 2 }, // 30 succeeded, correctly capturing index 2
-  ])
-})
-
 Deno.test('Stream.take - should limit successes, errors pass through', async () => {
   const stream = streamFrom<number, string>([
     success(1),
@@ -1713,6 +1583,7 @@ Deno.test('Stream.zip - should handle errors from left stream', async () => {
   assertEquals(results, [
     { type: 'success', value: [1, 10] },
     { type: 'error', error: 'boom' },
+    { type: 'success', value: [3, 20] },
   ])
 })
 
@@ -2139,9 +2010,114 @@ Deno.test('Stream.flatten - should catch and emit errors from inner async iterat
   const results = await flattened.toArray()
 
   assertEquals(results, [
-    // The { type: 'success', value: 1 } is absent because flatMap discards partial inner outputs on error
-    // todo, fix?
+    { type: 'success', value: 1 },
     { type: 'error', error: expectedError },
     { type: 'success', value: 2 },
   ])
+})
+
+Deno.test('Stream.zip — healthy-side value is not dropped when partner emits error', async () => {
+  const left = streamFrom<number, string>([failure('boom'), success(1)])
+  const right = streamFrom<string, never>([success('a'), success('b')])
+
+  const results = await left.zip(right).toArray()
+
+  // There should be exactly one error and one success.
+  assertEquals(results.length, 2)
+
+  const [first, second] = results
+  assertEquals(first, { type: 'error', error: 'boom' })
+
+  // "a" was fetched from the right iterator in the same round as the error.
+  // It must not be discarded — the successful pair must be [1, "a"], not [1, "b"].
+  assertEquals(second, { type: 'success', value: [1, 'a'] })
+})
+
+Deno.test('Stream.zip — both errors emitted when both sides error simultaneously', async () => {
+  // Symmetric case: both sides error in the same round.
+  // Both errors should be emitted and the subsequent pair should use the
+  // next values from each side — nothing dropped.
+  const left = streamFrom<number, string>([failure('left-err'), success(1)])
+  const right = streamFrom<number, string>([failure('right-err'), success(2)])
+
+  const results = await left.zip(right).toArray()
+
+  const errors = results.filter((r) => r.type === 'error')
+  assertEquals(errors.length, 2)
+
+  const successes = results.filter((r) => r.type === 'success')
+  assertEquals(successes.length, 1)
+  assertEquals(successes[0], { type: 'success', value: [1, 2] })
+})
+
+Deno.test('Stream.map — default (Infinity) concurrency executes tasks concurrently', async () => {
+  const gate0 = deferred<void>()
+  const gate1 = deferred<void>()
+  let inFlight = 0
+  let maxInFlight = 0
+
+  // No .withConcurrency() call — uses the Infinity default.
+  const stream = Source.from<number, never>(async function* () {
+    yield 0
+    yield 1
+  })
+
+  const resultsPromise = stream
+    .map(async (value) => {
+      inFlight++
+      maxInFlight = Math.max(maxInFlight, inFlight)
+      await (value === 0 ? gate0.promise : gate1.promise)
+      inFlight--
+      return value
+    })
+    .toArray()
+
+  // Yield to the microtask queue so both tasks have a chance to start.
+  await new Promise((r) => setTimeout(r, 0))
+
+  gate0.resolve()
+  gate1.resolve()
+  await resultsPromise
+
+  assertEquals(
+    maxInFlight,
+    2,
+    `Both tasks should run concurrently with Infinity concurrency, ` +
+      `but maxInFlight was ${maxInFlight} — sequential path is being used.`,
+  )
+})
+
+Deno.test('Stream.flatMap — default (Infinity) concurrency executes tasks concurrently', async () => {
+  const gate0 = deferred<void>()
+  const gate1 = deferred<void>()
+  let inFlight = 0
+  let maxInFlight = 0
+
+  const stream = Source.from<number, never>(async function* () {
+    yield 0
+    yield 1
+  })
+
+  const resultsPromise = stream
+    .flatMap(async (value) => {
+      inFlight++
+      maxInFlight = Math.max(maxInFlight, inFlight)
+      await (value === 0 ? gate0.promise : gate1.promise)
+      inFlight--
+      return [value]
+    })
+    .toArray()
+
+  await new Promise((r) => setTimeout(r, 0))
+
+  gate0.resolve()
+  gate1.resolve()
+  await resultsPromise
+
+  assertEquals(
+    maxInFlight,
+    2,
+    `flatMap should also run concurrently with Infinity concurrency, ` +
+      `but maxInFlight was ${maxInFlight}.`,
+  )
 })

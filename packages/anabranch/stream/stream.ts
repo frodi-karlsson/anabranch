@@ -20,7 +20,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    *
    * @example
    * ```ts
-   * import { Stream } from "anabranch";
+   * import { Source } from "anabranch";
    *
    * const stream = Source.from<number, string>(async function* () {
    *   yield 1;
@@ -39,33 +39,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
   map<U, E2 = E>(
     fn: (value: T, arrivalIndex: number) => Promisable<U>,
   ): Stream<U, E | E2>
-  /**
-   * Maps successful values with `fn` and transforms errors with `errFn`. Both
-   * receive the original value so you can contextualize the mapping.
-   *
-   * @example
-   * ```ts
-   * import { Source } from "anabranch";
-   *
-   * const stream = Source.from<number, Error>(async function* () {
-   *   yield 1;
-   *   throw new Error("failed");
-   *   yield 3;
-   * });
-   *
-   * const result = stream.tryMap(
-   *   (value) => value * 2,
-   *   (err, value) => new Error(`Failed on ${value}: ${err.message}`),
-   * );
-   * ```
-   *
-   * @see {@link Stream.map}
-   * @see {@link Stream.mapErr}
-   */
-  tryMap<U, F = never>(
-    fn: (value: T, arrivalIndex: number) => Promisable<U>,
-    errFn: (error: unknown, value: T, arrivalIndex: number) => Promisable<F>,
-  ): Stream<U, E | F>
+
   /**
    * Similar to `Array.prototype.flatMap`, but works on the stream of results. If the provided function throws an error or returns a rejected promise, the error will be collected and emitted as an error result in the stream.
    *
@@ -94,7 +68,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    *
    * @example
    * ```ts
-   * import { Stream } from "anabranch";
+   * import { Source } from "anabranch";
    *
    * const stream = Source.from<number, string>(async function* () {
    *   yield 1;
@@ -167,7 +141,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    *
    * @example
    * ```ts
-   * import { Stream } from "anabranch";
+   * import { Source } from "anabranch";
    *
    * const stream = Source.from<number, string>(async function* () {
    *   yield 1;
@@ -250,7 +224,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    *
    * @example
    * ```ts
-   * import { Stream } from "anabranch";
+   * import { Source } from "anabranch";
    *
    * const stream = Source.from<number, string>(async function* () {
    *   yield 1;
@@ -270,7 +244,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    *
    * @example
    * ```ts
-   * import { Stream } from "anabranch";
+   * import { Source } from "anabranch";
    *
    * const stream = Source.from<number, string>(async function* () {
    *   yield 1;
@@ -294,7 +268,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    *
    * @example
    * ```ts
-   * import { Stream } from "anabranch";
+   * import { Source } from "anabranch";
    *
    * const stream = Source.from<number, string>(async function* () {
    *   yield 1;
@@ -317,7 +291,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * Recovers from specific error types by applying the provided function to transform them into successful values. This allows you to handle specific errors gracefully while still collecting other errors in the stream.
    * @example
    * ```ts
-   * import { Stream } from "anabranch";
+   * import { Source } from "anabranch";
    *
    * const stream = Source.from<number, "aaaah!" | "eeeek!">(async function* () {
    *   yield 1;
@@ -335,7 +309,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * Recovers from all errors by applying the provided function to transform them into successful values. This allows you to handle all errors gracefully while still collecting successful values in the stream.
    * @example
    * ```ts
-   * import { Stream } from "anabranch";
+   * import { Source } from "anabranch";
    *
    * const stream = Source.from<number, string>(async function* () {
    *   yield 1;
@@ -355,7 +329,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * Throws the specified error types if they are encountered in the stream. This allows you to handle specific errors immediately while continuing to process other errors.
    * @example
    * ```ts
-   * import { Stream } from "anabranch";
+   * import { Source } from "anabranch";
    *
    * const stream = Source.from<number, "aaaah!" | "eeeek!">(async function* () {
    *   yield 1;
@@ -381,7 +355,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    *
    * @example
    * ```ts
-   * import { Stream } from "anabranch";
+   * import { Source } from "anabranch";
    *
    * const stream = Source.from<number, string>(async function* () {
    *   yield 1;
@@ -399,7 +373,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    *
    * @example
    * ```ts
-   * import { Stream } from "anabranch";
+   * import { Source } from "anabranch";
    *
    * const stream = Source.from<number, string>(async function* () {
    *   yield 1;
@@ -613,6 +587,12 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * ```
    */
   flatten<U>(this: Stream<Iterable<U> | AsyncIterable<U>, E>): Stream<U, E>
+
+  /**
+   * Internal method used to enable things like `zip`
+   * There's probably no reason to call this
+   */
+  _getSource(): () => AsyncGenerator<Result<T, E>>
 
   [Symbol.asyncIterator](): AsyncIterator<Result<T, E>>
 }

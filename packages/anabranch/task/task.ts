@@ -92,24 +92,6 @@ export class Task<T, E> {
   }
 
   /**
-   * Maps successful values with `fn` and transforms errors with `errFn`. Both
-   * receive the original value so you can contextualize the mapping.
-   */
-  tryMap<U, F = never>(
-    fn: (value: T) => Promisable<U>,
-    errFn: (error: unknown, value: T) => Promisable<F>,
-  ): Task<U, E | F> {
-    return new Task(async (signal) => {
-      const value = await this.runWithSignal(signal)
-      try {
-        return await fn(value)
-      } catch (error) {
-        throw await errFn(error, value)
-      }
-    })
-  }
-
-  /**
    * Runs a side effect on the successful value.
    */
   tap(fn: (value: T) => Promisable<void>): Task<T, E> {
@@ -162,43 +144,6 @@ export class Task<T, E> {
           return await fn(error as E2)
         }
         throw error
-      }
-    })
-  }
-
-  /**
-   * Throws the specified error types if encountered, propagating them to the caller.
-   */
-  throwOn<E2 extends E>(
-    guard: (error: E) => error is E2,
-  ): Task<T, Exclude<E, E2>> {
-    return new Task(async (signal) => {
-      try {
-        return await this.runWithSignal(signal)
-      } catch (error) {
-        if (guard(error as E)) {
-          throw error
-        }
-        throw error
-      }
-    })
-  }
-
-  /**
-   * Chains another task based on the successful value, with error handling for the mapper.
-   * If the mapper fails, errFn can recover by returning a success value.
-   */
-  tryFlatMap<U, F>(
-    fn: (value: T) => Task<U, F>,
-    errFn: (error: unknown) => Promisable<U>,
-  ): Task<U, E> {
-    return new Task(async (signal) => {
-      const value = await this.runWithSignal(signal)
-      const next = fn(value)
-      try {
-        return await next.runWithSignal(signal)
-      } catch (error) {
-        return await errFn(error) as U
       }
     })
   }

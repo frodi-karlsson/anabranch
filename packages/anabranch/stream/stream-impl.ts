@@ -4,11 +4,16 @@ import { MissingKeyError, NoKeysError, PumpError, Stream } from './stream.ts'
 import { AggregateError } from '../util/util.ts'
 
 export class _StreamImpl<T, E> implements Stream<T, E> {
+  protected concurrency: number
+  protected bufferSize: number
   constructor(
     protected readonly source: () => AsyncGenerator<Result<T, E>>,
-    protected readonly concurrency: number = Infinity,
-    protected readonly bufferSize: number = Infinity,
-  ) {}
+    concurrency: number = Infinity,
+    bufferSize: number = Infinity,
+  ) {
+    this.concurrency = concurrency > 0 ? concurrency : 1
+    this.bufferSize = bufferSize > 0 ? bufferSize : 1
+  }
 
   async toArray(): Promise<Result<T, E>[]> {
     const results: Result<T, E>[] = []
@@ -93,14 +98,13 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
     concurrency: number,
     bufferSize: number,
   ): AsyncGenerator<Result<U, E2>> {
-    let arrivalIndex = 0
     return this.concurrentTransform<U, E2>(
-      async (result) => {
+      async (result, arrivalIndex) => {
         if (result.type !== 'success') {
           return [result as unknown as Result<U, E2>]
         }
         try {
-          const value = await fn(result.value, arrivalIndex++)
+          const value = await fn(result.value, arrivalIndex)
           return [{ type: 'success', value } as Result<U, E2>]
         } catch (error) {
           return [{ type: 'error', error: error as E2 } as Result<U, E2>]
@@ -114,6 +118,7 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
   private concurrentTransform<U, E2>(
     handler: (
       result: Result<T, E>,
+      arrivalIndex: number,
     ) => Promise<Result<U, E2>[]>,
     concurrency: number,
     bufferSize: number,
@@ -125,12 +130,14 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
     const maxBufferSize = Number.isFinite(bufferSize)
       ? Math.max(1, bufferSize)
       : Infinity
+    let arrivalIndex = 0
 
     return (async function* () {
       const queue: Result<U, E2>[] = []
       let head = 0
       let inFlight = 0
       let done = false
+      let cancelled = false
       const waiters: Array<() => void> = []
 
       const wake = () => {
@@ -152,19 +159,32 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
       }
 
       const size = () => queue.length - head
+
+      const sourceIter = source()
       ;(async () => {
         try {
-          for await (const result of source()) {
-            while (inFlight >= maxConcurrency || size() >= maxBufferSize) {
+          while (!cancelled) {
+            const { value: result, done: iterDone } = await sourceIter.next()
+            if (iterDone) break
+
+            while (
+              !cancelled &&
+              (inFlight >= maxConcurrency || size() >= maxBufferSize)
+            ) {
               await sleep()
             }
+            if (cancelled) break
 
             inFlight += 1
+
+            const currentIndex = result.type === 'success' ? arrivalIndex++ : -1
             Promise.resolve()
               .then(async () => {
-                const outputs = await handler(result)
-                for (const output of outputs) {
-                  push(output)
+                const outputs = await handler(result, currentIndex)
+                if (!cancelled) {
+                  for (const output of outputs) {
+                    push(output)
+                  }
                 }
               })
               .finally(() => {
@@ -173,32 +193,43 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
               })
           }
         } catch (error) {
-          push({ type: 'error', error: error as E2 } as Result<U, E2>)
+          if (!cancelled) {
+            push({ type: 'error', error: error as E2 } as Result<U, E2>)
+          }
+        } finally {
+          await sourceIter.return?.(undefined)
         }
         done = true
         wake()
       })()
 
-      while (true) {
-        while (size() === 0 && (!done || inFlight > 0)) {
-          await sleep()
-        }
+      try {
+        while (true) {
+          while (size() === 0 && (!done || inFlight > 0)) {
+            await sleep()
+          }
 
-        if (size() === 0) {
-          break
-        }
+          if (size() === 0) {
+            break
+          }
 
-        const next = queue[head]
-        queue[head] = undefined as unknown as Result<U, E2>
-        head += 1
-        if (head > 256 && head * 2 >= queue.length) {
-          queue.splice(0, head)
-          head = 0
+          const next = queue[head]
+          queue[head] = undefined as unknown as Result<U, E2>
+          head += 1
+          if (head > 256 && head * 2 >= queue.length) {
+            queue.splice(0, head)
+            head = 0
+          }
+          if (next) {
+            yield next
+            wake()
+          }
         }
-        if (next) {
-          yield next
-          wake()
-        }
+      } finally {
+        // Consumer exited early (e.g. take). Signal the pump to stop and wake
+        // it in case it is blocked on sleep().
+        cancelled = true
+        wake()
       }
     })()
   }
@@ -232,32 +263,6 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
         }
       }
     })()
-  }
-
-  private concurrentTryMap<U, F>(
-    fn: (value: T, arrivalIndex: number) => Promisable<U>,
-    errFn: (error: unknown, value: T, arrivalIndex: number) => Promisable<F>,
-    concurrency: number,
-    bufferSize: number,
-  ): AsyncGenerator<Result<U, E | F>> {
-    let arrivalIndex = 0
-    return this.concurrentTransform(
-      async (result) => {
-        const currentIndex = arrivalIndex++
-        if (result.type !== 'success') {
-          return [result as unknown as Result<U, E | F>]
-        }
-        try {
-          const value = await fn(result.value, currentIndex)
-          return [{ type: 'success', value } as Result<U, E | F>]
-        } catch (error) {
-          const mappedError = await errFn(error, result.value, currentIndex)
-          return [{ type: 'error', error: mappedError } as Result<U, E | F>]
-        }
-      },
-      concurrency,
-      bufferSize,
-    )
   }
 
   private concurrentFlatMap<U>(
@@ -295,7 +300,7 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
   ): Stream<U, E | E2> {
     const concurrency = this.concurrency
     const bufferSize = this.bufferSize
-    if (Number.isFinite(concurrency) && concurrency > 1) {
+    if (concurrency > 1) {
       return new _StreamImpl<U, E | E2>(
         () => this.concurrentMap<U, E2>(fn, concurrency, bufferSize),
         concurrency,
@@ -309,35 +314,6 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
     )
   }
 
-  tryMap<U, F>(
-    fn: (value: T, arrivalIndex: number) => Promisable<U>,
-    errFn: (error: unknown, value: T, arrivalIndex: number) => Promisable<F>,
-  ): Stream<U, E | F> {
-    const concurrency = this.concurrency
-    const bufferSize = this.bufferSize
-    if (Number.isFinite(concurrency) && concurrency > 1) {
-      return new _StreamImpl<U, E | F>(
-        () => this.concurrentTryMap(fn, errFn, concurrency, bufferSize),
-        concurrency,
-        bufferSize,
-      )
-    }
-    let successIndex = 0
-    return this.transform(async (result) => {
-      if (result.type === 'success') {
-        const currentIndex = successIndex++
-        try {
-          const value = await fn(result.value, currentIndex)
-          return [{ type: 'success', value } as Result<U, E | F>]
-        } catch (error) {
-          const mappedError = await errFn(error, result.value, currentIndex)
-          return [{ type: 'error', error: mappedError } as Result<U, E | F>]
-        }
-      }
-      return [result as unknown as Result<U, E | F>]
-    })
-  }
-
   flatMap<U>(
     fn: (
       value: T,
@@ -346,7 +322,7 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
   ): Stream<U, E> {
     const concurrency = this.concurrency
     const bufferSize = this.bufferSize
-    if (Number.isFinite(concurrency) && concurrency > 1) {
+    if (concurrency > 1) {
       return new _StreamImpl<U, E>(
         () => this.concurrentFlatMap(fn, concurrency, bufferSize),
         concurrency,
@@ -362,8 +338,12 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
       try {
         const mapped = await fn(result.value, successIndex++)
         const outputs: Result<U, E>[] = []
-        for await (const value of toAsyncIterable<U>(mapped)) {
-          outputs.push({ type: 'success', value } as Result<U, E>)
+        try {
+          for await (const value of toAsyncIterable<U>(mapped)) {
+            outputs.push({ type: 'success', value } as Result<U, E>)
+          }
+        } catch (error) {
+          outputs.push({ type: 'error', error: error as E } as Result<U, E>)
         }
         return outputs
       } catch (error) {
@@ -414,12 +394,10 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
     const bufferSize = this.bufferSize
     return new _StreamImpl<T, E>(
       async function* () {
-        let count = 0
         let arrivalIndex = 0
         for await (const result of source()) {
           if (result.type === 'success') {
             try {
-              count += 1
               const ret = fn(result.value, arrivalIndex++)
               if (isPromise(ret)) await ret
               yield result
@@ -447,12 +425,10 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
     const bufferSize = this.bufferSize
     return new _StreamImpl<T, E>(
       async function* () {
-        let count = 0
         let arrivalIndex = 0
         for await (const result of source()) {
           if (result.type === 'error') {
             try {
-              count += 1
               const ret = fn(result.error, arrivalIndex++)
               if (isPromise(ret)) await ret
               yield result
@@ -719,12 +695,13 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
   }
 
   recoverWhen<E2 extends E, U = T>(
-    guard: (error: E) => error is E2,
+    guard: (error: E, errorIndex: number) => error is E2,
     fn: (error: E2, arrivalIndex: number) => Promisable<U>,
   ): Stream<T | U, Exclude<E, E2>> {
     let arrivalIndex = 0
+    let errorIndex = 0
     return this.transform(async (result) => {
-      if (result.type === 'error' && guard(result.error)) {
+      if (result.type === 'error' && guard(result.error, errorIndex++)) {
         try {
           const recoveredValue = await fn(result.error, arrivalIndex++)
           return [
@@ -792,21 +769,49 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
     )
   }
 
+  _getSource(): () => AsyncGenerator<Result<T, E>> {
+    return this.source
+  }
+
   zip<U, F>(other: Stream<U, F>): Stream<[T, U], E | F> {
     const left = this.source
-    const right = (other as _StreamImpl<U, F>).source
+    const right = other._getSource()
 
     return new _StreamImpl<[T, U], E | F>(
       async function* () {
         const leftIter = left()
         const rightIter = right()
 
+        // Buffered successes from a round where the partner side errored.
+        // The value was already fetched so we must not discard it — it will
+        // be used as one half of the next successful pair.
+        let bufferedLeft: { value: T } | null = null
+        let bufferedRight: { value: U } | null = null
+
         try {
           while (true) {
             const [leftRes, rightRes] = await Promise.all([
-              leftIter.next(),
-              rightIter.next(),
+              bufferedLeft
+                ? Promise.resolve({
+                  done: false as const,
+                  value: {
+                    type: 'success' as const,
+                    value: bufferedLeft.value,
+                  } as Result<T, E>,
+                })
+                : leftIter.next(),
+              bufferedRight
+                ? Promise.resolve({
+                  done: false as const,
+                  value: {
+                    type: 'success' as const,
+                    value: bufferedRight.value,
+                  } as Result<U, F>,
+                })
+                : rightIter.next(),
             ])
+            bufferedLeft = null
+            bufferedRight = null
 
             if (leftRes.done || rightRes.done) {
               break
@@ -821,12 +826,18 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
                   [T, U],
                   E | F
                 >
+              } else {
+                // Left was a success but right errored — buffer left for next round.
+                bufferedLeft = { value: lVal.value }
               }
               if (rVal.type === 'error') {
                 yield { type: 'error', error: rVal.error } as Result<
                   [T, U],
                   E | F
                 >
+              } else {
+                // Right was a success but left errored — buffer right for next round.
+                bufferedRight = { value: rVal.value }
               }
               continue
             }
@@ -850,7 +861,7 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
 
   merge(other: Stream<T, E>): Stream<T, E> {
     const left = this.source
-    const right = (other as _StreamImpl<T, E>).source
+    const right = other._getSource()
 
     return new _StreamImpl<T, E>(
       async function* () {
@@ -936,8 +947,12 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
 
     const pump = async () => {
       try {
-        for await (const result of this.source()) { //
-          await Promise.all(sources.map((s) => s.waitForCapacity())) //
+        for await (const result of this.source()) {
+          if (sources.every((s) => s.isClosed())) {
+            break
+          }
+
+          await Promise.all(sources.map((s) => s.waitForCapacity()))
 
           for (const s of sources) {
             if (result.type === 'success') {
@@ -1007,8 +1022,14 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
 
     const pump = async () => {
       let arrivalIndex = 0
+      const allChannels = Array.from(channels.values())
+
       try {
         for await (const result of this.source()) {
+          if (allChannels.every((c) => c.isClosed())) {
+            break
+          }
+
           if (result.type === 'success') {
             try {
               const key = await cb(result.value, arrivalIndex++)
@@ -1021,14 +1042,12 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
               await targetChannel.waitForCapacity()
               targetChannel.send(result.value)
             } catch (err) {
-              const allChannels = Array.from(channels.values())
               await Promise.all(allChannels.map((c) => c.waitForCapacity()))
               for (const channel of allChannels) {
                 channel.fail(err as E | MissingKeyError)
               }
             }
           } else {
-            const allChannels = Array.from(channels.values())
             await Promise.all(allChannels.map((c) => c.waitForCapacity()))
             for (const channel of allChannels) {
               channel.fail(result.error)
@@ -1061,7 +1080,7 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
 }
 
 const isPromise = <T>(value: Promisable<T>): value is Promise<T> =>
-  value != null && typeof (value as Promise<T>).then === 'function'
+  value instanceof Promise
 
 const isAsyncIterable = <T>(value: unknown): value is AsyncIterable<T> => {
   if (value === null || value === undefined) {

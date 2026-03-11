@@ -64,12 +64,16 @@ export function readJson<T extends Record<string, any> = Record<string, any>>(
     await fsReadFile(path, 'utf8')
   )
     .mapErr((error) => nodeErrorToFSError(error, path) as ReadFileError)
-    .tryMap((text) => JSON.parse(text) as T, (error) => {
-      return new InvalidData(
-        path,
-        (error as Error).message,
-        error,
-      )
+    .map<T, ReadJsonError>((text) => {
+      try {
+        return JSON.parse(text) as T
+      } catch (error) {
+        throw new InvalidData(
+          path,
+          (error as Error).message,
+          error,
+        )
+      }
     })
 }
 

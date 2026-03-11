@@ -31,7 +31,7 @@ const urls = [
 
 const stream = Source.fromArray(urls)
   .withConcurrency(3)
-  .tryMap(
+  .map(
     async (url) => {
       const response = await fetch(url)
       if (!response.ok) {
@@ -39,7 +39,6 @@ const stream = Source.fromArray(urls)
       }
       return (await response.json()) as ApiResponse
     },
-    (error, url) => new Error(`Failed ${url}: ${error}`),
   )
   .take(4)
 

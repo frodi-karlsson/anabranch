@@ -3,7 +3,7 @@
  * A simple static file server to serve the notebook example in this directory.
  *
  * Usage:
- *   deno run -A packages/storage-browser/examples/notebook/serve.js
+deno run -A packages/storage-browser/examples/notebook/serve.js
  *
  * Then open http://localhost:3000 in your browser to view the notebook example.
  * Yep, it's pretty much ye olde todo-list example
