@@ -1053,6 +1053,10 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
 
     return resultRecord
   }
+
+  flatten<U>(this: Stream<Iterable<U> | AsyncIterable<U>, E>): Stream<U, E> {
+    return this.flatMap((value) => value as Iterable<U> | AsyncIterable<U>)
+  }
 }
 
 const isPromise = <T>(value: Promisable<T>): value is Promise<T> =>

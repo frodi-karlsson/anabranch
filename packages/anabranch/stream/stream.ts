@@ -595,6 +595,25 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
     bufferSize: number,
   ): Record<K, Stream<T, E | MissingKeyError | PumpError | NoKeysError>>
 
+  /**
+   * Flattens a stream of iterables into a stream of individual values. If the provided function throws an error or returns a rejected promise, the error will be collected and emitted as an error result in the stream.
+   * Handles concurrency via the `flatMap` method, so if the inner iterables are produced out of order due to concurrency, the flattened results will reflect that order.
+   *
+   * @example
+   * ```ts
+   * import { Source } from "anabranch";
+   *
+   * const stream = Source.from<number, string>(async function* () {
+   *   yield 1;
+   *   yield 2;
+   * });
+   *
+   * const flattened = stream.flatten();
+   * // If the original stream emitted [1, 2], this will emit 1, then 2 as separate results.
+   * ```
+   */
+  flatten<U>(this: Stream<Iterable<U> | AsyncIterable<U>, E>): Stream<U, E>
+
   [Symbol.asyncIterator](): AsyncIterator<Result<T, E>>
 }
 

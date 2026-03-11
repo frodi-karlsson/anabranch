@@ -2060,3 +2060,88 @@ Deno.test('Stream.splitBy - backpressure on one branch eventually pauses upstrea
   await evenIter.return?.()
   await oddIter.return?.()
 })
+
+Deno.test('Stream.flatten - should flatten standard arrays (Iterable)', async () => {
+  const stream = streamFrom<number[], string>([
+    success([1, 2]),
+    success([]),
+    success([3, 4]),
+  ])
+
+  const flattened = stream.flatten()
+  const results = await flattened.toArray()
+
+  assertEquals(results, [
+    { type: 'success', value: 1 },
+    { type: 'success', value: 2 },
+    { type: 'success', value: 3 },
+    { type: 'success', value: 4 },
+  ])
+})
+
+Deno.test('Stream.flatten - should flatten AsyncIterables', async () => {
+  async function* generateNumbers(start: number) {
+    yield start
+    yield start + 1
+  }
+
+  const stream = streamFrom<AsyncIterable<number>, string>([
+    success(generateNumbers(10)),
+    success(generateNumbers(20)),
+  ])
+
+  const flattened = stream.flatten()
+  const results = await flattened.toArray()
+
+  assertEquals(results, [
+    { type: 'success', value: 10 },
+    { type: 'success', value: 11 },
+    { type: 'success', value: 20 },
+    { type: 'success', value: 21 },
+  ])
+})
+
+Deno.test('Stream.flatten - should pass through outer stream errors', async () => {
+  const stream = streamFrom<number[], string>([
+    success([1]),
+    failure('outer-error'),
+    success([2]),
+  ])
+
+  const flattened = stream.flatten()
+  const results = await flattened.toArray()
+
+  assertEquals(results, [
+    { type: 'success', value: 1 },
+    { type: 'error', error: 'outer-error' },
+    { type: 'success', value: 2 },
+  ])
+})
+
+Deno.test('Stream.flatten - should catch and emit errors from inner async iteration', async () => {
+  const expectedError = new Error('inner generator failed')
+
+  async function* failingGenerator() {
+    yield 1
+    throw expectedError
+  }
+
+  async function* successfulGenerator() {
+    yield 2
+  }
+
+  const stream = streamFrom<AsyncIterable<number>, Error>([
+    success(failingGenerator()),
+    success(successfulGenerator()),
+  ])
+
+  const flattened = stream.flatten()
+  const results = await flattened.toArray()
+
+  assertEquals(results, [
+    // The { type: 'success', value: 1 } is absent because flatMap discards partial inner outputs on error
+    // todo, fix?
+    { type: 'error', error: expectedError },
+    { type: 'success', value: 2 },
+  ])
+})

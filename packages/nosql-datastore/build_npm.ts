@@ -34,6 +34,8 @@ await build({
     },
     dependencies: {
       anabranch: '^0',
+      // Todo: we can't use a more modern version because denos http2 doesn't support newer grpc
+      // maybe we can use different versions for node vs deno
       '@google-cloud/datastore': '^7',
     },
   },
