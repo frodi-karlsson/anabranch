@@ -509,7 +509,7 @@ Deno.test('Task.chain - should short-circuit on first error', async () => {
   assertEquals(thirdRan, false)
 })
 
-Deno.test('ask.chain - should short-circuit on second error', async () => {
+Deno.test('Task.chain - should short-circuit on second error', async () => {
   let thirdRan = false
 
   const task = Task.chain([

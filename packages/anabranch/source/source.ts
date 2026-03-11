@@ -25,15 +25,8 @@ import type { Task } from '../task/task.ts'
  * ```
  */
 export class Source<T, E> extends _StreamImpl<T, E> {
-  /**
-   * @param source An async generator function. Each yielded value becomes a
-   * success result; any thrown error becomes an error result and terminates
-   * the source.
-   * @param concurrency Maximum number of concurrent operations. Defaults to `Infinity`.
-   * @param bufferSize Maximum number of buffered results before backpressure is applied. Defaults to `Infinity`.
-   */
   private constructor(
-    private readonly resultSource: () => AsyncGenerator<Result<T, E>>,
+    resultSource: () => AsyncGenerator<Result<T, E>>,
     concurrency: number = Infinity,
     bufferSize: number = Infinity,
   ) {
@@ -129,13 +122,13 @@ export class Source<T, E> extends _StreamImpl<T, E> {
    * Sets the maximum number of concurrent operations for the stream.
    */
   withConcurrency(n: number): Source<T, E> {
-    return new Source(this.resultSource, n, this.bufferSize)
+    return new Source(this.source, n, this.bufferSize)
   }
 
   /**
    * Sets the maximum number of buffered results before backpressure is applied to the stream. If the buffer is full, the stream will pause until there is space in the buffer for new results.
    */
   withBufferSize(n: number): Source<T, E> {
-    return new Source(this.resultSource, this.concurrency, n)
+    return new Source(this.source, this.concurrency, n)
   }
 }
