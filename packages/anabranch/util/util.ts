@@ -13,6 +13,25 @@ export class AggregateError extends Error {
 }
 
 /**
+ * Thrown in truly unrecoverable circumstances when propagating an error
+ * doesn't make sense.
+ *
+ * The only example at this time is in recover and recoverWhen, when the error
+ * handler itself throws an error. In that case, the original error is lost
+ * and the new error is thrown instead. Here, the alternative would be propagating
+ * an error when the error type is `never`, but that's very unfortunate.
+ */
+export class Death extends Error {
+  constructor(message: string, cause?: unknown) {
+    super(message)
+    this.name = 'Death'
+    if (cause !== undefined) {
+      this.cause = cause
+    }
+  }
+}
+
+/**
  * A result emitted by a {@link Stream}. Either a successful value or a
  * collected error.
  */

@@ -1,5 +1,5 @@
 import { _ChannelSource } from '../channel/channel-source.ts'
-import { Promisable, Result } from '../util/util.ts'
+import { Death, Promisable, Result } from '../util/util.ts'
 import { MissingKeyError, NoKeysError, PumpError, Stream } from './stream.ts'
 import { AggregateError } from '../util/util.ts'
 
@@ -711,12 +711,10 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
             } as Result<T | U, Exclude<E, E2>>,
           ]
         } catch (error) {
-          return [
-            {
-              type: 'error',
-              error: error as Exclude<E, E2>,
-            } as Result<T | U, Exclude<E, E2>>,
-          ]
+          throw new Death(
+            'Error thrown in recoverWhen fn',
+            error,
+          )
         }
       }
       return [result as unknown as Result<T | U, Exclude<E, E2>>]
@@ -738,12 +736,10 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
             } as Result<T | U, never>,
           ]
         } catch (error) {
-          return [
-            { type: 'error', error: error as never } as Result<
-              T | U,
-              never
-            >,
-          ]
+          throw new Death(
+            'Error thrown in recover fn',
+            error,
+          )
         }
       }
       return [result as unknown as Result<T | U, never>]

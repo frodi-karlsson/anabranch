@@ -1,6 +1,9 @@
 import { _ChannelSource } from '../channel/channel-source.ts'
 import { type Promisable, type Result } from '../util/util.ts'
 
+// We use it in a doc comment on recover
+// deno-lint-ignore no-unused-vars
+import { type Death } from '../util/util.ts'
 /**
  * A TypeScript library that provides a powerful and flexible way to handle
  * errors in asynchronous streams. It allows you to collect and manage errors
@@ -300,6 +303,8 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    *
    * const recoveredStream = stream.recoverWhen(e => e === "aaaah!" as const, e => 42);
    * ```
+   *
+   * @throws @see {@link Death} If the provided function itself throws an error or returns a rejected promise. In this case, the original error is lost and the new error is thrown instead.
    */
   recoverWhen<E2 extends E, U>(
     guard: (error: E, arrivalIndex: number) => error is E2,
@@ -319,8 +324,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * const recoveredStream = stream.recover(e => 0);
    * ```
    *
-   * Note! If the recovery function itself throws an error or returns a rejected promise, the new error will be emitted as an error result in the stream.
-   * This means the type lies in this scenario. Try to keep your recovery simple if you can.
+   * @throws @see {@link Death} If the provided function itself throws an error or returns a rejected promise. In this case, the original error is lost and the new error is thrown instead.
    */
   recover<U>(
     fn: (error: E, arrivalIndex: number) => Promisable<U>,

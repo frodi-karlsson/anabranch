@@ -1,7 +1,7 @@
 import { assertEquals, assertRejects, assertThrows } from '@std/assert'
 import { PumpError, type Result, Source } from '../index.ts'
 import { deferred, failure, streamFrom, success } from '../test_utils.ts'
-import { ErrorResult } from '../util/util.ts'
+import { Death, ErrorResult } from '../util/util.ts'
 import { MissingKeyError, NoKeysError } from './stream.ts'
 
 Deno.test('Stream.toArray - should collect all results', async () => {
@@ -819,7 +819,7 @@ Deno.test(
 )
 
 Deno.test(
-  'Stream.recoverWhen - should emit error when recovery function throws',
+  'Stream.recoverWhen - should throw Death when recovery function throws',
   async () => {
     const stream = streamFrom<number, string>([
       failure('recoverable'),
@@ -832,11 +832,10 @@ Deno.test(
       },
     )
 
-    const results = await recovered.toArray()
-
-    assertEquals(results, [
-      { type: 'error', error: 'recovery failed' },
-    ])
+    await assertRejects(
+      () => recovered.toArray(),
+      Death,
+    )
   },
 )
 
@@ -877,21 +876,15 @@ Deno.test('Stream.recover - should convert errors to successes', async () => {
   ])
 })
 
-// TODO: reconsider what should happen if recovery throws. Types make it weird because it sets E to never.
-Deno.test('Stream.recover - should emit error when recovery function throws', async () => {
+Deno.test('Stream.recover - should throw Death when recovery function throws', () => {
   const stream = streamFrom<number, string>([failure('bad')])
   const recovered = stream.recover(() => {
     throw new Error('recovery failed')
   })
 
-  const results = await recovered.toArray()
-
-  assertEquals(results.length, 1)
-  assertEquals(results[0].type, 'error')
-  assertEquals(
-    // deno-lint-ignore no-explicit-any
-    (results[0] as any).error.message,
-    'recovery failed',
+  assertRejects(
+    () => recovered.toArray(),
+    Death,
   )
 })
 
