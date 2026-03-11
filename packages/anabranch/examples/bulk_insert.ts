@@ -1,3 +1,12 @@
+/**
+ * Example of using `chunks` to batch insert records into a database.
+ *
+ * This example simulates inserting user records into a database in batches of 10. It demonstrates how to use `chunks` to group records and perform asynchronous operations on each batch.
+ *
+ * Run with:
+ * ```bash
+deno run --allow-net --allow-read --allow-write packages/anabranch/examples/bulk_insert.ts
+ */
 import { Source } from '../index.ts'
 
 interface UserRecord {
@@ -25,6 +34,9 @@ const userStream = Source.from<UserRecord, Error>(async function* () {
 })
 
 const summary = await userStream
+  .tap((_, i) => {
+    if (i % 5 === 0) console.log(`Processed ${i} records so far...`)
+  })
   .chunks(10)
   .map(async (batch) => {
     const inserted = await mockDb.insertMany(batch)

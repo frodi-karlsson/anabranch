@@ -1,35 +1,5 @@
-import { AggregateError, type Promisable, type Result } from '../util/util.ts'
-
-const isPromise = <T>(value: Promisable<T>): value is Promise<T> =>
-  value != null && typeof (value as Promise<T>).then === 'function'
-
-const isAsyncIterable = <T>(value: unknown): value is AsyncIterable<T> => {
-  if (value === null || value === undefined) {
-    return false
-  }
-  return Symbol.asyncIterator in Object(value)
-}
-
-const isIterable = <T>(value: unknown): value is Iterable<T> => {
-  if (value === null || value === undefined) {
-    return false
-  }
-  return Symbol.iterator in Object(value)
-}
-
-const toAsyncIterable = <T>(
-  iterable: AsyncIterable<T> | Iterable<T>,
-): AsyncIterable<T> => {
-  if (isAsyncIterable<T>(iterable)) {
-    return iterable
-  }
-  if (isIterable<T>(iterable)) {
-    return (async function* () {
-      yield* iterable
-    })()
-  }
-  throw new TypeError('flatMap function must return an iterable')
-}
+import { _ChannelSource } from '../channel/channel-source.ts'
+import { type Promisable, type Result } from '../util/util.ts'
 
 /**
  * A TypeScript library that provides a powerful and flexible way to handle
@@ -66,7 +36,9 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * ```
    * @see {@link Stream.mapErr}
    */
-  map<U, E2 = E>(fn: (value: T) => Promisable<U>): Stream<U, E | E2>
+  map<U, E2 = E>(
+    fn: (value: T, arrivalIndex: number) => Promisable<U>,
+  ): Stream<U, E | E2>
   /**
    * Maps successful values with `fn` and transforms errors with `errFn`. Both
    * receive the original value so you can contextualize the mapping.
@@ -91,8 +63,8 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * @see {@link Stream.mapErr}
    */
   tryMap<U, F = never>(
-    fn: (value: T) => Promisable<U>,
-    errFn: (error: unknown, value: T) => Promisable<F>,
+    fn: (value: T, arrivalIndex: number) => Promisable<U>,
+    errFn: (error: unknown, value: T, arrivalIndex: number) => Promisable<F>,
   ): Stream<U, E | F>
   /**
    * Similar to `Array.prototype.flatMap`, but works on the stream of results. If the provided function throws an error or returns a rejected promise, the error will be collected and emitted as an error result in the stream.
@@ -112,7 +84,10 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * ```
    */
   flatMap<U>(
-    fn: (value: T) => Promisable<AsyncIterable<U> | Iterable<U>>,
+    fn: (
+      value: T,
+      arrivalIndex: number,
+    ) => Promisable<AsyncIterable<U> | Iterable<U>>,
   ): Stream<U, E>
   /**
    * Similar to `Array.prototype.filter`, but works on the stream of results. If the provided function throws an error or returns a rejected promise, the error will be collected and emitted as an error result in the stream.
@@ -136,8 +111,12 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    *
    * @see {@link Stream.filterErr}
    */
-  filter<U extends T>(fn: (value: T) => value is U): Stream<U, E>
-  filter(fn: (value: T) => Promisable<boolean>): Stream<T, E>
+  filter<U extends T>(
+    fn: (value: T, arrivalIndex: number) => value is U,
+  ): Stream<U, E>
+  filter(
+    fn: (value: T, arrivalIndex: number) => Promisable<boolean>,
+  ): Stream<T, E>
   /**
    * Runs a side-effect function on each successful value without transforming it. If the provided function throws an error or returns a rejected promise, the error will be collected and emitted as an error result in place of the original value.
    *
@@ -146,7 +125,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * const stream = source.tap((value) => console.log("Got:", value));
    * ```
    */
-  tap(fn: (value: T) => Promisable<void>): Stream<T, E>
+  tap(fn: (value: T, arrivalIndex: number) => Promisable<void>): Stream<T, E>
   /**
    * Runs a side-effect function on each error without transforming it. If the provided function throws an error or returns a rejected promise, the new error replaces the original.
    *
@@ -155,7 +134,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * const stream = source.tapErr((error) => console.error("Error:", error));
    * ```
    */
-  tapErr(fn: (error: E) => Promisable<void>): Stream<T, E>
+  tapErr(fn: (error: E, arrivalIndex: number) => Promisable<void>): Stream<T, E>
   /**
    * Limits the stream to at most `n` successful values. Errors pass through
    * without counting against the limit. After `n` successes are yielded, the
@@ -176,7 +155,9 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * const belowTen = source.takeWhile((value) => value < 10);
    * ```
    */
-  takeWhile(fn: (value: T) => Promisable<boolean>): Stream<T, E>
+  takeWhile(
+    fn: (value: T, arrivalIndex: number) => Promisable<boolean>,
+  ): Stream<T, E>
   /**
    * Similar to `Array.prototype.reduce`, but works on the stream of results. If the provided function throws an error or returns a rejected promise, the error will be collected and emitted as an error result in the stream.
    *
@@ -206,7 +187,10 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * @throws {AggregateError} If any error results were present in the stream.
    * @see {@link Stream.foldErr}
    */
-  fold<U>(fn: (acc: U, value: T) => Promisable<U>, initialValue: U): Promise<U>
+  fold<U>(
+    fn: (acc: U, value: T, arrivalIndex: number) => Promisable<U>,
+    initialValue: U,
+  ): Promise<U>
   /**
    * Like `fold` but emits the running accumulator after each successful value,
    * allowing downstream operations to react to intermediate states.
@@ -227,9 +211,40 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * @see {@link Stream.fold}
    */
   scan<U>(
-    fn: (acc: U, value: T) => Promisable<U>,
+    fn: (acc: U, value: T, arrivalIndex: number) => Promisable<U>,
     initialValue: U,
   ): Stream<U, E>
+
+  /**
+   * Like `scan` but works on the stream of errors. Emits the running accumulator after each error, allowing downstream operations to react to intermediate error states. If the provided function throws an error or returns a rejected promise, the new error will be collected and emitted as an error result in the stream.
+   *
+   * @example
+   * ```ts
+   * import { Source } from "anabranch";
+   *
+   * const stream = Source.from<number, string>(async function* () {
+   *   yield 1;
+   *   throw new Error("First error");
+   *   yield 2;
+   *   throw new Error("Second error");
+   * });
+   *
+   * const errorScan = stream.scanErr((acc, err) => {
+   *   return acc ? `${acc}; ${err.message}` : err.message;
+   * }, "");
+   *
+   * for await (const result of errorScan) {
+   *   if (result.type === "error") {
+   *     console.error("Accumulated error:", result.error);
+   *   }
+   * }
+   * ```
+   * @see {@link Stream.foldErr}
+   */
+  scanErr<F>(
+    fn: (acc: F, error: E, arrivalIndex: number) => Promisable<F>,
+    initialValue: F,
+  ): Stream<T, F>
   /**
    * Similar to `Array.prototype.map`, but works on the stream of errors. If the provided function throws an error or returns a rejected promise, the new error will be collected and emitted as an error result in the stream.
    *
@@ -249,7 +264,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    *
    * @see {@link Stream.map}
    */
-  mapErr<F>(fn: (error: E) => Promisable<F>): Stream<T, F>
+  mapErr<F>(fn: (error: E, arrivalIndex: number) => Promisable<F>): Stream<T, F>
   /**
    * Similar to `Array.prototype.filter`, but works on the stream of errors. If the provided function throws an error or returns a rejected promise, the error will be collected and emitted as an error result in the stream.
    *
@@ -268,8 +283,12 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * ```
    * @see {@link Stream.filter}
    */
-  filterErr<F extends E>(fn: (error: E) => error is F): Stream<T, F>
-  filterErr(fn: (error: E) => Promisable<boolean>): Stream<T, E>
+  filterErr<F extends E>(
+    fn: (error: E, arrivalIndex: number) => error is F,
+  ): Stream<T, F>
+  filterErr(
+    fn: (error: E, arrivalIndex: number) => Promisable<boolean>,
+  ): Stream<T, E>
   /**
    * Similar to `Array.prototype.reduce`, but works on the stream of errors. If the provided function throws an error or returns a rejected promise, the new error will be collected and emitted as an error result in the stream.
    *
@@ -291,7 +310,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * @see {@link Stream.fold}
    */
   foldErr<F>(
-    fn: (acc: F, error: E) => Promisable<F>,
+    fn: (acc: F, error: E, arrivalIndex: number) => Promisable<F>,
     initialValue: F,
   ): Promise<F>
   /**
@@ -309,8 +328,8 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * ```
    */
   recoverWhen<E2 extends E, U>(
-    guard: (error: E) => error is E2,
-    fn: (error: E2) => Promisable<U>,
+    guard: (error: E, arrivalIndex: number) => error is E2,
+    fn: (error: E2, arrivalIndex: number) => Promisable<U>,
   ): Stream<T | U, Exclude<E, E2>>
   /**
    * Recovers from all errors by applying the provided function to transform them into successful values. This allows you to handle all errors gracefully while still collecting successful values in the stream.
@@ -325,8 +344,13 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    *
    * const recoveredStream = stream.recover(e => 0);
    * ```
+   *
+   * Note! If the recovery function itself throws an error or returns a rejected promise, the new error will be emitted as an error result in the stream.
+   * This means the type lies in this scenario. Try to keep your recovery simple if you can.
    */
-  recover<U>(fn: (error: E) => Promisable<U>): Stream<T | U, never>
+  recover<U>(
+    fn: (error: E, arrivalIndex: number) => Promisable<U>,
+  ): Stream<T | U, never>
   /**
    * Throws the specified error types if they are encountered in the stream. This allows you to handle specific errors immediately while continuing to process other errors.
    * @example
@@ -482,825 +506,73 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    */
   merge(other: Stream<T, E>): Stream<T, E>
 
+  /**
+   * Splits the stream into `n` separate streams that each receive the same results.
+   *
+   * If one of the split streams is slower than the others, it will cause backpressure on the source stream and all other splits until it catches up. Use with caution to avoid unintended bottlenecks.
+   *
+   * @example
+   * ```ts
+   * import { Source } from "anabranch";
+   *
+   * const stream = Source.from<number, never>(async function* () {
+   *   yield 1;
+   *   yield 2;
+   *   yield 3;
+   * });
+   *
+   * const [streamA, streamB] = stream.splitN(2, 10);
+   *
+   * for await (const value of streamA) {
+   *   console.log("Stream A:", value);
+   * }
+   *
+   * for await (const value of streamB) {
+   *   console.log("Stream B:", value);
+   * }
+   * ```
+   */
+  splitN(n: 0 | 1, bufferSize: number): [Stream<T, E | PumpError>]
+  splitN(
+    n: 2,
+    bufferSize: number,
+  ): [Stream<T, E | PumpError>, Stream<T, E | PumpError>]
+  splitN(
+    n: 3,
+    /**
+     * Because `splitN` creates internal buffers to hold values for slower consumers,
+     * we force you to specify a buffer size to ensure you're aware of the potential memory implications.
+     * If you called this on a stream with the default Infinity buffer size, it would be easy to accidentally create an unbounded buffer that grows indefinitely if one of the split streams is slow or stalls.
+     */
+    bufferSize: number,
+  ): [
+    Stream<T, E | PumpError>,
+    Stream<T, E | PumpError>,
+    Stream<T, E | PumpError>,
+  ]
+  splitN(
+    n: 4,
+    bufferSize: number,
+  ): [
+    Stream<T, E | PumpError>,
+    Stream<T, E | PumpError>,
+    Stream<T, E | PumpError>,
+    Stream<T, E | PumpError>,
+  ]
+  splitN(n: number, bufferSize: number): Stream<T, E | PumpError>[]
+
   [Symbol.asyncIterator](): AsyncIterator<Result<T, E>>
 }
 
-export class _StreamImpl<T, E> implements Stream<T, E> {
-  constructor(
-    protected readonly source: () => AsyncGenerator<Result<T, E>>,
-    protected readonly concurrency: number = Infinity,
-    protected readonly bufferSize: number = Infinity,
-  ) {}
-
-  async toArray(): Promise<Result<T, E>[]> {
-    const results: Result<T, E>[] = []
-    for await (const result of this.source()) {
-      results.push(result)
+/**
+ * An error thrown by the internal pump of `splitN` if one of the split streams throws an error. This is a separate error type to allow users to distinguish between errors from the source stream and errors from the pump itself.
+ */
+export class PumpError extends Error {
+  constructor(message: string, cause?: unknown) {
+    super(message)
+    this.name = 'PumpError'
+    if (cause !== undefined) {
+      this.cause = cause
     }
-    return results
-  }
-
-  async collect(): Promise<T[]> {
-    const successes: T[] = []
-    const errors: E[] = []
-
-    for await (const result of this.source()) {
-      if (result.type === 'success') {
-        successes.push(result.value)
-      } else {
-        errors.push(result.error)
-      }
-    }
-
-    if (errors.length) {
-      throw new AggregateError(errors)
-    }
-    return successes
-  }
-
-  successes(): AsyncIterable<T> {
-    const source = this.source
-    return {
-      async *[Symbol.asyncIterator]() {
-        for await (const result of source()) {
-          if (result.type === 'success') {
-            yield result.value
-          }
-        }
-      },
-    }
-  }
-
-  errors(): AsyncIterable<E> {
-    const source = this.source
-    return {
-      async *[Symbol.asyncIterator]() {
-        for await (const result of source()) {
-          if (result.type === 'error') {
-            yield result.error
-          }
-        }
-      },
-    }
-  }
-
-  [Symbol.asyncIterator](): AsyncIterator<Result<T, E>> {
-    return this.source()[Symbol.asyncIterator]()
-  }
-
-  private transform<U, E2>(
-    handler: (result: Result<T, E>) => Promisable<Result<U, E2>[]>,
-  ): Stream<U, E2> {
-    const source = this.source
-    const concurrency = this.concurrency
-    const bufferSize = this.bufferSize
-    return new _StreamImpl<U, E2>(
-      async function* () {
-        for await (const result of source()) {
-          const outputs = await handler(result)
-          for (const output of outputs) {
-            yield output
-          }
-        }
-      },
-      concurrency,
-      bufferSize,
-    )
-  }
-
-  private concurrentMap<U, E2>(
-    fn: (value: T) => Promisable<U>,
-    concurrency: number,
-    bufferSize: number,
-  ): AsyncGenerator<Result<U, E2>> {
-    return this.concurrentTransform<U, E2>(
-      async (result) => {
-        if (result.type !== 'success') {
-          return [result as unknown as Result<U, E2>]
-        }
-        try {
-          const value = await fn(result.value)
-          return [{ type: 'success', value } as Result<U, E2>]
-        } catch (error) {
-          return [{ type: 'error', error: error as E2 } as Result<U, E2>]
-        }
-      },
-      concurrency,
-      bufferSize,
-    )
-  }
-
-  private concurrentTransform<U, E2>(
-    handler: (result: Result<T, E>) => Promise<Result<U, E2>[]>,
-    concurrency: number,
-    bufferSize: number,
-  ): AsyncGenerator<Result<U, E2>> {
-    const source = this.source
-    const maxConcurrency = Number.isFinite(concurrency)
-      ? Math.max(1, concurrency)
-      : Infinity
-    const maxBufferSize = Number.isFinite(bufferSize)
-      ? Math.max(1, bufferSize)
-      : Infinity
-
-    return (async function* () {
-      const queue: Result<U, E2>[] = []
-      let head = 0
-      let inFlight = 0
-      let done = false
-      const waiters: Array<() => void> = []
-
-      const wake = () => {
-        while (waiters.length > 0) {
-          const resolve = waiters.shift()
-          if (resolve) resolve()
-        }
-      }
-
-      const sleep = () =>
-        new Promise<void>((resolve) => {
-          waiters.push(resolve)
-        })
-
-      const push = (result: Result<U, E2>) => {
-        queue.push(result)
-        wake()
-      }
-
-      const size = () => queue.length - head
-      ;(async () => {
-        try {
-          for await (const result of source()) {
-            while (inFlight >= maxConcurrency || size() >= maxBufferSize) {
-              await sleep()
-            }
-
-            inFlight += 1
-            Promise.resolve()
-              .then(async () => {
-                const outputs = await handler(result)
-                for (const output of outputs) {
-                  push(output)
-                }
-              })
-              .finally(() => {
-                inFlight -= 1
-                wake()
-              })
-          }
-        } catch (error) {
-          push({ type: 'error', error: error as E2 } as Result<U, E2>)
-        }
-        done = true
-        wake()
-      })()
-
-      while (true) {
-        while (size() === 0 && (!done || inFlight > 0)) {
-          await sleep()
-        }
-
-        if (size() === 0) {
-          break
-        }
-
-        const next = queue[head]
-        queue[head] = undefined as unknown as Result<U, E2>
-        head += 1
-        if (head > 256 && head * 2 >= queue.length) {
-          queue.splice(0, head)
-          head = 0
-        }
-        if (next) {
-          yield next
-          wake()
-        }
-      }
-    })()
-  }
-
-  private sequentialMap<U, E2>(
-    fn: (value: T) => Promisable<U>,
-  ): AsyncGenerator<Result<U, E2>> {
-    const source = this.source
-    return (async function* () {
-      for await (const result of source()) {
-        if (result.type === 'success') {
-          try {
-            const mappedValue = fn(result.value)
-            if (isPromise(mappedValue)) {
-              yield {
-                type: 'success',
-                value: await mappedValue,
-              } as Result<U, E2>
-            } else {
-              yield {
-                type: 'success',
-                value: mappedValue,
-              } as Result<U, E2>
-            }
-          } catch (error) {
-            yield { type: 'error', error: error as E2 } as Result<U, E2>
-          }
-        } else {
-          yield result as unknown as Result<U, E2>
-        }
-      }
-    })()
-  }
-
-  private concurrentTryMap<U, F>(
-    fn: (value: T) => Promisable<U>,
-    errFn: (error: unknown, value: T) => Promisable<F>,
-    concurrency: number,
-    bufferSize: number,
-  ): AsyncGenerator<Result<U, E | F>> {
-    return this.concurrentTransform(
-      async (result) => {
-        if (result.type !== 'success') {
-          return [result as unknown as Result<U, E | F>]
-        }
-        try {
-          const value = await fn(result.value)
-          return [{ type: 'success', value } as Result<U, E | F>]
-        } catch (error) {
-          const mappedError = await errFn(error, result.value)
-          return [{ type: 'error', error: mappedError } as Result<U, E | F>]
-        }
-      },
-      concurrency,
-      bufferSize,
-    )
-  }
-
-  private concurrentFlatMap<U>(
-    fn: (value: T) => Promisable<AsyncIterable<U> | Iterable<U>>,
-    concurrency: number,
-    bufferSize: number,
-  ): AsyncGenerator<Result<U, E>> {
-    return this.concurrentTransform(
-      async (result) => {
-        if (result.type !== 'success') {
-          return [result as unknown as Result<U, E>]
-        }
-        try {
-          const mapped = await fn(result.value)
-          const outputs: Result<U, E>[] = []
-          for await (const value of toAsyncIterable<U>(mapped)) {
-            outputs.push({ type: 'success', value } as Result<U, E>)
-          }
-          return outputs
-        } catch (error) {
-          return [{ type: 'error', error: error as E } as Result<U, E>]
-        }
-      },
-      concurrency,
-      bufferSize,
-    )
-  }
-
-  map<U, E2 = E>(fn: (value: T) => Promisable<U>): Stream<U, E | E2> {
-    const concurrency = this.concurrency
-    const bufferSize = this.bufferSize
-    if (Number.isFinite(concurrency) && concurrency > 1) {
-      return new _StreamImpl<U, E | E2>(
-        () => this.concurrentMap<U, E2>(fn, concurrency, bufferSize),
-        concurrency,
-        bufferSize,
-      )
-    }
-    return new _StreamImpl<U, E | E2>(
-      () => this.sequentialMap<U, E2>(fn),
-      concurrency,
-      bufferSize,
-    )
-  }
-
-  tryMap<U, F>(
-    fn: (value: T) => Promisable<U>,
-    errFn: (error: unknown, value: T) => Promisable<F>,
-  ): Stream<U, E | F> {
-    const concurrency = this.concurrency
-    const bufferSize = this.bufferSize
-    if (Number.isFinite(concurrency) && concurrency > 1) {
-      return new _StreamImpl<U, E | F>(
-        () => this.concurrentTryMap(fn, errFn, concurrency, bufferSize),
-        concurrency,
-        bufferSize,
-      )
-    }
-    return this.transform(async (result) => {
-      if (result.type === 'success') {
-        try {
-          const value = await fn(result.value)
-          return [{ type: 'success', value } as Result<U, E | F>]
-        } catch (error) {
-          const mappedError = await errFn(error, result.value)
-          return [{ type: 'error', error: mappedError } as Result<U, E | F>]
-        }
-      }
-      return [result as unknown as Result<U, E | F>]
-    })
-  }
-
-  flatMap<U>(
-    fn: (value: T) => Promisable<AsyncIterable<U> | Iterable<U>>,
-  ): Stream<U, E> {
-    const concurrency = this.concurrency
-    const bufferSize = this.bufferSize
-    if (Number.isFinite(concurrency) && concurrency > 1) {
-      return new _StreamImpl<U, E>(
-        () => this.concurrentFlatMap(fn, concurrency, bufferSize),
-        concurrency,
-        bufferSize,
-      )
-    }
-    return this.transform(async (result) => {
-      if (result.type !== 'success') {
-        return [result as unknown as Result<U, E>]
-      }
-
-      try {
-        const mapped = await fn(result.value)
-        const outputs: Result<U, E>[] = []
-        for await (const value of toAsyncIterable<U>(mapped)) {
-          outputs.push({ type: 'success', value } as Result<U, E>)
-        }
-        return outputs
-      } catch (error) {
-        return [{ type: 'error', error: error as E } as Result<U, E>]
-      }
-    })
-  }
-
-  filter(fn: (value: T) => Promisable<boolean>): Stream<T, E> {
-    const source = this.source
-    const concurrency = this.concurrency
-    const bufferSize = this.bufferSize
-    return new _StreamImpl<T, E>(
-      async function* () {
-        for await (const result of source()) {
-          if (result.type === 'success') {
-            try {
-              const shouldInclude = fn(result.value)
-              if (isPromise(shouldInclude)) {
-                if (await shouldInclude) {
-                  yield result
-                }
-              } else if (shouldInclude) {
-                yield result
-              }
-            } catch (error) {
-              yield { type: 'error', error: error as E } as Result<
-                T,
-                E
-              >
-            }
-          } else {
-            yield result
-          }
-        }
-      },
-      concurrency,
-      bufferSize,
-    )
-  }
-
-  tap(fn: (value: T) => Promisable<void>): Stream<T, E> {
-    const source = this.source
-    const concurrency = this.concurrency
-    const bufferSize = this.bufferSize
-    return new _StreamImpl<T, E>(
-      async function* () {
-        for await (const result of source()) {
-          if (result.type === 'success') {
-            try {
-              const ret = fn(result.value)
-              if (isPromise(ret)) await ret
-              yield result
-            } catch (error) {
-              yield { type: 'error', error: error as E } as Result<
-                T,
-                E
-              >
-            }
-          } else {
-            yield result
-          }
-        }
-      },
-      concurrency,
-      bufferSize,
-    )
-  }
-
-  tapErr(fn: (error: E) => Promisable<void>): Stream<T, E> {
-    const source = this.source
-    const concurrency = this.concurrency
-    const bufferSize = this.bufferSize
-    return new _StreamImpl<T, E>(
-      async function* () {
-        for await (const result of source()) {
-          if (result.type === 'error') {
-            try {
-              const ret = fn(result.error)
-              if (isPromise(ret)) await ret
-              yield result
-            } catch (error) {
-              yield { type: 'error', error: error as E } as Result<
-                T,
-                E
-              >
-            }
-          } else {
-            yield result
-          }
-        }
-      },
-      concurrency,
-      bufferSize,
-    )
-  }
-
-  take(n: number): Stream<T, E> {
-    const source = this.source
-    const concurrency = this.concurrency
-    const bufferSize = this.bufferSize
-    return new _StreamImpl<T, E>(
-      async function* () {
-        if (n <= 0) return
-        const gen = source()
-        try {
-          let count = 0
-          for await (const result of gen) {
-            if (result.type === 'success') {
-              count += 1
-            }
-            yield result
-            if (count >= n) break
-          }
-        } finally {
-          await gen.return(undefined)
-        }
-      },
-      concurrency,
-      bufferSize,
-    )
-  }
-
-  takeWhile(fn: (value: T) => Promisable<boolean>): Stream<T, E> {
-    const source = this.source
-    const concurrency = this.concurrency
-    const bufferSize = this.bufferSize
-    return new _StreamImpl<T, E>(
-      async function* () {
-        const gen = source()
-        try {
-          for await (const result of gen) {
-            if (result.type === 'success') {
-              try {
-                const shouldContinue = fn(result.value)
-                if (
-                  isPromise(shouldContinue)
-                    ? !(await shouldContinue)
-                    : !shouldContinue
-                ) {
-                  break
-                }
-                yield result
-              } catch (error) {
-                yield { type: 'error', error: error as E } as Result<T, E>
-                break
-              }
-            } else {
-              yield result
-            }
-          }
-        } finally {
-          await gen.return(undefined)
-        }
-      },
-      concurrency,
-      bufferSize,
-    )
-  }
-
-  async partition(): Promise<{ successes: T[]; errors: E[] }> {
-    const successes: T[] = []
-    const errors: E[] = []
-    for await (const result of this.source()) {
-      if (result.type === 'success') {
-        successes.push(result.value)
-      } else {
-        errors.push(result.error)
-      }
-    }
-    return { successes, errors }
-  }
-
-  async fold<U>(
-    fn: (acc: U, value: T) => Promisable<U>,
-    initialValue: U,
-  ): Promise<U> {
-    let accumulator = initialValue
-    const errors: E[] = []
-    for await (const result of this.source()) {
-      if (result.type === 'success') {
-        accumulator = await fn(accumulator, result.value)
-      } else {
-        errors.push(result.error)
-      }
-    }
-    if (errors.length) {
-      throw new AggregateError(errors)
-    }
-    return accumulator
-  }
-
-  scan<U>(
-    fn: (acc: U, value: T) => Promisable<U>,
-    initialValue: U,
-  ): Stream<U, E> {
-    const source = this.source
-    const concurrency = this.concurrency
-    const bufferSize = this.bufferSize
-    return new _StreamImpl<U, E>(
-      async function* () {
-        let accumulator = initialValue
-        for await (const result of source()) {
-          if (result.type === 'success') {
-            try {
-              accumulator = await fn(accumulator, result.value)
-              yield { type: 'success', value: accumulator } as Result<U, E>
-            } catch (error) {
-              yield { type: 'error', error: error as E } as Result<U, E>
-            }
-          } else {
-            yield result as unknown as Result<U, E>
-          }
-        }
-      },
-      concurrency,
-      bufferSize,
-    )
-  }
-
-  chunks(size: number): Stream<T[], E> {
-    if (size <= 0) {
-      throw new Error('chunks size must be positive')
-    }
-    const source = this.source
-    const concurrency = this.concurrency
-    const bufferSize = this.bufferSize
-    return new _StreamImpl<T[], E>(
-      async function* () {
-        let chunk: T[] = []
-        for await (const result of source()) {
-          if (result.type === 'success') {
-            chunk.push(result.value)
-            if (chunk.length === size) {
-              yield { type: 'success', value: chunk } as Result<T[], E>
-              chunk = []
-            }
-          } else {
-            if (chunk.length > 0) {
-              yield { type: 'success', value: chunk } as Result<T[], E>
-              chunk = []
-            }
-            yield result as Result<T[], E>
-          }
-        }
-        if (chunk.length > 0) {
-          yield { type: 'success', value: chunk } as Result<T[], E>
-        }
-      },
-      concurrency,
-      bufferSize,
-    )
-  }
-
-  mapErr<F>(fn: (error: E) => Promisable<F>): Stream<T, F> {
-    return this.transform(async (result) => {
-      if (result.type === 'error') {
-        try {
-          const mappedError = await fn(result.error)
-          return [
-            { type: 'error', error: mappedError } as Result<T, F>,
-          ]
-        } catch (error) {
-          return [
-            { type: 'error', error: error as F } as Result<T, F>,
-          ]
-        }
-      }
-      return [result as unknown as Result<T, F>]
-    })
-  }
-
-  filterErr(fn: (error: E) => Promisable<boolean>): Stream<T, E> {
-    return this.transform(async (result) => {
-      if (result.type === 'error') {
-        try {
-          const shouldInclude = await fn(result.error)
-          if (shouldInclude) {
-            return [result]
-          }
-          return []
-        } catch (error) {
-          return [{ type: 'error', error: error as E } as Result<T, E>]
-        }
-      }
-      return [result]
-    })
-  }
-
-  async foldErr<F>(
-    fn: (acc: F, error: E) => Promisable<F>,
-    initialValue: F,
-  ): Promise<F> {
-    let accumulator = initialValue
-    for await (const result of this.source()) {
-      if (result.type === 'error') {
-        accumulator = await fn(accumulator, result.error)
-      }
-    }
-    return accumulator
-  }
-
-  recoverWhen<E2 extends E, U = T>(
-    guard: (error: E) => error is E2,
-    fn: (error: E2) => Promisable<U>,
-  ): Stream<T | U, Exclude<E, E2>> {
-    return this.transform(async (result) => {
-      if (result.type === 'error' && guard(result.error)) {
-        try {
-          const recoveredValue = await fn(result.error)
-          return [
-            {
-              type: 'success',
-              value: recoveredValue,
-            } as Result<T | U, Exclude<E, E2>>,
-          ]
-        } catch (error) {
-          return [
-            {
-              type: 'error',
-              error: error as Exclude<E, E2>,
-            } as Result<T | U, Exclude<E, E2>>,
-          ]
-        }
-      }
-      return [result as unknown as Result<T | U, Exclude<E, E2>>]
-    })
-  }
-
-  recover<U>(fn: (error: E) => Promisable<U>): Stream<T | U, never> {
-    return this.transform(async (result) => {
-      if (result.type === 'error') {
-        try {
-          const recoveredValue = await fn(result.error)
-          return [
-            {
-              type: 'success',
-              value: recoveredValue,
-            } as Result<T | U, never>,
-          ]
-        } catch (error) {
-          return [
-            { type: 'error', error: error as never } as Result<
-              T | U,
-              never
-            >,
-          ]
-        }
-      }
-      return [result as unknown as Result<T | U, never>]
-    })
-  }
-
-  throwOn<E2 extends E>(
-    guard: (error: E) => error is E2,
-  ): Stream<T, Exclude<E, E2>> {
-    const source = this.source
-    return new _StreamImpl<T, Exclude<E, E2>>(
-      async function* () {
-        for await (const result of source()) {
-          if (result.type === 'error' && guard(result.error)) {
-            // throwOn intentionally terminates iteration instead of collecting.
-            throw result.error
-          }
-          yield result as unknown as Result<T, Exclude<E, E2>>
-        }
-      },
-      this.concurrency,
-      this.bufferSize,
-    )
-  }
-
-  zip<U, F>(other: Stream<U, F>): Stream<[T, U], E | F> {
-    const left = this.source
-    const right = (other as _StreamImpl<U, F>).source
-
-    return new _StreamImpl<[T, U], E | F>(
-      async function* () {
-        const leftIter = left()
-        const rightIter = right()
-
-        try {
-          while (true) {
-            const [leftRes, rightRes] = await Promise.all([
-              leftIter.next(),
-              rightIter.next(),
-            ])
-
-            if (leftRes.done || rightRes.done) {
-              break
-            }
-
-            const lVal = leftRes.value as Result<T, E>
-            const rVal = rightRes.value as Result<U, F>
-
-            if (lVal.type === 'error' || rVal.type === 'error') {
-              if (lVal.type === 'error') {
-                yield { type: 'error', error: lVal.error } as Result<
-                  [T, U],
-                  E | F
-                >
-              }
-              if (rVal.type === 'error') {
-                yield { type: 'error', error: rVal.error } as Result<
-                  [T, U],
-                  E | F
-                >
-              }
-              continue
-            }
-
-            yield {
-              type: 'success',
-              value: [lVal.value, rVal.value],
-            } as Result<[T, U], E | F>
-          }
-        } finally {
-          await Promise.all([
-            leftIter.return?.(undefined),
-            rightIter.return?.(undefined),
-          ])
-        }
-      },
-      this.concurrency,
-      this.bufferSize,
-    )
-  }
-
-  merge(other: Stream<T, E>): Stream<T, E> {
-    const left = this.source
-    const right = (other as _StreamImpl<T, E>).source
-
-    return new _StreamImpl<T, E>(
-      async function* () {
-        const pullNext = async (iter: AsyncGenerator<Result<T, E>>) => {
-          try {
-            const result = await iter.next()
-            return { iter, result }
-          } catch (error) {
-            return { iter, error: error as E }
-          }
-        }
-
-        const pending = new Map<
-          AsyncGenerator<Result<T, E>>,
-          Promise<
-            {
-              iter: AsyncGenerator<Result<T, E>>
-              result?: IteratorResult<Result<T, E>>
-              error?: E
-            }
-          >
-        >()
-
-        const leftIter = left()
-        const rightIter = right()
-
-        pending.set(leftIter, pullNext(leftIter))
-        pending.set(rightIter, pullNext(rightIter))
-
-        while (pending.size > 0) {
-          const { iter, result, error } = await Promise.race(pending.values())
-
-          if (error) {
-            yield { type: 'error', error } as Result<T, E>
-            pending.delete(iter)
-          } else if (result?.done) {
-            pending.delete(iter)
-          } else {
-            yield result!.value
-            pending.set(iter, pullNext(iter))
-          }
-        }
-      },
-      this.concurrency,
-      this.bufferSize,
-    )
   }
 }

@@ -1,3 +1,17 @@
+/**
+ * Example: API Processor
+ *
+ * This example demonstrates how to use `Source` to process a list of API endpoints with error handling and concurrency control. It also shows how to use `Task` to manage a resource (like an API connection) with proper acquisition and release.
+ * Key features:
+ * - Create a stream of API endpoints and process them concurrently
+ * - Handle errors gracefully without stopping the entire stream
+ * - Use `Task` to manage resource acquisition and release with retry and timeout logic
+ *
+ * Run with:
+ * ```
+deno run -A packages/anabranch/examples/api_processor.ts
+ * ```
+ */
 import { Source, Task } from '../index.ts'
 
 interface ApiResponse {

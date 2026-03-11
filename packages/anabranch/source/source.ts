@@ -1,4 +1,4 @@
-import { _StreamImpl } from '../stream/stream.ts'
+import { _StreamImpl } from '../stream/stream-impl.ts'
 import type { Result } from '../util/util.ts'
 import type { Task } from '../task/task.ts'
 

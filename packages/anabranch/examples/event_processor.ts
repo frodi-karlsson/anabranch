@@ -1,3 +1,18 @@
+/**
+ * Example: Event Stream Processor
+ *
+ * This example demonstrates how to use `Source` to process a stream of events with filtering, mapping, and error handling. It also shows how to use `fold` to aggregate results and generate a summary.
+ * Key features:
+ * - Create a stream of events and filter out non-essential ones
+ * - Map events to a new structure while handling potential errors
+ * - Use `throwOn` to stop processing on critical errors
+ * - Use `fold` to aggregate error statistics at the end
+ *
+ * Run with:
+ * ```
+deno run -A packages/anabranch/examples/event_processor.ts
+ * ```
+ */
 import { Source } from '../index.ts'
 
 interface Event {
@@ -9,23 +24,23 @@ interface Event {
 class FatalError extends Error {}
 
 function createEventStream() {
-  return Source.from<Event, Error>(async function* () {
-    yield { type: 'info', message: 'System started' }
-    yield { type: 'info', message: 'Cache initialized' }
-    yield { type: 'metric', message: 'cpu_usage', value: 45 }
-    yield { type: 'warn', message: 'High memory usage' }
-    yield { type: 'metric', message: 'cpu_usage', value: 78 }
-    yield { type: 'error', message: 'Database connection failed' }
-    yield { type: 'metric', message: 'cpu_usage', value: 92 }
-    yield { type: 'error', message: 'Timeout waiting for response' }
-    yield { type: 'info', message: 'Cleanup complete' }
-  })
+  return Source.fromArray<Event>([
+    { type: 'info', message: 'System started' },
+    { type: 'info', message: 'Cache initialized' },
+    { type: 'metric', message: 'cpu_usage', value: 45 },
+    { type: 'warn', message: 'High memory usage' },
+    { type: 'metric', message: 'cpu_usage', value: 78 },
+    { type: 'error', message: 'Database connection failed' },
+    { type: 'metric', message: 'cpu_usage', value: 92 },
+    { type: 'error', message: 'Timeout waiting for response' },
+    { type: 'info', message: 'Cleanup complete' },
+  ])
 }
 
 const events = createEventStream()
 const processed = events
   .filter((e) => e.type !== 'info')
-  .map((e) => {
+  .map<Event, FatalError>((e) => {
     if (e.type === 'error' && e.message.includes('Database')) {
       throw new FatalError(e.message)
     }

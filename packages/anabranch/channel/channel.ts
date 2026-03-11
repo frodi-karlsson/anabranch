@@ -1,4 +1,4 @@
-import { _StreamImpl } from '../stream/stream.ts'
+import { _StreamImpl } from '../stream/stream-impl.ts'
 import { _ChannelOptions, _ChannelSource } from './channel-source.ts'
 
 /**

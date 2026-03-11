@@ -1,6 +1,17 @@
+/**
+ * Example: Read and Process Files
+ *
+ * This example demonstrates how to use `Source` to read a stream of file paths from a directory, process each file to extract information (like line count and byte size), and handle errors gracefully. It also shows how to use `withConcurrency` to process multiple files in parallel
+ *
+ * Run with:
+ * ```
+deno run -A packages/anabranch/examples/read_process_files.ts <directory>a
+ * ```
+ */
 import { Source } from '../index.ts'
 
 const dir = Deno.args[0] ?? '.'
+// Note: this would be easier with @anabranch/fs!
 const filePaths = (async function* () {
   for await (const entry of Deno.readDir(dir)) {
     if (entry.isFile) {
@@ -9,7 +20,7 @@ const filePaths = (async function* () {
   }
 })()
 
-const { successes, errors } = await Source.from(filePaths)
+await Source.from(filePaths)
   .withConcurrency(4)
   .flatMap(async (path) => {
     const text = await Deno.readTextFile(path)
@@ -19,14 +30,14 @@ const { successes, errors } = await Source.from(filePaths)
       { path, metric: 'bytes', value: text.length },
     ]
   })
-  .partition()
-
-for (const { path, metric, value } of successes) {
-  console.log(`${path}: ${metric}=${value}`)
-}
-
-for (const error of errors) {
-  console.error(
-    `Failed: ${error instanceof Error ? error.message : String(error)}`,
-  )
-}
+  .tap(({ path, metric, value }) => {
+    console.log(`Processed ${path}: ${metric}=${value}`)
+  })
+  .tapErr((error) => {
+    console.error(
+      `Failed to process file: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    )
+  })
+  .toArray()

@@ -10,12 +10,12 @@
  *
  * Run:
  * ```
- * deno run -A packages/nosql/examples/main.ts
+deno run -A packages/nosql/examples/main.ts
  * ```
  */
 
 import { Collection, createInMemory } from '../index.ts'
-import { Source, Task } from '@anabranch/anabranch'
+import { Task } from '@anabranch/anabranch'
 
 main().catch(console.error)
 
@@ -29,9 +29,7 @@ async function main() {
   await queryUsers(users)
   await streamUsers(users)
 
-  console.log('\n--- Cleanup ---\n')
   await connector.end()
-  console.log('Done!')
 }
 
 interface User {
@@ -138,8 +136,7 @@ const streamUsers = async (
   const { successes: processedUsers } = await users
     .find(() => true)
     .withConcurrency(2)
-    .zip(Source.fromRange(1, Infinity))
-    .map(async ([user, i]) => {
+    .map(async (user, i) => {
       await new Promise<void>((resolve, reject) =>
         setTimeout(
           () =>

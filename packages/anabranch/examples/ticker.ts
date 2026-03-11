@@ -1,3 +1,17 @@
+/**
+ * Example: Ticker Channel
+ *
+ * This example demonstrates how to use `Channel` to create a simple ticker that simulates real-time price updates for various stocks. The channel is configured with a buffer size of 5, and we send 10 price updates to it. The example shows how the channel handles backpressure by dropping updates when the buffer is full, and how consumers can receive the updates until the channel is closed.
+ * Key features:
+ * - Create a `Channel` with a buffer and an `onDrop` callback
+ * - Send multiple price updates to the channel, exceeding the buffer size
+ * - Wait for capacity before sending more updates
+ *
+ * Run with:
+ * ```
+deno run -A packages/anabranch/examples/ticker.ts
+ * ```
+ */
 import { Channel } from '../index.ts'
 
 interface PriceUpdate {
@@ -16,7 +30,14 @@ async function main() {
   console.log('Simulating real-time price updates:')
   console.log('(Buffer size: 5, sending 10 updates, then closing)\n')
 
-  const consumer = tickerChannel.toArray()
+  const tickerPromise = tickerChannel
+    .tap((update) => {
+      console.log(`  [RECEIVED] ${update.symbol} @ $${update.price}`)
+    })
+    .tapErr((error) => {
+      console.error(`  [ERROR] ${error}`)
+    })
+    .partition()
 
   tickerChannel.send({ symbol: 'AAPL', price: 150 })
   tickerChannel.send({ symbol: 'GOOGL', price: 2750 })
@@ -26,30 +47,20 @@ async function main() {
   tickerChannel.send({ symbol: 'META', price: 350 })
   tickerChannel.send({ symbol: 'NVDA', price: 220 })
   tickerChannel.send({ symbol: 'NFLX', price: 600 })
+  // If we wanted to receive every event, we'd always wait for capacity
+  await tickerChannel.waitForCapacity()
   tickerChannel.send({ symbol: 'AMD', price: 110 })
+  // However, this use case just wants "best effort" updates, so we can send without waiting and let the channel drop if it's full
   tickerChannel.send({ symbol: 'INTC', price: 45 })
 
   tickerChannel.close()
 
-  const results = await consumer
+  const { successes, errors } = await tickerPromise
+  console.log('\nChannel closed, consumer disconnected.')
 
   console.log('\nReceived results:')
-  const successes = results.filter((r) => r.type === 'success')
-  const errors = results.filter((r) => r.type === 'error')
-
   console.log(`  ${successes.length} prices received:`)
-  for (const r of successes) {
-    console.log(`    ${r.value.symbol}: $${r.value.price}`)
-  }
-
-  if (errors.length > 0) {
-    console.log(`  ${errors.length} errors:`)
-    for (const r of errors) {
-      console.log(`    ${r.error}`)
-    }
-  }
-
-  console.log('\nChannel closed, consumer disconnected.')
+  console.log(`  ${errors.length} errors:`)
 }
 
 main()

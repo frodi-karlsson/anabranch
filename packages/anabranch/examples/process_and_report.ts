@@ -1,7 +1,17 @@
+/**
+ * Example of using Anabranch to process a stream of file paths, extract information about each file, and produce a summary report. This example demonstrates how to handle errors gracefully while processing files, and how to use various operators to transform and aggregate data.
+ *
+ * Run with:
+ * ```
+deno run -A packages/anabranch/examples/process_and_report.ts <directory>
+ * ```
+ */
 import { Source } from '../index.ts'
 
 const dir = Deno.args[0] ?? '.'
 
+// Note: this would be easier with @anabranch/fs!
+// `const filePaths = readDir(dir)`
 const filePaths = (async function* () {
   for await (const entry of Deno.readDir(dir)) {
     if (entry.isFile) {

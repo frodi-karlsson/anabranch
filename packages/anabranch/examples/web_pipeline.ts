@@ -1,3 +1,19 @@
+/**
+ * Example: Web Pipeline
+ *
+ * This example demonstrates how to use `Source` to create a pipeline that fetches data from multiple URLs, processes the responses, and handles errors gracefully. It shows how to use various operators to transform the data, filter results, and recover from errors without stopping the entire pipeline.
+ *
+ * Key features:
+ * - Create a stream of URLs and fetch data from them concurrently
+ * - Process the fetched data with mapping and filtering
+ * - Use `recover` to handle errors and provide fallback values
+ * - Use `tap` to log intermediate results for debugging
+ *
+ * Run with:
+ * ```
+deno run -A packages/anabranch/examples/web_pipeline.ts
+ * ```
+ */
 import { Source } from '../index.ts'
 
 const urls = [
@@ -7,7 +23,7 @@ const urls = [
   'https://jsonplaceholder.typicode.com/todos/4',
 ]
 
-const stream = Source.fromArray(urls)
+await Source.fromArray(urls)
   .withConcurrency(4)
   .map<{ url: string; id: number; title: string }, Error>(
     async (url) => {
@@ -31,7 +47,7 @@ const stream = Source.fromArray(urls)
     title: error.message,
     slug: 'error',
   }))
-
-for await (const result of stream.successes()) {
-  console.log(`${result.id} ${result.slug}`)
-}
+  .tap((item) =>
+    console.log('[ITEM]', `${item.id}: ${item.title} at ${item.url}`)
+  )
+  .toArray()

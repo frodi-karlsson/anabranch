@@ -1,6 +1,7 @@
 import { assertEquals, assertObjectMatch, assertRejects } from '@std/assert'
-import { type Result, Source } from '../index.ts'
+import { PumpError, type Result, Source } from '../index.ts'
 import { deferred, failure, streamFrom, success } from '../test_utils.ts'
+import { ErrorResult } from '../util/util.ts'
 
 Deno.test('Stream.toArray - should collect all results', async () => {
   const stream = streamFrom<number, string>([
@@ -110,6 +111,46 @@ Deno.test('Stream.map - should transform successful values', async () => {
   ])
 })
 
+Deno.test('Stream.map - should convert thrown errors into error results', async () => {
+  const stream = streamFrom<number, Error>([success(2), success(3)])
+  const mapped = stream.map((value) => {
+    if (value === 3) {
+      throw new Error('nope')
+    }
+    return value * 2
+  })
+
+  const results = await mapped.toArray()
+
+  assertEquals(results.length, 2)
+  assertEquals(results[0], { type: 'success', value: 4 })
+  assertEquals(results[1].type, 'error')
+  assertEquals(
+    (results[1] as { type: 'error'; error: Error }).error.message,
+    'nope',
+  )
+})
+
+Deno.test('Stream.map - should provide correct arrivalIndex', async () => {
+  const stream = streamFrom<number, string>([
+    success(10),
+    success(20),
+    failure('bad'),
+    success(30),
+  ])
+
+  const seen: Array<{ value?: number; index: number }> = []
+  await stream.map((value, index) => {
+    seen.push({ value, index })
+  }).toArray()
+
+  assertEquals(seen, [
+    { value: 10, index: 0 },
+    { value: 20, index: 1 },
+    { value: 30, index: 2 },
+  ])
+})
+
 Deno.test('Stream.flatMap - should expand successes', async () => {
   const stream = streamFrom<number, string>([
     success(1),
@@ -215,6 +256,27 @@ Deno.test(
     await resultsPromise
   },
 )
+
+Deno.test('Stream.flatMap - should provide correct arrivalIndex', async () => {
+  const stream = streamFrom<number, string>([
+    success(10),
+    success(20),
+    failure('bad'),
+    success(30),
+  ])
+
+  const seen: Array<{ value?: number; index: number }> = []
+  await stream.flatMap((value, index) => {
+    seen.push({ value, index })
+    return [value]
+  }).toArray()
+
+  assertEquals(seen, [
+    { value: 10, index: 0 },
+    { value: 20, index: 1 },
+    { value: 30, index: 2 },
+  ])
+})
 
 Deno.test(
   'Stream.map - should honor concurrency limit',
@@ -396,6 +458,25 @@ Deno.test(
   },
 )
 
+Deno.test('Stream.map - should provide correct arrivalIndex for concurrent tasks', async () => {
+  const stream = Source.fromResults<number, Error>(async function* () {
+    yield success(1)
+    yield failure(new Error('2 is evil'))
+    yield success(3)
+  })
+
+  const seen: Array<{ value: number; index: number }> = []
+  await stream.map(async (value, index) => {
+    await Promise.resolve()
+    seen.push({ value, index })
+  }).toArray()
+
+  assertEquals(seen, [
+    { value: 1, index: 0 },
+    { value: 3, index: 1 },
+  ])
+})
+
 Deno.test(
   'Stream.throwOn - should preserve concurrency settings',
   async () => {
@@ -496,6 +577,27 @@ Deno.test(
   },
 )
 
+Deno.test('Stream.filter - should provide correct arrivalIndex', async () => {
+  const stream = streamFrom<number, string>([
+    success(10),
+    success(20),
+    failure('bad'),
+    success(30),
+  ])
+
+  const seen: Array<{ value?: number; index: number }> = []
+  await stream.filter((value, index) => {
+    seen.push({ value, index })
+    return true
+  }).toArray()
+
+  assertEquals(seen, [
+    { value: 10, index: 0 },
+    { value: 20, index: 1 },
+    { value: 30, index: 2 },
+  ])
+})
+
 Deno.test(
   'Stream.fold - should accumulate successful values',
   async () => {
@@ -544,6 +646,26 @@ Deno.test(
   },
 )
 
+Deno.test('Stream.fold - should provide correct arrivalIndex', async () => {
+  const stream = streamFrom<number, string>([
+    success(10),
+    success(20),
+    success(30),
+  ])
+
+  const seen: Array<{ value: number; index: number }> = []
+  await stream.fold((acc, value, index) => {
+    seen.push({ value, index })
+    return acc + value
+  }, 0)
+
+  assertEquals(seen, [
+    { value: 10, index: 0 },
+    { value: 20, index: 1 },
+    { value: 30, index: 2 },
+  ])
+})
+
 Deno.test('Stream.mapErr - should transform errors', async () => {
   const stream = streamFrom<number, string>([failure('bad'), success(1)])
   const mapped = stream.mapErr((error) => `${error}-mapped`)
@@ -572,6 +694,25 @@ Deno.test('Stream.mapErr - should emit error when callback throws', async () => 
   ])
 })
 
+Deno.test('Stream.mapErr - should provide correct arrivalIndex', async () => {
+  const stream = streamFrom<number, string>([
+    failure('bad1'),
+    success(1),
+    failure('bad2'),
+  ])
+
+  const seen: Array<{ error: string; index: number }> = []
+  await stream.mapErr((error, index) => {
+    seen.push({ error, index })
+    return error
+  }).toArray()
+
+  assertEquals(seen, [
+    { error: 'bad1', index: 0 },
+    { error: 'bad2', index: 1 },
+  ])
+})
+
 Deno.test('Stream.filterErr - should keep matching errors', async () => {
   const stream = streamFrom<number, string>([
     failure('bad'),
@@ -585,6 +726,25 @@ Deno.test('Stream.filterErr - should keep matching errors', async () => {
   assertEquals(results, [
     { type: 'error', error: 'worse' },
     { type: 'success', value: 1 },
+  ])
+})
+
+Deno.test('Stream.filterErr - should provide correct arrivalIndex', async () => {
+  const stream = streamFrom<number, string>([
+    failure('bad1'),
+    success(1),
+    failure('bad2'),
+  ])
+
+  const seen: Array<{ error: string; index: number }> = []
+  await stream.filterErr((error, index) => {
+    seen.push({ error, index })
+    return error === 'bad2'
+  }).toArray()
+
+  assertEquals(seen, [
+    { error: 'bad1', index: 0 },
+    { error: 'bad2', index: 1 },
   ])
 })
 
@@ -616,6 +776,25 @@ Deno.test(
     )
   },
 )
+
+Deno.test('Stream.foldErr - should provide correct arrivalIndex', async () => {
+  const stream = streamFrom<number, string>([
+    failure('bad1'),
+    success(1),
+    failure('bad2'),
+  ])
+
+  const seen: Array<{ error: string; index: number }> = []
+  await stream.foldErr((acc, error, index) => {
+    seen.push({ error, index })
+    return `${acc}|${error}`
+  }, '')
+
+  assertEquals(seen, [
+    { error: 'bad1', index: 0 },
+    { error: 'bad2', index: 1 },
+  ])
+})
 
 Deno.test(
   'Stream.recoverWhen - should convert matching errors to success',
@@ -660,6 +839,31 @@ Deno.test(
   },
 )
 
+Deno.test(
+  'Stream.recoverWhen - should provide correct arrivalIndex',
+  async () => {
+    const stream = streamFrom<number, string>([
+      failure('bad1'),
+      failure('bad2'),
+    ])
+    const seen: Array<{ error: string; index: number }> = []
+    const recovered = stream.recoverWhen(
+      (error): error is string => {
+        seen.push({ error, index: seen.length })
+        return true
+      },
+      () => 0,
+    )
+
+    await recovered.toArray()
+
+    assertEquals(seen, [
+      { error: 'bad1', index: 0 },
+      { error: 'bad2', index: 1 },
+    ])
+  },
+)
+
 Deno.test('Stream.recover - should convert errors to successes', async () => {
   const stream = streamFrom<number, string>([failure('bad'), success(1)])
   const recovered = stream.recover(() => 0)
@@ -670,6 +874,24 @@ Deno.test('Stream.recover - should convert errors to successes', async () => {
     { type: 'success', value: 0 },
     { type: 'success', value: 1 },
   ])
+})
+
+// TODO: reconsider what should happen if recovery throws. Types make it weird because it sets E to never.
+Deno.test('Stream.recover - should emit error when recovery function throws', async () => {
+  const stream = streamFrom<number, string>([failure('bad')])
+  const recovered = stream.recover(() => {
+    throw new Error('recovery failed')
+  })
+
+  const results = await recovered.toArray()
+
+  assertEquals(results.length, 1)
+  assertEquals(results[0].type, 'error')
+  assertEquals(
+    // deno-lint-ignore no-explicit-any
+    (results[0] as any).error.message,
+    'recovery failed',
+  )
 })
 
 Deno.test('Stream.tap - should run side effect and pass through', async () => {
@@ -708,6 +930,25 @@ Deno.test('Stream.tap - should convert thrown errors into error results', async 
   ])
 })
 
+Deno.test('Stream.tap - should provide correct arrivalIndex', async () => {
+  const stream = streamFrom<number, string>([
+    success(10),
+    success(20),
+    failure('bad'),
+    success(30),
+  ])
+  const seen: Array<{ value?: number; index: number }> = []
+  await stream.tap((value, index) => {
+    seen.push({ value, index })
+  }).toArray()
+
+  assertEquals(seen, [
+    { value: 10, index: 0 },
+    { value: 20, index: 1 },
+    { value: 30, index: 2 },
+  ])
+})
+
 Deno.test('Stream.tapErr - should run side effect on errors and pass through', async () => {
   const stream = streamFrom<number, string>([
     failure('bad'),
@@ -726,6 +967,41 @@ Deno.test('Stream.tapErr - should run side effect on errors and pass through', a
     { type: 'error', error: 'bad' },
     { type: 'success', value: 1 },
     { type: 'error', error: 'worse' },
+  ])
+})
+
+Deno.test('Stream.tapErr - should convert thrown errors into error results', async () => {
+  const stream = streamFrom<number, Error>([
+    failure(new Error('bad')),
+    success(1),
+  ])
+  const expectedError = new Error('tapErr failed')
+  const tapped = stream.tapErr(() => {
+    throw expectedError
+  })
+
+  const results = await tapped.toArray()
+
+  assertEquals(results, [
+    { type: 'error', error: expectedError },
+    { type: 'success', value: 1 },
+  ])
+})
+
+Deno.test('Stream.tapErr - should provide correct arrivalIndex', async () => {
+  const stream = streamFrom<number, string>([
+    failure('bad1'),
+    success(1),
+    failure('bad2'),
+  ])
+  const seen: Array<{ error: string; index: number }> = []
+  await stream.tapErr((error, index) => {
+    seen.push({ error, index })
+  }).toArray()
+
+  assertEquals(seen, [
+    { error: 'bad1', index: 0 },
+    { error: 'bad2', index: 1 },
   ])
 })
 
@@ -823,6 +1099,37 @@ Deno.test(
   },
 )
 
+Deno.test('Stream.tryMap - should provide correct arrivalIndex', async () => {
+  // 1. Only yield successes from upstream
+  const stream = streamFrom<number, string>([
+    success(10),
+    success(20),
+    success(30),
+  ])
+
+  const seen: Array<{ value?: number; error?: unknown; index: number }> = []
+
+  await stream.tryMap(
+    (value, index) => {
+      // deno-lint-ignore no-throw-literal
+      if (value === 20) throw 'bad'
+
+      seen.push({ value, index })
+      return value
+    },
+    (error, _, index) => {
+      seen.push({ error, index })
+      return error
+    },
+  ).toArray()
+
+  assertEquals(seen, [
+    { value: 10, index: 0 },
+    { error: 'bad', index: 1 }, // 20 failed, correctly capturing index 1
+    { value: 30, index: 2 }, // 30 succeeded, correctly capturing index 2
+  ])
+})
+
 Deno.test('Stream.take - should limit successes, errors pass through', async () => {
   const stream = streamFrom<number, string>([
     success(1),
@@ -881,6 +1188,35 @@ Deno.test('Stream.takeWhile - should emit error and stop when predicate throws',
   assertEquals(results, [
     { type: 'success', value: 1 },
     { type: 'error', error: expectedError },
+  ])
+})
+
+Deno.test('Stream.takeWhile - should handle empty stream', async () => {
+  const stream = streamFrom<number, string>([])
+  const taken = stream.takeWhile(() => true)
+
+  const results = await taken.toArray()
+
+  assertEquals(results, [])
+})
+
+Deno.test('Stream.takeWhile - should provide correct arrivalIndex', async () => {
+  const stream = streamFrom<number, string>([
+    success(10),
+    success(20),
+    success(5),
+    success(30),
+  ])
+  const seen: Array<{ value: number; index: number }> = []
+  await stream.takeWhile((value, index) => {
+    seen.push({ value, index })
+    return value >= 10 && value < 30
+  }).toArray()
+
+  assertEquals(seen, [
+    { value: 10, index: 0 },
+    { value: 20, index: 1 },
+    { value: 5, index: 2 },
   ])
 })
 
@@ -1212,6 +1548,43 @@ Deno.test('Stream.scan - should emit error when callback throws', async () => {
   ])
 })
 
+Deno.test('Stream.scan - should provide correct arrivalIndex', async () => {
+  const stream = streamFrom<number, string>([
+    success(10),
+    success(20),
+    success(30),
+  ])
+  const seen: Array<{ value: number; index: number }> = []
+  await stream.scan((sum, n, index) => {
+    const result = sum + n
+    seen.push({ value: result, index })
+    return result
+  }, 0).toArray()
+
+  assertEquals(seen, [
+    { value: 10, index: 0 },
+    { value: 30, index: 1 },
+    { value: 60, index: 2 },
+  ])
+})
+
+Deno.test('Stream.scanErr - should emit running accumulator for errors', async () => {
+  const stream = streamFrom<number, string>([
+    success(1),
+    failure('bad'),
+    failure('worse'),
+  ])
+  const scanned = stream.scanErr((acc, error) => `${acc}|${error}`, '')
+
+  const results = await scanned.toArray()
+
+  assertEquals(results, [
+    { type: 'success', value: 1 },
+    { type: 'error', error: '|bad' },
+    { type: 'error', error: '|bad|worse' },
+  ])
+})
+
 Deno.test('Stream.chunks - should group successes into arrays', async () => {
   const stream = streamFrom<number, string>([
     success(1),
@@ -1388,7 +1761,6 @@ Deno.test('Stream.merge - should pass through errors', async () => {
 
 Deno.test('Stream.merge - should handle empty streams', async () => {
   const stream1 = Source.from<number, never>(async function* () {
-    // empty
   })
   const stream2 = Source.from<number, never>(async function* () {
     yield 1
@@ -1420,4 +1792,100 @@ Deno.test('Stream.merge - should complete when both streams are done', async () 
   const values = results.map((r) => (r as { value: number }).value)
   assertEquals(values.includes(1), true)
   assertEquals(values.includes(2), true)
+})
+
+Deno.test('Stream.splitN - should apply backpressure when one branch is slow', async () => {
+  let generatedCount = 0
+  const stream = Source.from<number, never>(async function* () {
+    generatedCount++
+    yield 1
+    generatedCount++
+    yield 2
+    generatedCount++
+    yield 3
+    generatedCount++
+    yield 4
+  })
+
+  const [fast, slow] = stream.splitN(2, 1)
+
+  const fastResults: number[] = []
+
+  const fastPromise = (async () => {
+    for await (
+      const result of fast
+        .successes()
+    ) {
+      fastResults.push(result)
+    }
+  })()
+
+  const slowIterator = slow
+    .successes()[Symbol.asyncIterator]()
+
+  const firstSlow = await slowIterator.next()
+  assertEquals(firstSlow.value, 1)
+
+  await new Promise((resolve) => setTimeout(resolve, 15))
+
+  // The fast consumer is starving because the slow consumer
+  // is holding up the pump. Fast should only have processed 1 and 2.
+  assertEquals(fastResults, [1, 2])
+  assertEquals(generatedCount, 3)
+
+  // Unblock the slow consumer to drain the rest of the stream
+  await slowIterator.next()
+  await slowIterator.next()
+  await slowIterator.next()
+  await slowIterator.next()
+
+  await fastPromise // Fast consumer should now finish
+  assertEquals(fastResults, [1, 2, 3, 4])
+})
+
+Deno.test('Stream.splitN - should wrap thrown source errors in PumpError', async () => {
+  const stream = Source.from<number, string>(async function* () {
+    yield 1
+    throw new Error('source died')
+  })
+
+  const [a, b] = stream.splitN(2, 10)
+
+  const [resultsA, resultsB] = await Promise.all([
+    a.toArray(),
+    b.toArray(),
+  ])
+
+  assertEquals(resultsA.length, 2)
+  assertEquals(resultsA[0], { type: 'success', value: 1 })
+  assertEquals(resultsA[1].type, 'error')
+
+  const errorObjA = (resultsA[1] as ErrorResult<number, PumpError>).error
+  assertEquals(errorObjA.message, 'source died')
+
+  assertEquals(resultsB, resultsA)
+})
+
+Deno.test('Stream.splitN - should split into 1 if n=0', () => {
+  const stream = streamFrom<number, never>([
+    success(1),
+    success(2),
+    success(3),
+  ])
+
+  const split = stream.splitN(0, 10)
+
+  assertEquals(split.length, 1)
+})
+
+Deno.test('Stream.splitN - should split into 1 if n < 0', () => {
+  const stream = streamFrom<number, never>([
+    success(1),
+    success(2),
+    success(3),
+  ])
+
+  const split = stream.splitN(-5, 10)
+
+  assertEquals(split.length, 1)
 })

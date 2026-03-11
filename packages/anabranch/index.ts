@@ -38,6 +38,7 @@
 export { Source } from './source/source.ts'
 export { Task } from './task/task.ts'
 export { Channel } from './channel/channel.ts'
+export { PumpError } from './stream/stream.ts'
 export type { Stream } from './stream/stream.ts'
 export { AggregateError } from './util/util.ts'
 export type {
@@ -46,13 +47,3 @@ export type {
   Result,
   SuccessResult,
 } from './util/util.ts'
-
-/**
- * export { Source } from './source.ts'
-export { Task } from './task.ts'
-export { Channel } from './channel.ts'
-export type { Stream } from './stream.ts'
-export { AggregateError } from './util.ts'
-export type { ErrorResult, Promisable, Result, SuccessResult } from './util.ts'
-
- */
