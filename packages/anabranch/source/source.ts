@@ -1,6 +1,6 @@
-import { _StreamImpl } from './stream.ts'
-import type { Result } from './util.ts'
-import type { Task } from './task.ts'
+import { _StreamImpl } from '../stream/stream.ts'
+import type { Result } from '../util/util.ts'
+import type { Task } from '../task/task.ts'
 
 /**
  * The entry point for creating a {@link Stream}. Wraps an async generator so

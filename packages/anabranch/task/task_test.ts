@@ -1,7 +1,7 @@
 import { assertEquals, assertRejects } from '@std/assert'
 import { Task } from '../index.ts'
 import { deferred } from '../test_utils.ts'
-import { ErrorResult } from './util.ts'
+import { ErrorResult } from '../util/util.ts'
 
 Deno.test('Task.result - should return success', async () => {
   const task = Task.of<number, string>(() => Promise.resolve(42))

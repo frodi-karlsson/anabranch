@@ -1,5 +1,5 @@
 import type { ErrorResult, Result, SuccessResult } from './index.ts'
-import { _StreamImpl } from './streams/stream.ts'
+import { _StreamImpl } from './stream/stream.ts'
 
 export const success = <T, E = never>(value: T): SuccessResult<T, E> => ({
   type: 'success',

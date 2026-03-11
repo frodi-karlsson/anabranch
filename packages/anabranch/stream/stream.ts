@@ -1,4 +1,4 @@
-import { AggregateError, type Promisable, type Result } from './util.ts'
+import { AggregateError, type Promisable, type Result } from '../util/util.ts'
 
 const isPromise = <T>(value: Promisable<T>): value is Promise<T> =>
   value != null && typeof (value as Promise<T>).then === 'function'
@@ -1067,7 +1067,7 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
               yield { type: 'success', value: chunk } as Result<T[], E>
               chunk = []
             }
-            yield result as unknown as Result<T[], E>
+            yield result as Result<T[], E>
           }
         }
         if (chunk.length > 0) {

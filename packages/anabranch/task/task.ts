@@ -1,4 +1,4 @@
-import type { Promisable, Result } from './util.ts'
+import type { Promisable, Result } from '../util/util.ts'
 
 /**
  * A single async task with error-aware utilities like retries and timeouts.

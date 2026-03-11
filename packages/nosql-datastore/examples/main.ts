@@ -73,13 +73,9 @@ async function main() {
   }))
   await store.putMany(entries).run()
 
-  // Give the Datastore emulator a moment to update its internal indexes
-  // since it's "eventually consistent" even in the emulator.
-  console.log(`  Batch inserted ${users.length} users`)
-  console.log(`  Users: ${users.map((u) => u.name).join(', ')}`)
+  console.log(`  Batch inserted users: ${users.map((u) => u.name).join(', ')}`)
 
   console.log('\nQuerying active users...\n')
-
   const activeUsers = await store
     .find((q, keyGen) =>
       q.hasAncestor(keyGen(['Tenant', 'tenantA'])).filter(
@@ -91,7 +87,6 @@ async function main() {
   console.log(`  Active: ${activeUsers.join(', ')}`)
 
   console.log('\nProcessing users concurrently...\n')
-
   const { successes, errors } = await store
     .find((q, keyGen) => q.hasAncestor(keyGen(['Tenant', 'tenantA'])))
     .withConcurrency(3)

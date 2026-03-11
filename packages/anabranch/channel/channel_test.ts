@@ -1,4 +1,4 @@
-import { Channel } from './channel.ts'
+import { Channel } from '../channel/channel.ts'
 import { assertEquals } from '@std/assert'
 
 Deno.test('Channel.send - should enqueue success values', async () => {

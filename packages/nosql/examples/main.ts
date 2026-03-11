@@ -14,7 +14,8 @@
  * ```
  */
 
-import { Collection, createInMemory, Source, Task } from '../index.ts'
+import { Collection, createInMemory } from '../index.ts'
+import { Source, Task } from '@anabranch/anabranch'
 
 main().catch(console.error)
 

@@ -1,13 +1,6 @@
 import { Promisable } from '@anabranch/anabranch'
-import { _StreamImpl } from './stream.ts'
-import type { Result } from './util.ts'
-
-interface ChannelOptions<T> {
-  bufferSize?: number
-  onDrop?: (value: T) => Promisable<void>
-  onClose?: () => Promisable<void>
-  signal?: AbortSignal
-}
+import { _StreamImpl } from '../stream/stream.ts'
+import type { Result } from '../util/util.ts'
 
 class ChannelSource<T, E> {
   private queue: Result<T, E>[] = []
@@ -191,4 +184,11 @@ export class ChannelAbortError extends Error {
     super(message)
     this.name = 'AbortError'
   }
+}
+
+interface ChannelOptions<T> {
+  bufferSize?: number
+  onDrop?: (value: T) => Promisable<void>
+  onClose?: () => Promisable<void>
+  signal?: AbortSignal
 }

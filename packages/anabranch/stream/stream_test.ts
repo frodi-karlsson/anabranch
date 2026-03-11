@@ -1296,9 +1296,12 @@ Deno.test('Stream.zip - should combine two streams into tuples', async () => {
 
   const zipped = stream1.zip(stream2)
 
-  const results = await zipped.collect()
+  const results = await zipped.toArray()
 
-  assertEquals(results, [[1, 'a'], [2, 'b']])
+  assertEquals(results, [
+    { type: 'success', value: [1, 'a'] },
+    { type: 'success', value: [2, 'b'] },
+  ])
 })
 
 Deno.test('Stream.zip - should stop at shorter stream', async () => {
@@ -1311,9 +1314,9 @@ Deno.test('Stream.zip - should stop at shorter stream', async () => {
 
   const zipped = stream1.zip(stream2)
 
-  const results = await zipped.collect()
+  const results = await zipped.toArray()
 
-  assertEquals(results, [[1, 10]])
+  assertEquals(results, [{ type: 'success', value: [1, 10] }])
 })
 
 Deno.test('Stream.zip - should handle errors from left stream', async () => {
@@ -1349,20 +1352,20 @@ Deno.test('Stream.zip - should handle errors from right stream', async () => {
 })
 
 Deno.test('Stream.merge - should interleave two streams', async () => {
-  const stream1 = Source.from<number, never>(async function* () {
+  const stream1 = Source.from<number, string>(async function* () {
     yield 1
     yield 3
   })
-  const stream2 = Source.from<number, never>(async function* () {
+  const stream2 = Source.from<number, string>(async function* () {
     yield 2
     yield 4
   })
 
   const merged = stream1.merge(stream2)
 
-  const results = await merged.collect()
+  const { successes } = await merged.partition()
 
-  assertEquals(results.sort((a, b) => a - b), [1, 2, 3, 4])
+  assertEquals(successes.sort((a, b) => a - b), [1, 2, 3, 4])
 })
 
 Deno.test('Stream.merge - should pass through errors', async () => {
@@ -1380,7 +1383,7 @@ Deno.test('Stream.merge - should pass through errors', async () => {
   const { errors } = await merged.partition()
 
   assertEquals(errors.length, 1)
-  assertEquals(errors[0]?.message, 'boom')
+  assertEquals(errors[0].message, 'boom')
 })
 
 Deno.test('Stream.merge - should handle empty streams', async () => {
@@ -1394,9 +1397,12 @@ Deno.test('Stream.merge - should handle empty streams', async () => {
 
   const merged = stream1.merge(stream2)
 
-  const results = await merged.collect()
+  const results = await merged.toArray()
 
-  assertEquals(results, [1, 2])
+  assertEquals(results, [
+    { type: 'success', value: 1 },
+    { type: 'success', value: 2 },
+  ])
 })
 
 Deno.test('Stream.merge - should complete when both streams are done', async () => {
@@ -1408,9 +1414,10 @@ Deno.test('Stream.merge - should complete when both streams are done', async () 
   })
 
   const merged = stream1.merge(stream2)
-  const results = await merged.collect()
+  const results = await merged.toArray()
 
   assertEquals(results.length, 2)
-  assertEquals(results.includes(1), true)
-  assertEquals(results.includes(2), true)
+  const values = results.map((r) => (r as { value: number }).value)
+  assertEquals(values.includes(1), true)
+  assertEquals(values.includes(2), true)
 })
