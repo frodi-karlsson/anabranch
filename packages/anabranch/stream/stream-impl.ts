@@ -134,9 +134,10 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
       const waiters: Array<() => void> = []
 
       const wake = () => {
-        while (waiters.length > 0) {
-          const resolve = waiters.shift()
-          if (resolve) resolve()
+        if (waiters.length === 0) return
+        const currentWaiters = waiters.splice(0, waiters.length)
+        for (const resolve of currentWaiters) {
+          resolve()
         }
       }
 
