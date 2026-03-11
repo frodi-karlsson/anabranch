@@ -4,14 +4,9 @@ import { Storage } from 'https://cdn.jsdelivr.net/npm/@anabranch/storage@0.1.3/+
 const status = document.getElementById('status')
 const notesContainer = document.getElementById('notes')
 
-function setStatus(msg) {
-  status.textContent = msg
-  status.classList.add('visible')
-  setTimeout(() => status.classList.remove('visible'), 2000)
-}
-
 const connector = createIndexedDB({ prefix: 'notebook/' })
 const storage = await Storage.connect(connector).run()
+
 setStatus('Ready')
 loadNotes()
 
@@ -29,18 +24,18 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
 
   await storage.put(`notes/${note.id}`, JSON.stringify(note))
     .tapErr((err) => setStatus('Save failed: ' + err.message))
+    .tap(() => setStatus('Note saved!'))
     .run()
 
   document.getElementById('title').value = ''
   document.getElementById('content').value = ''
-  setStatus('Note saved!')
   loadNotes()
 })
 
 async function loadNotes() {
   notesContainer.innerHTML = ''
 
-  const unsortedNotes = await storage.list('notes/')
+  const notes = await storage.list('notes/')
     .tryMap(
       async (entry) => {
         const { body } = await storage.get(entry.key).run()
@@ -52,10 +47,37 @@ async function loadNotes() {
       },
     )
     .filter((note) => note !== null)
-    .collect()
-
-  const notes = unsortedNotes
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .map((note) => {
+      const div = document.createElement('div')
+      div.innerHTML = `<div class="note-item">
+        <div class="note-title">${escapeHtml(note.title)}</div>
+        <div class="note-preview">${
+        escapeHtml(note.content.substring(0, 100))
+      }${note.content.length > 100 ? '...' : ''}</div>
+        <div class="note-meta">${
+        new Date(note.createdAt).toLocaleString()
+      }</div>
+        <div class="actions">
+          <button class="danger delete-note" data-id="${note.id}">Delete</button>
+        </div>
+      </div>`
+      return {
+        note,
+        div,
+      }
+    })
+    .fold((acc, item) => {
+      // Insertion sort by createdAt descending
+      const spliceIndex = acc.findIndex((n) =>
+        new Date(n.note.createdAt) < new Date(item.note.createdAt)
+      )
+      if (spliceIndex === -1) {
+        acc.push(item)
+      } else {
+        acc.splice(spliceIndex, 0, item)
+      }
+      return acc
+    }, [])
 
   if (notes.length === 0) {
     notesContainer.innerHTML = `
@@ -69,32 +91,9 @@ async function loadNotes() {
     return
   }
 
-  for (const note of notes) {
-    const div = document.createElement('div')
-    div.className = 'note-item'
-    div.innerHTML = `
-      <div class="note-title">${escapeHtml(note.title)}</div>
-      <div class="note-preview">${escapeHtml(note.content.substring(0, 100))}${
-      note.content.length > 100 ? '...' : ''
-    }</div>
-      <div class="note-meta">${new Date(note.createdAt).toLocaleString()}</div>
-      <div class="actions">
-        <button class="load-note" data-id="${note.id}">Load</button>
-        <button class="danger delete-note" data-id="${note.id}">Delete</button>
-      </div>
-    `
+  for (const { div } of notes) {
     notesContainer.appendChild(div)
   }
-
-  notesContainer.querySelectorAll('.load-note').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const note = notes.find((n) => n.id === btn.dataset.id)
-      if (note) {
-        document.getElementById('title').value = note.title
-        document.getElementById('content').value = note.content
-      }
-    })
-  })
 
   notesContainer.querySelectorAll('.delete-note').forEach((btn) => {
     btn.addEventListener('click', async () => {
@@ -111,4 +110,10 @@ function escapeHtml(str) {
   const div = document.createElement('div')
   div.textContent = str
   return div.innerHTML
+}
+
+function setStatus(msg) {
+  status.textContent = msg
+  status.classList.add('visible')
+  setTimeout(() => status.classList.remove('visible'), 2000)
 }
