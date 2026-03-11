@@ -1,9 +1,13 @@
 {
   "name": "@anabranch/nosql-datastore",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "exports": "./index.ts",
   "publish": {
-    "exclude": ["examples/", "build_npm.ts", "npm/"]
+    "exclude": [
+      "examples/",
+      "build_npm.ts",
+      "npm/"
+    ]
   },
   "imports": {
     "@anabranch/anabranch": "jsr:@anabranch/anabranch@^0",
