@@ -28,9 +28,9 @@ import {
  *
  * @example Basic put/get operations
  * ```ts
- * import { Storage, createMemory } from "@anabranch/storage";
+ * import { Storage, createInMemory } from "@anabranch/storage";
  *
- * const connector = createMemory();
+ * const connector = createInMemory();
  * const storage = await Storage.connect(connector).run();
  *
  * await storage.put("hello.txt", "Hello, World!").run();
@@ -62,7 +62,7 @@ export class Storage {
    *
    * @example
    * ```ts
-   * const storage = await Storage.connect(createMemory()).run();
+   * const storage = await Storage.connect(createInMemory()).run();
    * ```
    */
   static connect(

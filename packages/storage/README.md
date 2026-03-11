@@ -10,9 +10,9 @@ management.
 ## Usage
 
 ```ts
-import { createMemory, Storage } from '@anabranch/storage'
+import { createInMemory, Storage } from '@anabranch/storage'
 
-const connector = createMemory({ prefix: 'files/' })
+const connector = createInMemory({ prefix: 'files/' })
 const storage = await Storage.connect(connector).run()
 
 // Put an object
@@ -48,7 +48,7 @@ npm install @anabranch/storage
 
 ## Adapters
 
-- `createMemory` - In-memory storage for testing
+- `createInMemory` - In-memory storage for testing
 - S3, GCS, Azure Blob Storage adapters coming soon
 
 ## API Reference

@@ -1,8 +1,8 @@
 import { assertEquals } from '@std/assert'
-import { createMemory, Storage } from './index.ts'
+import { createInMemory, Storage } from './index.ts'
 
 Deno.test('Storage - should put and get string content', async () => {
-  const connector = createMemory()
+  const connector = createInMemory()
   const storage = await Storage.connect(connector).run()
 
   await storage.put('test.txt', 'Hello, World!').run()
@@ -17,7 +17,7 @@ Deno.test('Storage - should put and get string content', async () => {
 })
 
 Deno.test('Storage - should put and get Uint8Array content', async () => {
-  const connector = createMemory()
+  const connector = createInMemory()
   const storage = await Storage.connect(connector).run()
 
   const bytes = new Uint8Array([1, 2, 3, 4, 5])
@@ -31,7 +31,7 @@ Deno.test('Storage - should put and get Uint8Array content', async () => {
 })
 
 Deno.test('Storage - should list objects with prefix using Source', async () => {
-  const connector = createMemory()
+  const connector = createInMemory()
   const storage = await Storage.connect(connector).run()
 
   await storage.put('users/a.txt', 'a').run()
@@ -48,7 +48,7 @@ Deno.test('Storage - should list objects with prefix using Source', async () => 
 })
 
 Deno.test('Storage - should throw StorageObjectNotFound when getting deleted object', async () => {
-  const connector = createMemory()
+  const connector = createInMemory()
   const storage = await Storage.connect(connector).run()
 
   await storage.put('delete-me.txt', 'content').run()
@@ -65,7 +65,7 @@ Deno.test('Storage - should throw StorageObjectNotFound when getting deleted obj
 })
 
 Deno.test('Storage - should head object metadata', async () => {
-  const connector = createMemory()
+  const connector = createInMemory()
   const storage = await Storage.connect(connector).run()
 
   await storage.put('meta.txt', 'content', { contentType: 'text/plain' }).run()
@@ -79,7 +79,7 @@ Deno.test('Storage - should head object metadata', async () => {
 })
 
 Deno.test('Storage - should throw StorageObjectNotFound for missing key', async () => {
-  const connector = createMemory()
+  const connector = createInMemory()
   const storage = await Storage.connect(connector).run()
 
   try {
@@ -93,7 +93,7 @@ Deno.test('Storage - should throw StorageObjectNotFound for missing key', async 
 })
 
 Deno.test('Storage - should collect list results with partition', async () => {
-  const connector = createMemory()
+  const connector = createInMemory()
   const storage = await Storage.connect(connector).run()
 
   await storage.put('a.txt', 'a').run()
@@ -109,7 +109,7 @@ Deno.test('Storage - should collect list results with partition', async () => {
 })
 
 Deno.test('Storage - should close and end connector properly', async () => {
-  const connector = createMemory()
+  const connector = createInMemory()
   const storage = await Storage.connect(connector).run()
 
   await storage.close().run()
@@ -117,7 +117,7 @@ Deno.test('Storage - should close and end connector properly', async () => {
 })
 
 Deno.test('Storage - should throw StoragePresignNotSupported for memory adapter', async () => {
-  const connector = createMemory()
+  const connector = createInMemory()
   const storage = await Storage.connect(connector).run()
 
   const result = await storage

@@ -33,9 +33,9 @@
  *
  * @example Basic put/get operations with Storage wrapper
  * ```ts
- * import { Storage, createMemory } from "@anabranch/storage";
+ * import { Storage, createInMemory } from "@anabranch/storage";
  *
- * const connector = createMemory({ prefix: "files/" });
+ * const connector = createInMemory({ prefix: "files/" });
  * const storage = await Storage.connect(connector).run();
  *
  * await storage.put("hello.txt", "Hello, World!").run();
@@ -45,7 +45,7 @@
  *
  * @example Stream listing with concurrent processing
  * ```ts
- * const connector = createMemory();
+ * const connector = createInMemory();
  * const storage = await Storage.connect(connector).run();
  *
  * await storage.put("users/1.json", '{"name": "Alice"}');
@@ -60,9 +60,9 @@
  *
  * @example Head request for metadata
  * ```ts
- * import { Storage, createMemory } from "@anabranch/storage";
+ * import { Storage, createInMemory } from "@anabranch/storage";
  *
- * const connector = createMemory();
+ * const connector = createInMemory();
  * const storage = await Storage.connect(connector).run();
  *
  * await storage.put("image.png", imageBytes, { contentType: "image/png" }).run();
@@ -94,4 +94,4 @@ export type {
   StorageOptions,
 } from './adapter.ts'
 export * from './errors.ts'
-export { createMemory } from './connector.ts'
+export { createInMemory } from './connector.ts'

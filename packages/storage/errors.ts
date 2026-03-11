@@ -3,9 +3,9 @@
  *
  * @example Handling connection failures with retry
  * ```ts
- * import { Storage, createMemory, StorageConnectionFailed } from "@anabranch/storage";
+ * import { Storage, createInMemory, StorageConnectionFailed } from "@anabranch/storage";
  *
- * const storage = await Storage.connect(createMemory())
+ * const storage = await Storage.connect(createInMemory())
  *   .retry({ attempts: 3, delay: 1000 })
  *   .timeout(30_000)
  *   .try();
@@ -26,7 +26,7 @@ export class StorageConnectionFailed extends Error {
  *
  * @example Handling not found errors
  * ```ts
- * import { Storage, createMemory, StorageObjectNotFound } from "@anabranch/storage";
+ * import { Storage, createInMemory, StorageObjectNotFound } from "@anabranch/storage";
  *
  * try {
  *   const object = await storage.get("missing.txt").run();
@@ -133,9 +133,9 @@ export class StoragePresignFailed extends Error {
  *
  * @example Checking for presign support
  * ```ts
- * import { Storage, createMemory, StoragePresignNotSupported } from "@anabranch/storage";
+ * import { Storage, createInMemory, StoragePresignNotSupported } from "@anabranch/storage";
  *
- * const storage = await Storage.connect(createMemory()).run();
+ * const storage = await Storage.connect(createInMemory()).run();
  *
  * try {
  *   const url = await storage.presign("file.txt", { expiresIn: 3600 }).run();

@@ -18,11 +18,11 @@
  */
 
 import { Source } from '@anabranch/anabranch'
-import { createMemory, Storage } from '../../index.ts'
+import { createInMemory, Storage } from '../../index.ts'
 import type { StorageEntry } from '../../index.ts'
 
 async function main() {
-  const connector = createMemory({ prefix: 'files/' })
+  const connector = createInMemory({ prefix: 'files/' })
 
   console.log('=== File Store Demo ===\n')
 

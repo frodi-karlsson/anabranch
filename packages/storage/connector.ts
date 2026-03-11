@@ -15,12 +15,12 @@ const encoder = new TextEncoder()
  *
  * @example
  * ```ts
- * const connector = createMemory({ prefix: "files/" });
+ * const connector = createInMemory({ prefix: "files/" });
  * const storage = await connector.connect();
  * await storage.put("test.txt", "Hello");
  * ```
  */
-export function createMemory(options?: StorageOptions): StorageConnector {
+export function createInMemory(options?: StorageOptions): StorageConnector {
   const prefix = options?.prefix ?? ''
   const data = new Map<string, Uint8Array>()
   const metadata = new Map<string, StorageMetadata>()
