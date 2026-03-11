@@ -1,6 +1,6 @@
 import { _ChannelSource } from '../channel/channel-source.ts'
 import { Promisable, Result } from '../util/util.ts'
-import { PumpError, Stream } from './stream.ts'
+import { MissingKeyError, NoKeysError, PumpError, Stream } from './stream.ts'
 import { AggregateError } from '../util/util.ts'
 
 export class _StreamImpl<T, E> implements Stream<T, E> {
@@ -967,6 +967,91 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
       (s) =>
         new _StreamImpl(() => s.generator(), this.concurrency, this.bufferSize),
     )
+  }
+
+  splitBy<K extends string | number | symbol>(
+    keys: readonly K[],
+    cb: (value: T, arrivalIndex: number) => Promisable<K>,
+    bufferSize: number,
+  ): Record<K, Stream<T, E | MissingKeyError | PumpError | NoKeysError>> {
+    if (keys.length === 0) {
+      throw new NoKeysError()
+    }
+
+    const channels = new Map<
+      K,
+      _ChannelSource<T, E | MissingKeyError | PumpError | NoKeysError>
+    >()
+    const resultRecord = {} as Record<
+      K,
+      Stream<T, E | MissingKeyError | PumpError | NoKeysError>
+    >
+
+    const normalizedBufferSize = Number.isFinite(bufferSize)
+      ? Math.max(1, bufferSize)
+      : Infinity
+
+    for (const key of keys) {
+      const source = new _ChannelSource<
+        T,
+        E | MissingKeyError | PumpError | NoKeysError
+      >({ bufferSize: normalizedBufferSize }) //
+      channels.set(key, source)
+      resultRecord[key] = new _StreamImpl(
+        () => source.generator(),
+        this.concurrency,
+        this.bufferSize,
+      )
+    }
+
+    const pump = async () => {
+      let arrivalIndex = 0
+      try {
+        for await (const result of this.source()) {
+          if (result.type === 'success') {
+            try {
+              const key = await cb(result.value, arrivalIndex++)
+              const targetChannel = channels.get(key)
+
+              if (!targetChannel) {
+                throw new MissingKeyError(key)
+              }
+
+              await targetChannel.waitForCapacity()
+              targetChannel.send(result.value)
+            } catch (err) {
+              const allChannels = Array.from(channels.values())
+              await Promise.all(allChannels.map((c) => c.waitForCapacity()))
+              for (const channel of allChannels) {
+                channel.fail(err as E | MissingKeyError)
+              }
+            }
+          } else {
+            const allChannels = Array.from(channels.values())
+            await Promise.all(allChannels.map((c) => c.waitForCapacity()))
+            for (const channel of allChannels) {
+              channel.fail(result.error)
+            }
+          }
+        }
+      } catch (error) {
+        const pumpError = new PumpError(
+          error instanceof Error ? error.message : String(error),
+          error,
+        )
+        for (const channel of channels.values()) {
+          channel.fail(pumpError)
+        }
+      } finally {
+        for (const channel of channels.values()) {
+          channel.close()
+        }
+      }
+    }
+
+    pump()
+
+    return resultRecord
   }
 }
 

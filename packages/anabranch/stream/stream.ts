@@ -561,6 +561,40 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
   ]
   splitN(n: number, bufferSize: number): Stream<T, E | PumpError>[]
 
+  /**
+   * Splits the stream into separate streams based on computed keys. Each result is sent to the stream corresponding to its computed key. If a result's key does not match any of the provided keys, an error result is emitted for that value. The split streams share the same source, so they are not independent; if one split stream is slower than the others, it will cause backpressure on the source stream and all other splits until it catches up. Use with caution to avoid unintended bottlenecks.
+   *
+   * @example
+   * ```ts
+   * import { Source } from "anabranch";
+   *
+   * const stream = Source.from<{ type: "a" | "b"; value: number }, never>(async function* () {
+   *   yield { type: "a", value: 1 };
+   *   yield { type: "b", value: 2 };
+   *   yield { type: "a", value: 3 };
+   * });
+   *
+   * const splits = stream.splitBy(
+   *   ["a", "b"] as const,
+   *   (item) => item.type,
+   *   10
+   * );
+   *
+   * await Promise.all([
+   *   splits.a.tap(v => console.log("Stream A:", v)).toArray(),
+   *   splits.b.tap(v => console.log("Stream B:", v)).toArray(),
+   * ]);
+   * ```
+   *
+   * Be mindful of consuming all splits to avoid unintended backpressure.
+   * If one of the split streams is slower further down the pipeline, the backpressure will propagate all the way up to the source and affect all other splits, even if they are fast. Always ensure that you consume all split streams at a reasonable pace to keep the data flowing smoothly.
+   */
+  splitBy<K extends string | number | symbol>(
+    keys: readonly K[],
+    cb: (value: T, arrivalIndex: number) => Promisable<K>,
+    bufferSize: number,
+  ): Record<K, Stream<T, E | MissingKeyError | PumpError | NoKeysError>>
+
   [Symbol.asyncIterator](): AsyncIterator<Result<T, E>>
 }
 
@@ -574,5 +608,25 @@ export class PumpError extends Error {
     if (cause !== undefined) {
       this.cause = cause
     }
+  }
+}
+
+/**
+ * An error thrown by `splitBy` when no key exists for the computed key. This is a separate error type to allow users to distinguish between missing keys and other types of errors.
+ */
+export class MissingKeyError extends Error {
+  constructor(public key: unknown) {
+    super(`Missing key: ${String(key)}`)
+    this.name = 'MissingKeyError'
+  }
+}
+
+/**
+ * An error thrown by `splitBy` when no keys are provided
+ */
+export class NoKeysError extends Error {
+  constructor() {
+    super(`At least one key must be provided for splitBy`)
+    this.name = 'NoKeysError'
   }
 }

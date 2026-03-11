@@ -1,7 +1,13 @@
-import { assertEquals, assertObjectMatch, assertRejects } from '@std/assert'
+import {
+  assertEquals,
+  assertObjectMatch,
+  assertRejects,
+  assertThrows,
+} from '@std/assert'
 import { PumpError, type Result, Source } from '../index.ts'
 import { deferred, failure, streamFrom, success } from '../test_utils.ts'
 import { ErrorResult } from '../util/util.ts'
+import { MissingKeyError, NoKeysError } from './stream.ts'
 
 Deno.test('Stream.toArray - should collect all results', async () => {
   const stream = streamFrom<number, string>([
@@ -1888,4 +1894,169 @@ Deno.test('Stream.splitN - should split into 1 if n < 0', () => {
   const split = stream.splitN(-5, 10)
 
   assertEquals(split.length, 1)
+})
+
+Deno.test('Stream.splitBy - should route items to the correct streams', async () => {
+  const stream = streamFrom<number, never>([
+    success(1),
+    success(2),
+    success(3),
+    success(4),
+  ])
+
+  const { even, odd } = stream.splitBy(
+    ['even', 'odd'] as const,
+    (n) => (n % 2 === 0 ? 'even' : 'odd'),
+    10,
+  )
+
+  const [evens, odds] = await Promise.all([
+    even.collect(),
+    odd.collect(),
+  ])
+
+  assertEquals(evens, [2, 4])
+  assertEquals(odds, [1, 3])
+})
+
+Deno.test('Stream.splitBy - should broadcast MissingKeyError to all streams if key is not found', async () => {
+  const stream = streamFrom<number, never>([
+    success(1), // Matches 'one'
+    success(2), // Matches 'two'
+    success(3), // Unmatched! Throws MissingKeyError(3)
+    success(4), // Unmatched! Throws MissingKeyError(4)
+    success(5), // Matches 'one' - Pipeline is still alive!
+  ])
+
+  const { one, two } = stream.splitBy(
+    ['one', 'two'] as const,
+    // Safely cast to trick TS for the test
+    (n) => {
+      if (n === 1 || n === 5) return 'one'
+      if (n === 2) return 'two'
+      return n as unknown as 'one' | 'two'
+    },
+    10,
+  )
+
+  const [resOne, resTwo] = await Promise.all([one.toArray(), two.toArray()])
+
+  assertEquals(resOne.length, 4)
+  assertEquals(resOne[0], { type: 'success', value: 1 })
+  assertEquals((resOne[1] as ErrorResult<number, MissingKeyError>).error.key, 3)
+  assertEquals((resOne[2] as ErrorResult<number, MissingKeyError>).error.key, 4)
+  assertEquals(resOne[3], { type: 'success', value: 5 }) // Survived and processed!
+
+  assertEquals(resTwo.length, 3)
+  assertEquals(resTwo[0], { type: 'success', value: 2 })
+  assertEquals((resTwo[1] as ErrorResult<number, MissingKeyError>).error.key, 3)
+  assertEquals((resTwo[2] as ErrorResult<number, MissingKeyError>).error.key, 4)
+})
+
+Deno.test('Stream.splitBy - should broadcast callback errors to all streams', async () => {
+  const stream = streamFrom<number, string>([success(1), success(2)])
+  const expectedError = new Error('callback failed')
+
+  const { a, b } = stream.splitBy(
+    ['a', 'b'] as const,
+    (n) => {
+      if (n === 2) throw expectedError
+      return 'a'
+    },
+    10,
+  )
+
+  const [resA, resB] = await Promise.all([a.toArray(), b.toArray()])
+
+  assertEquals(resA, [
+    { type: 'success', value: 1 },
+    { type: 'error', error: expectedError },
+  ])
+  assertEquals(resB, [
+    { type: 'error', error: expectedError },
+  ])
+})
+
+Deno.test('Stream.splitBy - should broadcast upstream errors to all streams', async () => {
+  const stream = streamFrom<number, string>([
+    success(1),
+    failure('boom'),
+    success(2),
+  ])
+
+  const { a, b } = stream.splitBy(
+    ['a', 'b'] as const,
+    (n) => (n === 1 ? 'a' : 'b'),
+    10,
+  )
+
+  const [resA, resB] = await Promise.all([a.toArray(), b.toArray()])
+
+  assertEquals(resA, [
+    { type: 'success', value: 1 },
+    { type: 'error', error: 'boom' },
+  ]) // Doesn't get 2 because the error happens first
+
+  assertEquals(resB, [
+    { type: 'error', error: 'boom' },
+    { type: 'success', value: 2 },
+  ])
+})
+
+Deno.test('Stream.splitBy - should throw synchronously if keys array is empty', () => {
+  const stream = streamFrom<number, never>([])
+
+  assertThrows(
+    () => stream.splitBy([], () => 'a', 10),
+    NoKeysError,
+  )
+})
+
+Deno.test('Stream.splitBy - backpressure on one branch eventually pauses upstream', async () => {
+  let generatedCount = 0
+  const stream = Source.from<number, never>(async function* () {
+    while (generatedCount < 100) {
+      generatedCount++
+      yield generatedCount
+    }
+  })
+
+  const { even, odd } = stream.splitBy(
+    ['even', 'odd'] as const,
+    (n) => (n % 2 === 0 ? 'even' : 'odd'),
+    1,
+  )
+
+  const evenIter = even.successes()[Symbol.asyncIterator]()
+  const oddIter = odd.successes()[Symbol.asyncIterator]()
+
+  const firstOdd = await oddIter.next()
+  const firstEven = await evenIter.next()
+
+  assertEquals(firstOdd.value, 1)
+  assertEquals(firstEven.value, 2)
+
+  await new Promise((resolve) => setTimeout(resolve, 50))
+
+  // If backpressure works, the pump is frozen at item 5.
+  assertEquals(
+    generatedCount,
+    5,
+    `Source should have paused at 5, but was ${generatedCount}`,
+  )
+
+  const secondOdd = await oddIter.next()
+  assertEquals(secondOdd.value, 3)
+
+  // Give the pump a microtask to realize capacity opened up,
+  await new Promise((resolve) => setTimeout(resolve, 20))
+
+  assertEquals(
+    generatedCount >= 6,
+    true,
+    'Source should have resumed after clearing buffer',
+  )
+
+  await evenIter.return?.()
+  await oddIter.return?.()
 })

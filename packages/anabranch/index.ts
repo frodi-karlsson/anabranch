@@ -38,7 +38,7 @@
 export { Source } from './source/source.ts'
 export { Task } from './task/task.ts'
 export { Channel } from './channel/channel.ts'
-export { PumpError } from './stream/stream.ts'
+export { MissingKeyError, NoKeysError, PumpError } from './stream/stream.ts'
 export type { Stream } from './stream/stream.ts'
 export { AggregateError } from './util/util.ts'
 export type {
