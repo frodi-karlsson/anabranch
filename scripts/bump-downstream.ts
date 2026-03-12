@@ -42,7 +42,9 @@ async function main(): Promise<void> {
   })
 
   console.log(
-    `Processing ${releases.length} release(s): ${releases.map((r) => `${r.upstream}@${r.version}`).join(', ')}`,
+    `Processing ${releases.length} release(s): ${
+      releases.map((r) => `${r.upstream}@${r.version}`).join(', ')
+    }`,
   )
 
   // Collect dependents for all upstreams, deduplicate.
@@ -63,7 +65,9 @@ async function main(): Promise<void> {
     Deno.exit(0)
   }
 
-  console.log(`\nDownstream packages to bump: ${[...dependentSet.keys()].join(', ')}`)
+  console.log(
+    `\nDownstream packages to bump: ${[...dependentSet.keys()].join(', ')}`,
+  )
 
   const repoRoot = Deno.cwd()
   const bumped: { package: string; next: string; triggers: string[] }[] = []
@@ -75,7 +79,9 @@ async function main(): Promise<void> {
 
     log(
       dryRun,
-      `  ${pkgName}: ${data.version} -> ${next} (triggered by: ${triggers.join(', ')})`,
+      `  ${pkgName}: ${data.version} -> ${next} (triggered by: ${
+        triggers.join(', ')
+      })`,
     )
 
     if (!dryRun) {
@@ -87,7 +93,8 @@ async function main(): Promise<void> {
   }
 
   const pkgNames = bumped.map((b) => b.package)
-  const upstreamSummary = releases.map((r) => `${r.upstream}@${r.version}`).join(', ')
+  const upstreamSummary = releases.map((r) => `${r.upstream}@${r.version}`)
+    .join(', ')
   const commitMsg = `chore(${pkgNames.join(',')}): bump for ${upstreamSummary}`
 
   log(dryRun, `\nCommit: ${commitMsg}`)

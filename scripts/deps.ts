@@ -18,7 +18,7 @@ import { getAllPackages } from './utils.ts'
 const SCOPE = '@anabranch/'
 
 export interface PackageMeta {
-  name: string   // e.g. "db-postgres"
+  name: string // e.g. "db-postgres"
   deps: string[] // sibling package names this package imports, e.g. ["db"]
 }
 

@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     concurrency:
       group: release-downstream-${{ github.sha }}
-      cancel-in-progress: false  # let the first one win, don't cancel it
+      cancel-in-progress: false # let the first one win, don't cancel it
 
     permissions:
       contents: write
