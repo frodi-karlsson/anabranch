@@ -5,6 +5,66 @@ Compatible with Deno, Node.js, and, occasionally, browsers.
 
 ![Animation showing composability of Anabranch](media/swap-anim.gif)
 
+## Adapters
+
+Anabranch provides adapters for popular tools like Kafka, S3, RabbitMQ,
+PostgreSQL, MySQL, SQLite, and Google Cloud Storage out of the box. These
+adapters wrap common operations in Anabranch semantics (Streams and Tasks),
+making them instantly interchangeable. This is especially useful for testing
+with in-memory adapters.
+
+What do you do if your use case isn't covered by an existing adapter?
+
+### Simple wrapping
+
+For straightforward cases, wrap promises or async iterables directly:
+
+```ts
+import { Source, Task } from 'anabranch'
+
+// From an async iterable
+const stream = Source.from(myAsyncIterable())
+
+// From a promise
+const task = Task.of(() => fetchData())
+```
+
+### Custom adapters
+
+For integration with abstractions like `Storage`, and the interchangeability it
+brings, create a custom connector that produces adapters:
+
+```ts
+import type { StorageAdapter, StorageConnector } from '@anabranch/storage'
+import { Storage } from '@anabranch/storage'
+
+// 1. Implement the adapter interface
+const myAdapter: StorageAdapter = {
+  async put(key, body) {/* ... */},
+  async get(key) {/* ... */},
+  async delete(key) {/* ... */},
+  async head(key) {/* ... */},
+  async *list(prefix) {/* ... */},
+  async close() {/* ... */},
+}
+
+// 2. Create a connector that produces adapters
+function createMyStorage(): StorageConnector {
+  return {
+    connect() {
+      return Promise.resolve(myAdapter)
+    },
+    end() {/* cleanup */},
+  }
+}
+
+// 3. Use with the Storage wrapper for Task/Stream semantics
+const storage = await Storage.connect(createMyStorage()).run()
+await storage.put('file.txt', 'hello').run()
+```
+
+This pattern is consistent across all Anabranch adapters.
+
 ## Scripts
 
 ```bash
