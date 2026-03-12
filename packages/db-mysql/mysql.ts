@@ -117,10 +117,11 @@ export function createMySQL(options: MySQLOptions = {}): MySQLConnector {
             }
             return results
           } catch (err) {
+            const message = err instanceof Error ? err.message : String(err)
             if (isConstraintViolation(err)) {
-              throw new ConstraintViolation(sql, (err as Error).message)
+              throw new ConstraintViolation(sql, message)
             }
-            throw new QueryFailed(sql, (err as Error).message)
+            throw new QueryFailed(sql, message)
           }
         },
         close: () => {
@@ -140,10 +141,11 @@ export function createMySQL(options: MySQLOptions = {}): MySQLConnector {
               yield row as T
             }
           } catch (err) {
+            const message = err instanceof Error ? err.message : String(err)
             if (isConstraintViolation(err)) {
-              throw new ConstraintViolation(sql, (err as Error).message)
+              throw new ConstraintViolation(sql, message)
             }
-            throw new QueryFailed(sql, (err as Error).message)
+            throw new QueryFailed(sql, message)
           }
         },
       }
@@ -164,6 +166,8 @@ export function createMySQL(options: MySQLOptions = {}): MySQLConnector {
 
 /** MySQL database connector. */
 export interface MySQLConnector extends DBConnector {
+  /** Connects and returns a DBAdapter for query execution. */
+  connect(signal?: AbortSignal): Promise<DBAdapter>
   /** Closes the connection pool. */
   end(): Promise<void>
 }
