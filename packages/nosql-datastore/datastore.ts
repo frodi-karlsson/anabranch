@@ -77,6 +77,7 @@ export class DatastoreAdapter<TDoc>
       )
 
       let total = 0
+      let lastCursor: string | undefined
       while (hasMore) {
         const [entities, info] = await this.client.runQuery(currentQuery)
 
@@ -92,8 +93,10 @@ export class DatastoreAdapter<TDoc>
         if (
           info.moreResults !== this.client.NO_MORE_RESULTS &&
           info.moreResults !== this.client.MORE_RESULTS_AFTER_LIMIT &&
-          info.endCursor && entities.length > 0
+          info.endCursor &&
+          info.endCursor !== lastCursor
         ) {
+          lastCursor = info.endCursor
           currentQuery = queryBuilder(
             this.client.createQuery(this.kind).start(info.endCursor),
             (id) => this.buildKey(id),

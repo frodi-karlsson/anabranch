@@ -102,7 +102,7 @@ async function runTests(
     console.log(`Running ${pkg.name} integration tests...`)
     const testPath = `./packages/${pkg.name}/${pkg.name}_test.ts`
     await Task.of(() => runTest(testPath, pkg.env ?? {}, filter)).timeout(
-      90_000,
+      45_000,
       new Error(`Tests for ${pkg.name} did not complete in time`),
     ).run()
   }

@@ -279,14 +279,13 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
     concurrency: number,
     bufferSize: number,
   ): AsyncGenerator<Result<U, E>> {
-    let arrivalIndex = 0
     return this.concurrentTransform(
-      async (result) => {
+      async (result, arrivalIndex) => {
         if (result.type !== 'success') {
           return [result as unknown as Result<U, E>]
         }
         try {
-          const mapped = await fn(result.value, arrivalIndex++)
+          const mapped = await fn(result.value, arrivalIndex)
           const outputs: Result<U, E>[] = []
           for await (const value of toAsyncIterable<U>(mapped)) {
             outputs.push({ type: 'success', value } as Result<U, E>)
