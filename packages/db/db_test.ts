@@ -1,249 +1,154 @@
-import { assertEquals } from '@std/assert'
-import { Task } from '@anabranch/anabranch'
-import { createInMemory, DB } from './index.ts'
+import { assertEquals, assertExists } from '@std/assert'
+import { ErrorResult, Task } from '@anabranch/anabranch'
+import { createInMemory, DB, DBAdapter } from './index.ts'
 
 Deno.test('DB - should execute SELECT and return results', async () => {
-  const adapter = await createInMemory().connect()
-  const db = new DB(adapter)
+  const db = new DB(await createInMemory().connect())
+  await db.execute('CREATE TABLE test (id INTEGER, name TEXT)').run()
+  await db.execute("INSERT INTO test VALUES (1, 'alice')").run()
 
-  await db.execute('CREATE TABLE users (id INTEGER, name TEXT)').run()
-  await db.execute("INSERT INTO users (id, name) VALUES (1, 'Alice')").run()
-  await db.execute("INSERT INTO users (id, name) VALUES (2, 'Bob')").run()
-
-  const users = await db.query<{ id: number; name: string }>(
-    'SELECT * FROM users ORDER BY id',
+  const results = await db.query<{ id: number; name: string }>(
+    'SELECT * FROM test',
   ).run()
-
-  assertEquals(users.length, 2)
-  assertEquals(users[0].id, 1)
-  assertEquals(users[0].name, 'Alice')
-  assertEquals(users[1].id, 2)
-  assertEquals(users[1].name, 'Bob')
-
-  await adapter.close()
+  assertEquals(results, [{ id: 1, name: 'alice' }])
 })
 
 Deno.test('DB.query - should handle WHERE clause with params', async () => {
-  const adapter = await createInMemory().connect()
-  const db = new DB(adapter)
+  const db = new DB(await createInMemory().connect())
+  await db.execute('CREATE TABLE test (id INTEGER)').run()
+  await db.execute('INSERT INTO test VALUES (1)').run()
+  await db.execute('INSERT INTO test VALUES (2)').run()
 
-  await db.execute('CREATE TABLE users (id INTEGER, name TEXT)').run()
-  await db.execute("INSERT INTO users (id, name) VALUES (1, 'Alice')").run()
-  await db.execute("INSERT INTO users (id, name) VALUES (2, 'Bob')").run()
-
-  const users = await db.query<{ id: number; name: string }>(
-    'SELECT * FROM users WHERE id = ?',
-    [1],
+  const results = await db.query<{ id: number }>(
+    'SELECT * FROM test WHERE id = ?',
+    [2],
   ).run()
-
-  assertEquals(users.length, 1)
-  assertEquals(users[0].name, 'Alice')
-
-  await adapter.close()
+  assertEquals(results, [{ id: 2 }])
 })
 
 Deno.test('DB.execute - INSERT should return affected rows', async () => {
-  const adapter = await createInMemory().connect()
-  const db = new DB(adapter)
-
-  await db.execute('CREATE TABLE users (id INTEGER, name TEXT)').run()
-
-  const affected = await db.execute(
-    "INSERT INTO users (id, name) VALUES (1, 'Alice')",
-  ).run()
-
+  const db = new DB(await createInMemory().connect())
+  await db.execute('CREATE TABLE test (id INTEGER)').run()
+  const affected = await db.execute('INSERT INTO test VALUES (1)').run()
   assertEquals(affected, 1)
-
-  await adapter.close()
 })
 
 Deno.test('DB.execute - UPDATE should return affected rows', async () => {
-  const adapter = await createInMemory().connect()
-  const db = new DB(adapter)
+  const db = new DB(await createInMemory().connect())
+  await db.execute('CREATE TABLE test (id INTEGER)').run()
+  await db.execute('INSERT INTO test VALUES (1)').run()
+  await db.execute('INSERT INTO test VALUES (2)').run()
 
-  await db.execute('CREATE TABLE users (id INTEGER, name TEXT)').run()
-  await db.execute("INSERT INTO users (id, name) VALUES (1, 'Alice')").run()
-  await db.execute("INSERT INTO users (id, name) VALUES (2, 'Bob')").run()
-
-  const affected = await db.execute(
-    "UPDATE users SET name = 'Charlie' WHERE name = ?",
-    ['Alice'],
-  ).run()
-
-  assertEquals(affected, 1)
-
-  await adapter.close()
+  const affected = await db.execute('UPDATE test SET id = 3').run()
+  assertEquals(affected, 2)
 })
 
 Deno.test('DB.execute - DELETE should return affected rows', async () => {
-  const adapter = await createInMemory().connect()
-  const db = new DB(adapter)
+  const db = new DB(await createInMemory().connect())
+  await db.execute('CREATE TABLE test (id INTEGER)').run()
+  await db.execute('INSERT INTO test VALUES (1)').run()
 
-  await db.execute('CREATE TABLE users (id INTEGER, name TEXT)').run()
-  await db.execute("INSERT INTO users (id, name) VALUES (1, 'Alice')").run()
-  await db.execute("INSERT INTO users (id, name) VALUES (2, 'Bob')").run()
-
-  const affected = await db.execute('DELETE FROM users WHERE id = 1').run()
-
+  const affected = await db.execute('DELETE FROM test').run()
   assertEquals(affected, 1)
-
-  await adapter.close()
 })
 
 Deno.test('DB.stream - should yield rows one at a time', async () => {
-  const adapter = await createInMemory().connect()
-  const db = new DB(adapter)
+  const db = new DB(await createInMemory().connect())
+  await db.execute('CREATE TABLE test (id INTEGER)').run()
+  await db.execute('INSERT INTO test VALUES (1)').run()
+  await db.execute('INSERT INTO test VALUES (2)').run()
 
-  await db.execute('CREATE TABLE users (id INTEGER, name TEXT)').run()
-  await db.execute("INSERT INTO users (id, name) VALUES (1, 'Alice')").run()
-  await db.execute("INSERT INTO users (id, name) VALUES (2, 'Bob')").run()
-
-  const users: { id: number; name: string }[] = []
-
-  for await (
-    const row of db.stream<{ id: number; name: string }>(
-      'SELECT * FROM users ORDER BY id',
-    )
-  ) {
-    if (row.type === 'success') {
-      users.push(row.value)
-    }
-  }
-
-  assertEquals(users.length, 2)
-  assertEquals(users[0].name, 'Alice')
-  assertEquals(users[1].name, 'Bob')
-
-  await adapter.close()
+  const rows = await db.stream<{ id: number }>('SELECT * FROM test').collect()
+  assertEquals(rows, [{ id: 1 }, { id: 2 }])
 })
 
 Deno.test('DB.stream - partition should collect successes and errors', async () => {
-  const adapter = await createInMemory().connect()
-  const db = new DB(adapter)
+  const db = new DB(await createInMemory().connect())
+  await db.execute('CREATE TABLE test (id INTEGER)').run()
+  await db.execute('INSERT INTO test VALUES (1)').run()
 
-  await db.execute('CREATE TABLE users (id INTEGER, name TEXT)').run()
-  await db.execute("INSERT INTO users (id, name) VALUES (1, 'Alice')").run()
-  await db.execute("INSERT INTO users (id, name) VALUES (2, 'Bob')").run()
-
-  const { successes, errors } = await db.stream(
-    'SELECT * FROM users ORDER BY id',
+  const { successes, errors } = await db.stream<{ id: number }>(
+    'SELECT * FROM test',
   ).partition()
-
-  assertEquals(successes.length, 2)
+  assertEquals(successes, [{ id: 1 }])
   assertEquals(errors.length, 0)
-
-  await adapter.close()
 })
 
 Deno.test(
   'DB.stream - should buffer results when adapter lacks stream method',
   async () => {
-    const connector = createInMemory()
-    const adapter = await connector.connect()
-    const db = new DB(adapter)
+    const mockAdapter: DBAdapter = {
+      query: <T>() => Promise.resolve([{ id: 1 }]) as Promise<T[]>,
+      execute: () => Promise.resolve(0),
+      executeBatch: () => Promise.resolve([]),
+      close: () => Promise.resolve(),
+    }
 
-    assertEquals(adapter.stream, undefined)
-
-    const { successes } = await db
-      .stream<{ id: number; name: string }>(
-        'SELECT * FROM users ORDER BY id',
-      )
-      .partition()
-
-    assertEquals(successes.length, 0)
-
-    await adapter.close()
+    const db = new DB(mockAdapter)
+    const rows = await db.stream<{ id: number }>('SELECT 1').collect()
+    assertEquals(rows, [{ id: 1 }])
   },
 )
 
 Deno.test('DB.withConnection - should commit on success', async () => {
-  const result = await DB.withConnection(
-    createInMemory(),
-    (db) =>
-      Task.of(async () => {
-        await db.execute('CREATE TABLE users (id INTEGER, name TEXT)').run()
-        await db
-          .execute("INSERT INTO users (id, name) VALUES (1, 'Alice')")
-          .run()
-        await db
-          .execute("INSERT INTO users (id, name) VALUES (2, 'Bob')")
-          .run()
-        return db.query<{ id: number; name: string }>(
-          'SELECT * FROM users',
-        ).run()
-      }),
-  ).run()
+  const connector = createInMemory()
+  const result = await DB.withConnection(connector, (db) => {
+    return db.execute('CREATE TABLE test (id INTEGER)').flatMap(() =>
+      db.execute('INSERT INTO test VALUES (1)')
+    )
+  }).run()
 
-  assertEquals(result.length, 2)
+  assertEquals(result, 1)
 })
 
 Deno.test('DB.withConnection - should rollback on error', async () => {
-  let threw = false
-  let errorMsg = ''
-  try {
-    await DB.withConnection(createInMemory(), (db) =>
-      Task.of(async () => {
-        await db
-          .execute(
-            'CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)',
-          )
-          .run()
-        await db
-          .execute("INSERT INTO users (id, name) VALUES (1, 'Alice')")
-          .run()
-        await db
-          .execute(
-            "INSERT INTO users (id, name) VALUES (1, 'Charlie')",
-          )
-          .run()
-        return 'should not reach here'
-      })).run()
-  } catch (e) {
-    threw = true
-    errorMsg = (e as Error).message
-  }
-  assertEquals(threw, true, `Expected error, got: ${errorMsg}`)
-  assertEquals(errorMsg.includes('UNIQUE constraint failed'), true)
+  const connector = createInMemory()
+  const result = await DB.withConnection(connector, (db) => {
+    return db.execute('INVALID SQL')
+  }).result()
+
+  assertEquals(result.type, 'error')
+  assertExists((result as ErrorResult<unknown, unknown>).error)
 })
 
-Deno.test(
-  'DB.withTransaction - should commit on success',
-  async () => {
-    const result = await DB.withConnection(
-      createInMemory(),
-      (db) =>
-        db.withTransaction(async (tx) => {
-          await tx
-            .execute('CREATE TABLE users (id INTEGER, name TEXT)')
-            .run()
-          await tx
-            .execute("INSERT INTO users (id, name) VALUES (1, 'Alice')")
-            .run()
-          await tx.execute("INSERT INTO users (name) VALUES ('Bob')").run()
+Deno.test('DB.withTransaction - should commit on success', async () => {
+  let commitCount = 0
+  let rollbackCount = 0
 
-          return db
-            .query<{ id: number; name: string }>('SELECT * FROM users')
-            .run()
-        }),
-    ).run()
+  const mockAdapter: DBAdapter = {
+    query: () => Promise.resolve([]),
+    execute: (sql: string) => {
+      if (sql === 'ROLLBACK') rollbackCount++
+      if (sql === 'COMMIT') commitCount++
+      return Promise.resolve(0)
+    },
+    executeBatch: () => Promise.resolve([]),
+    close: () => Promise.resolve(),
+  }
 
-    assertEquals(result.length, 2)
-  },
-)
+  const db = new DB(mockAdapter)
+  await db.withTransaction(async (tx) => {
+    await tx.execute('INSERT INTO test VALUES (1)').run()
+  }).run()
+
+  assertEquals(commitCount, 1, 'Should have committed once')
+  assertEquals(rollbackCount, 0, 'Should NOT have rolled back')
+})
 
 Deno.test(
   'DB.withTransaction - should not redundant rollback on success',
   async () => {
-    let rollbackCount = 0
     let commitCount = 0
+    let rollbackCount = 0
 
-    const mockAdapter = {
+    const mockAdapter: DBAdapter = {
       query: () => Promise.resolve([]),
       execute: (sql: string) => {
         if (sql === 'ROLLBACK') rollbackCount++
         if (sql === 'COMMIT') commitCount++
         return Promise.resolve(0)
       },
+      executeBatch: () => Promise.resolve([]),
       close: () => Promise.resolve(),
     }
 
@@ -262,12 +167,13 @@ Deno.test(
   async () => {
     let rollbackCount = 0
 
-    const mockAdapter = {
+    const mockAdapter: DBAdapter = {
       query: () => Promise.resolve([]),
       execute: (sql: string) => {
         if (sql === 'ROLLBACK') rollbackCount++
         return Promise.resolve(0)
       },
+      executeBatch: () => Promise.resolve([]),
       close: () => Promise.resolve(),
     }
 
@@ -291,8 +197,9 @@ Deno.test('createInMemory - should return a valid connector', async () => {
   const adapter = await connector.connect()
   assertEquals(typeof adapter.query, 'function')
   assertEquals(typeof adapter.execute, 'function')
+  assertEquals(typeof adapter.executeBatch, 'function')
   assertEquals(typeof adapter.close, 'function')
-  assertEquals(adapter.stream, undefined)
+  assertEquals(typeof adapter.stream, 'function')
 
   await adapter.close()
 })
@@ -325,5 +232,42 @@ Deno.test(
     const result = await task.run()
     assertEquals(result, 1)
     assertEquals(released.length, 2)
+  },
+)
+
+Deno.test(
+  'DB.withTransaction - should support nested transactions via savepoints',
+  async () => {
+    const connector = createInMemory()
+    const db = new DB(await connector.connect())
+
+    await db.execute('CREATE TABLE test (val TEXT)').run()
+
+    await db.withTransaction(async (tx1) => {
+      await tx1.execute("INSERT INTO test VALUES ('outer')").run()
+
+      // Nested transaction that commits
+      await tx1.withTransaction(async (tx2) => {
+        await tx2.execute("INSERT INTO test VALUES ('inner-commit')").run()
+      }).run()
+
+      // Nested transaction that rolls back
+      await tx1.withTransaction(async (tx3) => {
+        await tx3.execute("INSERT INTO test VALUES ('inner-rollback')").run()
+        throw new Error('rollback inner')
+      }).result()
+
+      const results = await tx1.query<{ val: string }>('SELECT * FROM test')
+        .run()
+      assertEquals(results.length, 2)
+      assertEquals(results.map((r) => r.val).sort(), [
+        'inner-commit',
+        'outer',
+      ])
+    }).run()
+
+    const finalResults = await db.query<{ val: string }>('SELECT * FROM test')
+      .run()
+    assertEquals(finalResults.length, 2)
   },
 )

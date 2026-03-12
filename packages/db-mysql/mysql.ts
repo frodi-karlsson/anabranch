@@ -1,67 +1,21 @@
-import type { DBAdapter, DBConnector } from '@anabranch/db'
+import {
+  ConstraintViolation,
+  type DBAdapter,
+  type DBConnector,
+  QueryFailed,
+} from '@anabranch/db'
 import process from 'node:process'
-import type { QueryOptions } from 'npm:mysql2@^3'
+import * as mysql from 'npm:mysql2@^3'
 
 /**
  * Creates a MySQL connector with connection pooling.
- *
- * Uses mysql2 with promise API for MySQL databases. The connection pool
- * manages multiple connections for concurrent operations. Each adapter
- * acquisition gets a connection from the pool; releasing returns it.
- *
- * @example Connect with connection string
- * ```ts
- * import { DB } from "@anabranch/db";
- * import { createMySQL } from "@anabranch/db-mysql";
- *
- * const users = await DB.withConnection(
- *   createMySQL({ connectionString: "mysql://user:pass@localhost:3306/mydb" }),
- *   (db) => db.query("SELECT * FROM users")
- * ).run();
- * ```
- *
- * @example Concurrent processing with retry on failure
- * ```ts
- * import { DB } from "@anabranch/db";
- * import { createMySQL } from "@anabranch/db-mysql";
- *
- * const { successes, errors } = await DB.withConnection(createMySQL(), (db) =>
- *   db.stream("SELECT * FROM users")
- *     .withConcurrency(5)
- *     .map(async (user) => {
- *       const profile = await fetchProfile(user.id);
- *       return enrichUser(user, profile);
- *     })
- *     .retry({ attempts: 3, delay: 100 })
- *     .partition()
- * ).run();
- * ```
- *
- * @example Transactions with error handling
- * ```ts
- * import { DB, ConstraintViolation } from "@anabranch/db";
- * import { createMySQL } from "@anabranch/db-mysql";
- *
- * const result = await DB.withConnection(createMySQL(), (db) =>
- *   db.withTransaction(async (tx) => {
- *     await tx.execute("INSERT INTO orders (user_id, total) VALUES (?, ?)", [userId, total]);
- *     await tx.execute("UPDATE users SET order_count = order_count + 1 WHERE id = ?", [userId]);
- *     return tx.query("SELECT LAST_INSERT_ID()");
- *   })
- * ).recoverWhen(
- *   (e) => e instanceof ConstraintViolation,
- *   (e) => ({ id: 0, error: e.message })
- * ).run();
- * ```
  */
 export function createMySQL(options: MySQLOptions = {}): MySQLConnector {
-  let mysql2: typeof import('npm:mysql2@^3')
-  let pool: null | ReturnType<typeof mysql2.createPool> = null
+  let pool: mysql.Pool | null = null
 
-  async function getPool() {
+  function getPool() {
     if (!pool) {
-      mysql2 = await import('npm:mysql2@^3')
-      let config: Parameters<typeof mysql2.createPool>[0]
+      let config: mysql.PoolOptions
 
       if (options.connectionString) {
         const url = new URL(options.connectionString)
@@ -88,44 +42,120 @@ export function createMySQL(options: MySQLOptions = {}): MySQLConnector {
         }
       }
 
-      pool = mysql2.createPool(config)
+      pool = mysql.createPool(config)
     }
-    return pool.promise()
+    return pool
   }
 
   return {
     async connect(signal?: AbortSignal): Promise<DBAdapter> {
-      const p = await getPool()
-      const connection = await p.getConnection()
+      const p = getPool()
+      const connection = await new Promise<mysql.PoolConnection>(
+        (resolve, reject) => {
+          p.getConnection((err, conn) => {
+            if (err) reject(err)
+            else resolve(conn)
+          })
+        },
+      )
+
+      if (signal?.aborted) {
+        connection.release()
+        throw new QueryFailed('N/A', 'Aborted')
+      }
 
       const onAbort = () => connection.destroy()
       signal?.addEventListener('abort', onAbort, { once: true })
 
       return {
-        // deno-lint-ignore no-explicit-any
-        query: <T extends Record<string, any> = Record<string, any>>(
+        query: <T extends Record<string, unknown> = Record<string, unknown>>(
           sql: string,
           params?: unknown[],
         ) =>
-          connection
-            .query(sql, params as QueryOptions['values'])
-            .then(([rows]) => rows as T[]),
+          new Promise<T[]>((resolve, reject) => {
+            connection.query(sql, params, (err, rows) => {
+              if (err) {
+                if (isConstraintViolation(err)) {
+                  reject(new ConstraintViolation(sql, err.message))
+                } else {
+                  reject(new QueryFailed(sql, err.message))
+                }
+              } else {
+                resolve(rows as T[])
+              }
+            })
+          }),
         execute: (sql, params) =>
-          connection
-            .query(sql, params as QueryOptions['values'])
-            .then(([result]) =>
-              (result as { affectedRows?: number }).affectedRows ?? 0
-            ),
+          new Promise<number>((resolve, reject) => {
+            connection.query(sql, params, (err, result) => {
+              if (err) {
+                if (isConstraintViolation(err)) {
+                  reject(new ConstraintViolation(sql, err.message))
+                } else {
+                  reject(new QueryFailed(sql, err.message))
+                }
+              } else {
+                const header = result as mysql.ResultSetHeader
+                resolve(header.affectedRows ?? 0)
+              }
+            })
+          }),
+        executeBatch: async (sql, paramsArray) => {
+          try {
+            const results: number[] = []
+            for (const params of paramsArray) {
+              const r = await new Promise<number>((resolve, reject) => {
+                connection.query(sql, params, (err, result) => {
+                  if (err) reject(err)
+                  else {
+                    const header = result as mysql.ResultSetHeader
+                    resolve(header.affectedRows ?? 0)
+                  }
+                })
+              })
+              results.push(r)
+            }
+            return results
+          } catch (err) {
+            if (isConstraintViolation(err)) {
+              throw new ConstraintViolation(sql, (err as Error).message)
+            }
+            throw new QueryFailed(sql, (err as Error).message)
+          }
+        },
         close: () => {
           signal?.removeEventListener('abort', onAbort)
-          connection.destroy()
+          connection.release()
           return Promise.resolve()
+        },
+        stream: async function* <
+          T extends Record<string, unknown> = Record<string, unknown>,
+        >(sql: string, params?: unknown[]) {
+          const stream = connection.query(sql, params).stream({
+            objectMode: true,
+          })
+
+          try {
+            for await (const row of stream) {
+              yield row as T
+            }
+          } catch (err) {
+            if (isConstraintViolation(err)) {
+              throw new ConstraintViolation(sql, (err as Error).message)
+            }
+            throw new QueryFailed(sql, (err as Error).message)
+          }
         },
       }
     },
     async end(): Promise<void> {
       if (pool) {
-        await pool.end()
+        await new Promise<void>((resolve, reject) => {
+          pool!.end((err) => {
+            if (err) reject(err)
+            else resolve()
+          })
+        })
         pool = null
       }
     },
@@ -154,4 +184,15 @@ export interface MySQLOptions {
   connectionLimit?: number
   waitForConnections?: boolean
   connectionTimeoutMillis?: number
+}
+
+function isConstraintViolation(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false
+  const err = error as { code?: string; errno?: number }
+  return (
+    err.code === 'ER_DUP_ENTRY' ||
+    err.errno === 1062 ||
+    err.errno === 1451 ||
+    err.errno === 1452
+  )
 }

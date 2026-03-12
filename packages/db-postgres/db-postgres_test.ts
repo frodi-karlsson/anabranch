@@ -4,7 +4,7 @@
  * CI uses GitHub Actions service containers for this.
  */
 import { assertEquals } from '@std/assert'
-import { Task } from '@anabranch/anabranch'
+import { ErrorResult, Task } from '@anabranch/anabranch'
 import { DB } from '@anabranch/db'
 import { createPostgres } from './index.ts'
 
@@ -328,6 +328,81 @@ Deno.test({
 
       assertEquals(threw, true, `Expected error, got: ${errorMsg}`)
       assertEquals(errorMsg.includes('duplicate key'), true)
+    } finally {
+      await connector.end()
+    }
+  },
+})
+
+import { ConstraintViolation } from '@anabranch/db'
+
+Deno.test({
+  name: 'db-postgres - should throw ConstraintViolation on duplicate key',
+  ignore: !POSTGRES_URL,
+  async fn() {
+    const connector = createPostgres({ connectionString: POSTGRES_URL! })
+    try {
+      const table = `users_${crypto.randomUUID().replace(/-/g, '_')}`
+      await DB.withConnection(connector, (db) =>
+        Task.of(async () => {
+          await db.execute(
+            `CREATE TABLE ${table} (id SERIAL PRIMARY KEY, name TEXT UNIQUE)`,
+          ).run()
+          await db.execute(`INSERT INTO ${table} (name) VALUES ('Alice')`).run()
+
+          const result = await db.execute(
+            `INSERT INTO ${table} (name) VALUES ('Alice')`,
+          ).result()
+          assertEquals(result.type, 'error')
+          assertEquals(
+            (result as ErrorResult<unknown, unknown>).error instanceof
+              ConstraintViolation,
+            true,
+          )
+        })).run()
+    } finally {
+      await connector.end()
+    }
+  },
+})
+
+Deno.test({
+  name: 'db-postgres - should support nested transactions via savepoints',
+  ignore: !POSTGRES_URL,
+  async fn() {
+    const connector = createPostgres({ connectionString: POSTGRES_URL! })
+    try {
+      const table = `users_${crypto.randomUUID().replace(/-/g, '_')}`
+      await DB.withConnection(connector, (db) =>
+        Task.of(async () => {
+          await db.execute(
+            `CREATE TABLE ${table} (id SERIAL PRIMARY KEY, name TEXT)`,
+          ).run()
+
+          await db.withTransaction(async (tx1) => {
+            await tx1.execute(`INSERT INTO ${table} (name) VALUES ('Alice')`)
+              .run()
+
+            await tx1.withTransaction(async (tx2) => {
+              await tx2.execute(`INSERT INTO ${table} (name) VALUES ('Bob')`)
+                .run()
+            }).run()
+
+            // Nested transaction that rolls back
+            await tx1.withTransaction(async (tx3) => {
+              await tx3.execute(
+                `INSERT INTO ${table} (name) VALUES ('Charlie')`,
+              ).run()
+              throw new Error('rollback inner')
+            }).result()
+          }).run()
+
+          const users = await db.query(`SELECT * FROM ${table} ORDER BY name`)
+            .run()
+          assertEquals(users.length, 2)
+          assertEquals(users[0].name, 'Alice')
+          assertEquals(users[1].name, 'Bob')
+        })).run()
     } finally {
       await connector.end()
     }

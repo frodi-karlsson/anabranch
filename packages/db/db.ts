@@ -3,9 +3,12 @@ import type { DBAdapter, DBConnector, DBTransactionAdapter } from './adapter.ts'
 import {
   ConnectionFailed,
   ConstraintViolation,
+  DBError,
   QueryFailed,
   TransactionFailed,
 } from './errors.ts'
+
+const transactionDepths = new WeakMap<DBAdapter, number>()
 
 /**
  * Database wrapper with Task/Stream semantics.
@@ -47,6 +50,7 @@ export class DB {
     return Task.acquireRelease({
       acquire: (signal) =>
         connector.connect(signal).catch((error) => {
+          if (error instanceof ConnectionFailed) throw error
           throw new ConnectionFailed(
             error instanceof Error ? error.message : String(error),
           )
@@ -68,8 +72,10 @@ export class DB {
   ): Task<T[], QueryFailed | ConstraintViolation> {
     return Task.of(async () => await this.adapter.query<T>(sql, params))
       .mapErr((error) => {
-        if (error instanceof Error && error.message.includes('constraint')) {
-          return new ConstraintViolation(sql, error.message)
+        if (
+          error instanceof QueryFailed || error instanceof ConstraintViolation
+        ) {
+          return error
         }
         return new QueryFailed(
           sql,
@@ -89,8 +95,34 @@ export class DB {
   ): Task<number, QueryFailed | ConstraintViolation> {
     return Task.of(async () => await this.adapter.execute(sql, params))
       .mapErr((error) => {
-        if (error instanceof Error && error.message.includes('constraint')) {
-          return new ConstraintViolation(sql, error.message)
+        if (
+          error instanceof QueryFailed || error instanceof ConstraintViolation
+        ) {
+          return error
+        }
+        return new QueryFailed(
+          sql,
+          error instanceof Error ? error.message : String(error),
+        )
+      })
+  }
+
+  /**
+   * Execute multiple commands in a batch.
+   * Leverages optimized adapter method if available.
+   */
+  executeBatch(
+    sql: string,
+    paramsArray: unknown[][],
+  ): Task<number[], QueryFailed | ConstraintViolation> {
+    return Task.of(async () =>
+      await this.adapter.executeBatch(sql, paramsArray)
+    )
+      .mapErr((error) => {
+        if (
+          error instanceof QueryFailed || error instanceof ConstraintViolation
+        ) {
+          return error
         }
         return new QueryFailed(
           sql,
@@ -126,6 +158,7 @@ export class DB {
           }
         }
       } catch (error) {
+        if (error instanceof QueryFailed) throw error
         throw new QueryFailed(
           sql,
           error instanceof Error ? error.message : String(error),
@@ -134,6 +167,10 @@ export class DB {
     })
   }
 
+  /**
+   * Execute a callback within a transaction.
+   * Supports nested transactions via SQL savepoints.
+   */
   withTransaction<R>(
     fn: (tx: DBTransaction) => Promisable<R>,
   ): Task<R, TransactionFailed | QueryFailed | ConstraintViolation> {
@@ -146,9 +183,8 @@ export class DB {
       release: (tx) => tx.rollback().run().catch(() => {}),
       use: (tx) =>
         Task.of<R, TransactionFailed | QueryFailed | ConstraintViolation>(
-          () => {
-            const result = fn(tx)
-            return result instanceof Promise ? result : Promise.resolve(result)
+          async () => {
+            return await fn(tx)
           },
         ).flatMap((result) => tx.commit().map(() => result)),
     })
@@ -156,18 +192,47 @@ export class DB {
 
   private transaction(): Task<DBTransaction, TransactionFailed> {
     return Task.of(async () => {
-      await this.adapter.execute('BEGIN')
-      return new DBTransaction({
-        query: (sql, params) => this.adapter.query(sql, params),
-        execute: (sql, params) => this.adapter.execute(sql, params),
-        commit: () => this.adapter.execute('COMMIT').then(() => {}),
-        rollback: () => this.adapter.execute('ROLLBACK').then(() => {}),
-      })
-    }).mapErr((error) =>
-      new TransactionFailed(
+      const depth = transactionDepths.get(this.adapter) ?? 0
+      const isNested = depth > 0
+      const savepoint = `sp_${depth}`
+
+      if (isNested) {
+        await this.adapter.execute(`SAVEPOINT ${savepoint}`)
+      } else {
+        await this.adapter.execute('BEGIN')
+      }
+      transactionDepths.set(this.adapter, depth + 1)
+
+      return new DBTransaction(
+        {
+          query: (sql, params) => this.adapter.query(sql, params),
+          execute: (sql, params) => this.adapter.execute(sql, params),
+          executeBatch: (sql, paramsArray) =>
+            this.adapter.executeBatch(sql, paramsArray),
+          commit: async () => {
+            if (isNested) {
+              await this.adapter.execute(`RELEASE SAVEPOINT ${savepoint}`)
+            } else {
+              await this.adapter.execute('COMMIT')
+            }
+          },
+          rollback: async () => {
+            if (isNested) {
+              await this.adapter.execute(`ROLLBACK TO SAVEPOINT ${savepoint}`)
+            } else {
+              await this.adapter.execute('ROLLBACK')
+            }
+          },
+        },
+        this.adapter,
+        this,
+      )
+    }).mapErr((error) => {
+      if (error instanceof TransactionFailed) return error
+      return new TransactionFailed(
         error instanceof Error ? error.message : String(error),
       )
-    )
+    })
   }
 }
 
@@ -175,13 +240,20 @@ export class DB {
 export class DBTransaction {
   private settled = false
 
-  constructor(private readonly adapter: DBTransactionAdapter) {}
+  constructor(
+    private readonly adapter: DBTransactionAdapter,
+    private readonly rawAdapter: DBAdapter,
+    private readonly db: DB,
+  ) {}
 
-  query<T>(sql: string, params?: unknown[]): Task<T[], QueryFailed> {
+  query<T>(
+    sql: string,
+    params?: unknown[],
+  ): Task<T[], QueryFailed | ConstraintViolation> {
     return Task.of(async () => await this.adapter.query(sql, params) as T[])
       .mapErr((error) => {
-        if (error instanceof Error && error.message.includes('constraint')) {
-          return new ConstraintViolation(sql, error.message)
+        if (error instanceof DBError) {
+          return error as QueryFailed | ConstraintViolation
         }
         return new QueryFailed(
           sql,
@@ -190,29 +262,61 @@ export class DBTransaction {
       })
   }
 
-  execute(sql: string, params?: unknown[]): Task<number, QueryFailed> {
+  execute(
+    sql: string,
+    params?: unknown[],
+  ): Task<number, QueryFailed | ConstraintViolation> {
     return Task.of(async () => await this.adapter.execute(sql, params))
       .mapErr((error) => {
-        if (error instanceof Error && error.message.includes('constraint')) {
-          return new ConstraintViolation(sql, error.message)
+        if (error instanceof DBError) {
+          return error as QueryFailed | ConstraintViolation
         }
         return new QueryFailed(
           sql,
           error instanceof Error ? error.message : String(error),
         )
       })
+  }
+
+  executeBatch(
+    sql: string,
+    paramsArray: unknown[][],
+  ): Task<number[], QueryFailed | ConstraintViolation> {
+    return Task.of(async () =>
+      await this.adapter.executeBatch(sql, paramsArray)
+    )
+      .mapErr((error) => {
+        if (error instanceof DBError) {
+          return error as QueryFailed | ConstraintViolation
+        }
+        return new QueryFailed(
+          sql,
+          error instanceof Error ? error.message : String(error),
+        )
+      })
+  }
+
+  /**
+   * Execute a callback within a nested transaction (savepoint).
+   */
+  withTransaction<R>(
+    fn: (tx: DBTransaction) => Promisable<R>,
+  ): Task<R, TransactionFailed | QueryFailed | ConstraintViolation> {
+    return this.db.withTransaction(fn)
   }
 
   commit(): Task<void, TransactionFailed> {
     return Task.of(async () => {
       await this.adapter.commit()
       this.settled = true
-    }).mapErr(
-      (error) =>
-        new TransactionFailed(
-          error instanceof Error ? error.message : String(error),
-        ),
-    )
+      const depth = transactionDepths.get(this.rawAdapter) ?? 1
+      transactionDepths.set(this.rawAdapter, depth - 1)
+    }).mapErr((error) => {
+      if (error instanceof TransactionFailed) return error
+      return new TransactionFailed(
+        error instanceof Error ? error.message : String(error),
+      )
+    })
   }
 
   rollback(): Task<void, TransactionFailed> {
@@ -220,11 +324,13 @@ export class DBTransaction {
       if (this.settled) return
       await this.adapter.rollback()
       this.settled = true
-    }).mapErr(
-      (error) =>
-        new TransactionFailed(
-          error instanceof Error ? error.message : String(error),
-        ),
-    )
+      const depth = transactionDepths.get(this.rawAdapter) ?? 1
+      transactionDepths.set(this.rawAdapter, depth - 1)
+    }).mapErr((error) => {
+      if (error instanceof TransactionFailed) return error
+      return new TransactionFailed(
+        error instanceof Error ? error.message : String(error),
+      )
+    })
   }
 }

@@ -1,53 +1,17 @@
 import pg from 'npm:pg@^8.11.0'
 import Cursor from 'npm:pg-cursor@^2.0.0'
-import type { DBAdapter } from '@anabranch/db'
+import {
+  ConstraintViolation,
+  type DBAdapter,
+  type DBConnector,
+  QueryFailed,
+} from '@anabranch/db'
 import process from 'node:process'
 
 const { Pool } = pg
 
 /**
  * Creates a PostgreSQL connector with connection pooling.
- *
- * Returns a connector that can be used with {@link DB.withConnection} to
- * acquire connections. Each call to `connect()` returns a new adapter with
- * query, execute, and stream methods. The stream method uses pg-cursor for
- * memory-efficient streaming of large result sets.
- *
- * @example Connect and query with error handling
- * ```ts
- * import { DB } from "@anabranch/db";
- * import { createPostgres } from "@anabranch/db-postgres";
- *
- * const users = await DB.withConnection(createPostgres(), (db) =>
- *   db.query("SELECT * FROM users WHERE active = ?", [true])
- * ).run();
- * ```
- *
- * @example Stream large result sets with concurrency
- * ```ts
- * import { DB } from "@anabranch/db";
- * import { createPostgres } from "@anabranch/db-postgres";
- *
- * const { successes, errors } = await DB.withConnection(createPostgres(), (db) =>
- *   db.stream("SELECT * FROM large_table")
- *     .withConcurrency(10)
- *     .map(row => processRow(row))
- *     .partition()
- * ).run();
- * ```
- *
- * @example Transactions with automatic rollback
- * ```ts
- * import { DB } from "@anabranch/db";
- * import { createPostgres } from "@anabranch/db-postgres";
- *
- * const result = await DB.withConnection(createPostgres(), (db) =>
- *   db.withTransaction(async (tx) => {
- *     await tx.execute("INSERT INTO orders (user_id) VALUES (?)", [userId]);
- *     return tx.query("SELECT last_insert_rowid()");
- *   })
- * ).run();
- * ```
  */
 export function createPostgres(
   options: PostgresOptions = {},
@@ -62,28 +26,56 @@ export function createPostgres(
       signal?.addEventListener('abort', onAbort, { once: true })
 
       return {
-        // deno-lint-ignore no-explicit-any
-        query: <T extends Record<string, any> = Record<string, any>>(
+        query: <T extends Record<string, unknown> = Record<string, unknown>>(
           sql: string,
           params?: unknown[],
         ) =>
           client
             .query(sql, params)
-            .then((r: { rows: T[] }) => r.rows),
+            .then((r: { rows: T[] }) => r.rows)
+            .catch((err: unknown) => {
+              const message = err instanceof Error ? err.message : String(err)
+              if (isConstraintViolation(err)) {
+                throw new ConstraintViolation(sql, message)
+              }
+              throw new QueryFailed(sql, message)
+            }),
         execute: (sql, params) =>
           client
             .query(sql, params)
             .then((r: { rowCount: number | bigint | null }) =>
               Number(r.rowCount ?? 0)
-            ),
+            )
+            .catch((err: unknown) => {
+              const message = err instanceof Error ? err.message : String(err)
+              if (isConstraintViolation(err)) {
+                throw new ConstraintViolation(sql, message)
+              }
+              throw new QueryFailed(sql, message)
+            }),
+        executeBatch: async (sql, paramsArray) => {
+          try {
+            const results: number[] = []
+            for (const params of paramsArray) {
+              const r = await client.query(sql, params)
+              results.push(Number(r.rowCount ?? 0))
+            }
+            return results
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err)
+            if (isConstraintViolation(err)) {
+              throw new ConstraintViolation(sql, message)
+            }
+            throw new QueryFailed(sql, message)
+          }
+        },
         close: () => {
           signal?.removeEventListener('abort', onAbort)
           client.release()
           return Promise.resolve()
         },
         stream: async function* <
-          // deno-lint-ignore no-explicit-any
-          T extends Record<string, any> = Record<string, any>,
+          T extends Record<string, unknown> = Record<string, unknown>,
         >(sql: string, params?: unknown[]) {
           const cursor = client.query(new Cursor(sql, params))
           try {
@@ -92,6 +84,12 @@ export function createPostgres(
               if (rows.length === 0) break
               yield* rows as T[]
             }
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err)
+            if (isConstraintViolation(err)) {
+              throw new ConstraintViolation(sql, message)
+            }
+            throw new QueryFailed(sql, message)
           } finally {
             await cursor.close()
           }
@@ -123,7 +121,7 @@ export type PostgresOptions = {
 }
 
 /** PostgreSQL database connector. */
-export interface PostgresConnector {
+export interface PostgresConnector extends DBConnector {
   /** Connects and returns a DBAdapter for query execution. */
   connect(signal?: AbortSignal): Promise<DBAdapter>
   /** Closes the connection pool. */
@@ -149,4 +147,14 @@ function toPoolConfig(options: PostgresOptions) {
     idleTimeoutMillis: options.idleTimeoutMillis,
     connectionTimeoutMillis: options.connectionTimeoutMillis,
   }
+}
+
+function isConstraintViolation(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof (error as { code: unknown }).code === 'string' &&
+    (error as { code: string }).code.startsWith('23')
+  )
 }

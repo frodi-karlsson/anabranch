@@ -1,48 +1,13 @@
-import type { DBAdapter, DBConnector } from '@anabranch/db'
+import {
+  ConstraintViolation,
+  type DBAdapter,
+  type DBConnector,
+  QueryFailed,
+} from '@anabranch/db'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 
 /**
  * Creates a SQLite connector with a shared database instance.
- *
- * Uses Node.js built-in `node:sqlite` for in-memory or file-based databases.
- * Ideal for testing or lightweight applications. The shared database instance
- * supports reference counting for multiple concurrent connections.
- *
- * @example In-memory database for testing
- * ```ts
- * import { DB, createInMemory } from "@anabranch/db";
- * import { createSqlite } from "@anabranch/db-sqlite";
- *
- * const db = new DB(await createSqlite().connect());
- * await db.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)");
- * await db.execute("INSERT INTO users (name) VALUES (?)", ["Alice"]);
- * const users = await db.query("SELECT * FROM users").run();
- * ```
- *
- * @example Using withConnection for automatic cleanup
- * ```ts
- * import { DB } from "@anabranch/db";
- * import { createSqlite } from "@anabranch/db-sqlite";
- *
- * const result = await DB.withConnection(createSqlite(), (db) =>
- *   db.withTransaction(async (tx) => {
- *     await tx.execute("INSERT INTO users (name) VALUES (?)", ["Bob"]);
- *     return tx.query("SELECT * FROM users");
- *   })
- * ).run();
- * ```
- *
- * @example Stream processing with error collection
- * ```ts
- * import { DB } from "@anabranch/db";
- * import { createSqlite } from "@anabranch/db-sqlite";
- *
- * const { successes, errors } = await DB.withConnection(createSqlite(), (db) =>
- *   db.stream("SELECT * FROM users")
- *     .map(user => validateUser(user))
- *     .partition()
- * ).run();
- * ```
  */
 export function createSqlite(options: SQLiteOptions = {}): SQLiteConnector {
   const filename = options.filename ?? ':memory:'
@@ -68,21 +33,72 @@ export function createSqlite(options: SQLiteOptions = {}): SQLiteConnector {
           sql: string,
           params?: unknown[],
         ): Promise<T[]> => {
-          const stmt = database.prepare(sql)
-          return Promise.resolve(
-            stmt.all(...(params ?? []) as SQLInputValue[]) as T[],
-          )
+          try {
+            const stmt = database.prepare(sql)
+            return Promise.resolve(
+              stmt.all(...(params ?? []) as SQLInputValue[]) as T[],
+            )
+          } catch (e) {
+            if (isConstraintViolation(e)) {
+              throw new ConstraintViolation(sql, (e as Error).message)
+            }
+            throw new QueryFailed(sql, (e as Error).message)
+          }
         },
         execute: (sql, params) => {
+          try {
+            const stmt = database.prepare(sql)
+            const result = stmt.run(
+              ...(params ?? []) as SQLInputValue[],
+            )
+            return Promise.resolve(Number(result.changes))
+          } catch (e) {
+            if (isConstraintViolation(e)) {
+              throw new ConstraintViolation(sql, (e as Error).message)
+            }
+            throw new QueryFailed(sql, (e as Error).message)
+          }
+        },
+        executeBatch: (sql, paramsArray) => {
+          const results: number[] = []
           const stmt = database.prepare(sql)
-          const result = stmt.run(
-            ...(params ?? []) as SQLInputValue[],
-          )
-          return Promise.resolve(Number(result.changes))
+          database.exec('BEGIN')
+          try {
+            for (const params of paramsArray) {
+              const result = stmt.run(...(params ?? []) as SQLInputValue[])
+              results.push(Number(result.changes))
+            }
+            database.exec('COMMIT')
+          } catch (e) {
+            database.exec('ROLLBACK')
+            if (isConstraintViolation(e)) {
+              throw new ConstraintViolation(sql, (e as Error).message)
+            }
+            throw new QueryFailed(sql, (e as Error).message)
+          }
+          return Promise.resolve(results)
         },
         close: () => {
           refCount--
           return Promise.resolve()
+        },
+        stream: async function* <
+          // deno-lint-ignore no-explicit-any
+          T extends Record<string, any> = Record<string, any>,
+        >(sql: string, params?: unknown[]) {
+          try {
+            const stmt = database.prepare(sql)
+            for (
+              const row of stmt.iterate(...(params ?? []) as SQLInputValue[])
+            ) {
+              yield row as T
+            }
+          } catch (e) {
+            if (isConstraintViolation(e)) {
+              throw new ConstraintViolation(sql, (e as Error).message)
+            }
+            throw new QueryFailed(sql, (e as Error).message)
+          }
         },
       })
     },
@@ -106,4 +122,12 @@ export interface SQLiteConnector extends DBConnector {
 export interface SQLiteOptions {
   /** @default ":memory:" */
   filename?: string
+}
+
+function isConstraintViolation(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.message.includes('SQLITE_CONSTRAINT') ||
+      error.message.includes('constraint failed'))
+  )
 }

@@ -3,7 +3,7 @@
  * Uses in-memory database by default for fast testing.
  */
 import { assertEquals } from '@std/assert'
-import { Task } from '@anabranch/anabranch'
+import { ErrorResult, Task } from '@anabranch/anabranch'
 import { DB } from '@anabranch/db'
 import { createSqlite } from './index.ts'
 
@@ -286,6 +286,86 @@ Deno.test('createSqlite - multiple connections share same database', async () =>
 
     assertEquals(result.length, 1)
     assertEquals(result[0].name, 'Alice')
+  } finally {
+    await connector.end()
+  }
+})
+
+import { ConstraintViolation } from '@anabranch/db'
+
+Deno.test('db-sqlite - should throw ConstraintViolation on duplicate key', async () => {
+  const connector = createSqlite()
+  try {
+    const table = `users_${crypto.randomUUID().replace(/-/g, '_')}`
+    await DB.withConnection(connector, (db) =>
+      Task.of(async () => {
+        await db.execute(
+          `CREATE TABLE ${table} (id INTEGER PRIMARY KEY, name TEXT UNIQUE)`,
+        ).run()
+        await db.execute(`INSERT INTO ${table} (id, name) VALUES (1, 'Alice')`)
+          .run()
+
+        const result = await db.execute(
+          `INSERT INTO ${table} (id, name) VALUES (1, 'Alice')`,
+        ).result()
+        assertEquals(result.type, 'error')
+        assertEquals(
+          (result as ErrorResult<unknown, unknown>).error instanceof
+            ConstraintViolation,
+          true,
+        )
+      })).run()
+  } finally {
+    await connector.end()
+  }
+})
+
+Deno.test('db-sqlite - should support executeBatch', async () => {
+  const connector = createSqlite()
+  try {
+    const table = `users_${crypto.randomUUID().replace(/-/g, '_')}`
+    await DB.withConnection(connector, (db) =>
+      Task.of(async () => {
+        await db.execute(
+          `CREATE TABLE ${table} (id INTEGER PRIMARY KEY, name TEXT)`,
+        ).run()
+
+        const results = await db.executeBatch(
+          `INSERT INTO ${table} (name) VALUES (?)`,
+          [['Alice'], ['Bob'], ['Charlie']],
+        ).run()
+
+        assertEquals(results, [1, 1, 1])
+        const users = await db.query(`SELECT * FROM ${table}`).run()
+        assertEquals(users.length, 3)
+      })).run()
+  } finally {
+    await connector.end()
+  }
+})
+
+Deno.test('db-sqlite - should support streaming', async () => {
+  const connector = createSqlite()
+  try {
+    const table = `users_${crypto.randomUUID().replace(/-/g, '_')}`
+    await DB.withConnection(connector, (db) =>
+      Task.of(async () => {
+        await db.execute(
+          `CREATE TABLE ${table} (id INTEGER PRIMARY KEY, name TEXT)`,
+        ).run()
+        await db.executeBatch(
+          `INSERT INTO ${table} (name) VALUES (?)`,
+          [['Alice'], ['Bob']],
+        ).run()
+
+        const rows = await db.stream<{ id: number; name: string }>(
+          `SELECT * FROM ${table} ORDER BY name`,
+        )
+          .collect()
+        assertEquals(rows.length, 2)
+        assertEquals(rows[0].name, 'Alice')
+        assertEquals(rows[1].name, 'Bob')
+      })).run()
   } finally {
     await connector.end()
   }
