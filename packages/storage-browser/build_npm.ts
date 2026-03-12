@@ -34,13 +34,13 @@ await build({
     },
     dependencies: {
       anabranch: '^0',
-      '@anabranch/storage': `^${version}`,
+      '@anabranch/storage': '^0',
     },
   },
   mappings: {
     [new URL(`file://${storagePath}`).href]: {
       name: '@anabranch/storage',
-      version: `^${version}`,
+      version: '^0',
     },
   },
   postBuild() {
