@@ -3,7 +3,7 @@
   "description": "Google Cloud Datastore adapter for @anabranch/nosql",
   "env": {
     "DATASTORE_PROJECT_ID": "test-project",
-    "DATASTORE_EMULATOR_HOST": "localhost:3232"
+    "DATASTORE_EMULATOR_HOST": "127.0.0.1:3232"
   },
   "service": {
     "name": "datastore-emulator",

@@ -153,15 +153,19 @@ async function runTest(
     args.push('--filter', filter)
   }
   args.push(file)
-  const testProc = await new Deno.Command('deno', {
+
+  const command = new Deno.Command('deno', {
     args,
     env: { ...Deno.env.toObject(), ...additionalEnv },
-  }).output()
+    stdout: 'inherit',
+    stderr: 'inherit',
+  })
 
-  console.log(new TextDecoder().decode(testProc.stdout))
-  if (!testProc.success) {
-    console.error(new TextDecoder().decode(testProc.stderr))
-    Deno.exit(1)
+  const process = command.spawn()
+  const status = await process.status
+
+  if (!status.success) {
+    Deno.exit(status.code)
   }
 }
 
