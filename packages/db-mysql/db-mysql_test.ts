@@ -16,9 +16,13 @@ const MYSQL_URL = Deno.env.get('MYSQL_URL') ||
       Deno.env.get('MYSQL_DATABASE') ?? 'mysql'
     }`)
 
+const testConfig = {
+  ignore: !MYSQL_URL,
+}
+
 Deno.test({
   name: 'DB - should execute SELECT and return results',
-  ignore: !MYSQL_URL,
+  ...testConfig,
   async fn() {
     const connector = createMySQL({ connectionString: MYSQL_URL! })
     try {
@@ -53,7 +57,7 @@ Deno.test({
 
 Deno.test({
   name: 'DB - should handle WHERE clause with parameters',
-  ignore: !MYSQL_URL,
+  ...testConfig,
   async fn() {
     const connector = createMySQL({ connectionString: MYSQL_URL! })
     try {
@@ -88,7 +92,7 @@ Deno.test({
 
 Deno.test({
   name: 'DB.execute - should return affected row count',
-  ignore: !MYSQL_URL,
+  ...testConfig,
   async fn() {
     const connector = createMySQL({ connectionString: MYSQL_URL! })
     try {
@@ -142,7 +146,7 @@ Deno.test({
 
 Deno.test({
   name: 'DB.withTransaction - should commit on success',
-  ignore: !MYSQL_URL,
+  ...testConfig,
   async fn() {
     const connector = createMySQL({ connectionString: MYSQL_URL! })
     try {
@@ -187,7 +191,7 @@ Deno.test({
 
 Deno.test({
   name: 'DB.withTransaction - should rollback on error',
-  ignore: !MYSQL_URL,
+  ...testConfig,
   async fn() {
     const connector = createMySQL({ connectionString: MYSQL_URL! })
     try {
@@ -228,7 +232,7 @@ Deno.test({
 
 Deno.test({
   name: 'db-mysql - should throw ConstraintViolation on duplicate key',
-  ignore: !MYSQL_URL,
+  ...testConfig,
   async fn() {
     const connector = createMySQL({ connectionString: MYSQL_URL! })
     try {
@@ -258,7 +262,7 @@ Deno.test({
 
 Deno.test({
   name: 'db-mysql - should support executeBatch',
-  ignore: !MYSQL_URL,
+  ...testConfig,
   async fn() {
     const connector = createMySQL({ connectionString: MYSQL_URL! })
     try {
@@ -286,7 +290,7 @@ Deno.test({
 
 Deno.test({
   name: 'db-mysql - should support streaming',
-  ignore: !MYSQL_URL,
+  ...testConfig,
   async fn() {
     const connector = createMySQL({ connectionString: MYSQL_URL! })
     try {

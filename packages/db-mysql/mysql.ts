@@ -146,6 +146,8 @@ export function createMySQL(options: MySQLOptions = {}): MySQLConnector {
               throw new ConstraintViolation(sql, message)
             }
             throw new QueryFailed(sql, message)
+          } finally {
+            stream.destroy()
           }
         },
       }
@@ -159,6 +161,8 @@ export function createMySQL(options: MySQLOptions = {}): MySQLConnector {
           })
         })
         pool = null
+        // Give Deno a moment to finalize socket closures
+        await new Promise((resolve) => setTimeout(resolve, 10))
       }
     },
   }
