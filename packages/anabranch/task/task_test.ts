@@ -596,3 +596,40 @@ Deno.test('Task.chain - should support mixed sync and async tasks', async () => 
 
   assertEquals(result, 4)
 })
+
+Deno.test('Task.race - should cleanup and abort children on outer signal abort', async () => {
+  let inner1Aborted = false
+  let inner2Aborted = false
+
+  const task1 = Task.of((signal) => {
+    return new Promise((_, reject) => {
+      signal?.addEventListener('abort', () => {
+        inner1Aborted = true
+        reject(signal.reason)
+      })
+    })
+  })
+
+  const task2 = Task.of((signal) => {
+    return new Promise((_, reject) => {
+      signal?.addEventListener('abort', () => {
+        inner2Aborted = true
+        reject(signal.reason)
+      })
+    })
+  })
+
+  const controller = new AbortController()
+  const raced = Task.race([task1, task2]).withSignal(controller.signal)
+
+  const runPromise = raced.run()
+
+  // Abort the outer signal
+  controller.abort(new Error('outer abort'))
+
+  await assertRejects(() => runPromise, Error, 'outer abort')
+
+  // Both inner tasks should have been aborted via the merged signals
+  assertEquals(inner1Aborted, true, 'Task 1 should be aborted')
+  assertEquals(inner2Aborted, true, 'Task 2 should be aborted')
+})

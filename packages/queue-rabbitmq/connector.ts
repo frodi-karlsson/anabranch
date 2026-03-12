@@ -5,6 +5,7 @@ import type {
   QueueConnector,
   QueueOptions,
 } from '@anabranch/queue'
+import { QueueAborted } from '@anabranch/queue'
 import { RabbitMQAdapter } from './adapter.ts'
 import process from 'node:process'
 
@@ -25,19 +26,35 @@ export function createRabbitMQ(
 
   return {
     async connect(signal?: AbortSignal): Promise<QueueAdapter> {
-      if (signal?.aborted) throw new Error('Aborted')
+      if (signal?.aborted) throw new QueueAborted('Connection aborted')
 
       if (!conn) {
-        conn = await amqpConnect(connection as string)
-        conn.on('error', () => {
-          conn = undefined
-        })
-        conn.on('close', () => {
-          conn = undefined
-        })
+        let attempts = 0
+        const maxAttempts = 5
+        const delay = 1000
+
+        while (attempts < maxAttempts) {
+          try {
+            conn = await amqpConnect(connection as string)
+            conn.on('error', () => {
+              conn = undefined
+            })
+            conn.on('close', () => {
+              conn = undefined
+            })
+            break
+          } catch (error) {
+            attempts++
+            if (attempts >= maxAttempts) throw error
+            await new Promise((resolve) => setTimeout(resolve, delay))
+          }
+        }
       }
 
-      const channel = await conn.createChannel()
+      const channel = await conn!.createChannel()
+      channel.on('error', () => {
+        // Channel error, usually followed by close
+      })
 
       return new RabbitMQAdapter({
         channel,

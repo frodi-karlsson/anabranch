@@ -5,6 +5,7 @@
  */
 import { assertEquals, assertExists } from '@std/assert'
 import { createRabbitMQ } from './index.ts'
+import { Queue } from '@anabranch/queue'
 
 const RABBITMQ_URL = Deno.env.get('RABBITMQ_URL')
 
@@ -259,6 +260,67 @@ Deno.test({
     await queue2.ack(queueName, messages[0].id)
     await queue2.close()
 
+    await connector.end()
+  },
+})
+
+Deno.test({
+  name: 'RabbitMQQueue - max attempts reached on requeue routes to DLQ',
+  ignore: !RABBITMQ_URL,
+  async fn() {
+    const queueName = `test-${crypto.randomUUID().slice(0, 8)}`
+    const dlqName = `test-dlq-${crypto.randomUUID().slice(0, 8)}`
+    const connector = createRabbitMQ({
+      connection: RABBITMQ_URL!,
+      queues: {
+        [queueName]: {
+          maxAttempts: 1,
+          deadLetterQueue: dlqName,
+        },
+      },
+    })
+    const queue = await connector.connect()
+
+    // Assert the DLQ by receiving from it (it will be prefixed by the adapter)
+    await queue.receive(dlqName)
+
+    await queue.send(queueName, { data: 'fail-fast' })
+
+    const first = await queue.receive<{ data: string }>(queueName)
+    assertEquals(first.length, 1)
+
+    // Nack with requeue=true - but it should exceed maxAttempts and go to DLQ
+    await queue.nack(queueName, first[0].id, { requeue: true })
+
+    // RabbitMQ routes dead-lettered messages asynchronously on the broker side
+    await new Promise((r) => setTimeout(r, 500))
+
+    const dlq = await queue.receive(dlqName)
+    assertEquals(dlq.length, 1)
+
+    await queue.ack(dlqName, dlq[0].id)
+    await connector.end()
+  },
+})
+
+Deno.test({
+  name: 'RabbitMQQueue - sendBatch sends multiple messages',
+  ignore: !RABBITMQ_URL,
+  async fn() {
+    const queueName = `test-${crypto.randomUUID().slice(0, 8)}`
+    const connector = createRabbitMQ(RABBITMQ_URL!)
+    const queue = await Queue.connect(connector).run()
+
+    const data = [{ n: 1 }, { n: 2 }, { n: 3 }]
+    const ids = await queue.sendBatch(queueName, data).run()
+
+    assertEquals(ids.length, 3)
+
+    const messages = await queue.stream<{ n: number }>(queueName).collect()
+    assertEquals(messages.length, 3)
+    assertEquals(messages.map((m) => m.data.n).sort(), [1, 2, 3])
+
+    await queue.ack(queueName, ...ids).run()
     await connector.end()
   },
 })

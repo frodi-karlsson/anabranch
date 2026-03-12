@@ -111,3 +111,27 @@ export class QueueCloseFailed extends QueueError {
     this.name = 'QueueCloseFailed'
   }
 }
+
+/** Operation failed because the queue's internal buffer is full. */
+export class QueueBufferFull extends QueueSendFailed {
+  constructor(queue: string) {
+    super(`Queue buffer full for queue ${queue}`, queue)
+    this.name = 'QueueBufferFull'
+  }
+}
+
+/** Operation was aborted via an AbortSignal. */
+export class QueueAborted extends QueueError {
+  constructor(message = 'Queue operation aborted', queue?: string) {
+    super(message, queue)
+    this.name = 'QueueAborted'
+  }
+}
+
+/** Configuration or capability error. */
+export class QueueConfigError extends QueueError {
+  constructor(message: string, queue?: string) {
+    super(message, queue)
+    this.name = 'QueueConfigError'
+  }
+}

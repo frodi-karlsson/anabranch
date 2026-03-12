@@ -2009,6 +2009,26 @@ Deno.test('Stream.flatten - should catch and emit errors from inner async iterat
   ])
 })
 
+Deno.test('Stream.flatMap (concurrent) - should catch and emit error if fn returns non-iterable', async () => {
+  const stream = Source.from<number, Error>(async function* () {
+    yield 1
+  }).withConcurrency(2)
+
+  const flattened = stream.flatMap(() => {
+    // Returning something that is not an iterable or async iterable
+    return 123 as unknown as number[]
+  })
+
+  const results = await flattened.toArray()
+
+  assertEquals(results.length, 1)
+  assertEquals(results[0].type, 'error')
+  assertEquals(
+    (results[0] as { error: Error }).error.message,
+    'flatMap function must return an iterable',
+  )
+})
+
 Deno.test('Stream.zip — healthy-side value is not dropped when partner emits error', async () => {
   const left = streamFrom<number, string>([failure('boom'), success(1)])
   const right = streamFrom<string, never>([success('a'), success('b')])
@@ -2112,5 +2132,62 @@ Deno.test('Stream.flatMap — default (Infinity) concurrency executes tasks conc
     2,
     `flatMap should also run concurrently with Infinity concurrency, ` +
       `but maxInFlight was ${maxInFlight}.`,
+  )
+})
+
+Deno.test('Stream.merge - should close underlying iterators on early termination', async () => {
+  let leftClosed = false
+  let rightClosed = false
+
+  const left = Source.from<number, never>(async function* () {
+    try {
+      yield 1
+      // Keep yielding to avoid completion
+      while (true) yield 2
+    } finally {
+      leftClosed = true
+    }
+  })
+
+  const right = Source.from<number, never>(async function* () {
+    try {
+      yield 3
+      while (true) yield 4
+    } finally {
+      rightClosed = true
+    }
+  })
+
+  const merged = left.merge(right)
+
+  // Take only one element and stop
+  for await (const _ of merged.take(1)) {
+    // break implicitly calls .return() on the generator
+  }
+
+  // Give a small delay for the background tasks to realize they're cancelled
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  assertEquals(leftClosed, true, 'Left stream should be closed')
+  assertEquals(rightClosed, true, 'Right stream should be closed')
+})
+
+Deno.test('Stream.flatMap (concurrent) - should catch and emit error if fn returns non-iterable', async () => {
+  const stream = Source.from<number, Error>(async function* () {
+    yield 1
+  }).withConcurrency(2)
+
+  const flattened = stream.flatMap(() => {
+    // Returning something that is not an iterable or async iterable
+    return 123 as unknown as number[]
+  })
+
+  const results = await flattened.toArray()
+
+  assertEquals(results.length, 1)
+  assertEquals(results[0].type, 'error')
+  assertEquals(
+    (results[0] as { error: Error }).error.message,
+    'flatMap function must return an iterable',
   )
 })

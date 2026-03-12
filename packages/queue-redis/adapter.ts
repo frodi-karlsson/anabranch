@@ -71,6 +71,52 @@ export class RedisAdapter implements QueueAdapter {
     }
   }
 
+  async sendBatch<T>(
+    queue: string,
+    data: T[],
+    options?: SendOptions,
+  ): Promise<string[]> {
+    try {
+      const now = Date.now()
+      const delayMs = options?.delayMs ??
+        (options?.scheduledAt
+          ? Math.max(0, options.scheduledAt.getTime() - now)
+          : 0)
+
+      const availableAt = now + delayMs
+      const target = delayMs > 0
+        ? this.key(queue, 'delayed')
+        : this.key(queue, 'pending')
+
+      const ids: string[] = []
+      const pipeline = this.redis.pipeline()
+
+      for (const item of data) {
+        const id = crypto.randomUUID()
+        const envelope: StoredMessage<T> = {
+          id,
+          data: item,
+          attempt: 1,
+          timestamp: now,
+          metadata: options?.headers ? { headers: options.headers } : undefined,
+        }
+
+        pipeline.hset(this.key(queue, 'data'), id, JSON.stringify(envelope))
+        pipeline.zadd(target, availableAt, id)
+        ids.push(id)
+      }
+
+      await pipeline.exec()
+      return ids
+    } catch (error) {
+      throw new QueueSendFailed(
+        error instanceof Error ? error.message : String(error),
+        queue,
+        error,
+      )
+    }
+  }
+
   async receive<T>(
     queue: string,
     count?: number,
@@ -79,7 +125,7 @@ export class RedisAdapter implements QueueAdapter {
       const now = Date.now()
       const n = count ?? 10
 
-      await this.expireInflight(queue)
+      await this.expireInflight(queue, now)
 
       const delayedKey = this.key(queue, 'delayed')
       const pendingKey = this.key(queue, 'pending')
@@ -110,7 +156,7 @@ export class RedisAdapter implements QueueAdapter {
       const pipeline = this.redis.pipeline()
       for (const id of ids) {
         pipeline.zrem(pendingKey, id)
-        pipeline.hset(inflightKey, id, String(now))
+        pipeline.zadd(inflightKey, now, id)
         pipeline.hget(dataKey, id)
       }
       const results = await pipeline.exec()
@@ -146,7 +192,7 @@ export class RedisAdapter implements QueueAdapter {
 
     const pipeline = this.redis.pipeline()
     for (const id of ids) {
-      pipeline.hdel(this.key(queue, 'inflight'), id)
+      pipeline.zrem(this.key(queue, 'inflight'), id)
       pipeline.hdel(this.key(queue, 'data'), id)
     }
     await pipeline.exec()
@@ -161,7 +207,7 @@ export class RedisAdapter implements QueueAdapter {
     const dataKey = this.key(queue, 'data')
     const config = this.getConfig(queue)
 
-    await this.redis.hdel(inflightKey, id)
+    await this.redis.zrem(inflightKey, id)
 
     if (options?.deadLetter && config.deadLetterQueue) {
       await this.routeToDlq(queue, id, config.deadLetterQueue)
@@ -214,26 +260,19 @@ export class RedisAdapter implements QueueAdapter {
     return `${this.prefix}:${queue}:${suffix}`
   }
 
-  private async expireInflight(queue: string): Promise<void> {
+  private async expireInflight(queue: string, now: number): Promise<void> {
     const inflightKey = this.key(queue, 'inflight')
     const pendingKey = this.key(queue, 'pending')
     const config = this.getConfig(queue)
-    const cutoff = Date.now() - config.visibilityTimeout
+    const cutoff = now - config.visibilityTimeout
 
-    const entries = await this.redis.hgetall(inflightKey)
-    const expired: string[] = []
-
-    for (const [id, deliveredAt] of Object.entries(entries)) {
-      if (Number(deliveredAt) <= cutoff) {
-        expired.push(id)
-      }
-    }
+    const expired = await this.redis.zrangebyscore(inflightKey, 0, cutoff)
 
     if (expired.length > 0) {
       const pipeline = this.redis.pipeline()
       for (const id of expired) {
-        pipeline.hdel(inflightKey, id)
-        pipeline.zadd(pendingKey, Date.now(), id)
+        pipeline.zrem(inflightKey, id)
+        pipeline.zadd(pendingKey, now, id)
       }
       await pipeline.exec()
     }

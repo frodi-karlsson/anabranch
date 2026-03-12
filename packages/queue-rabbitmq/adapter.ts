@@ -7,7 +7,11 @@ import type {
   SendOptions,
   StreamAdapter,
 } from '@anabranch/queue'
-import { QueueReceiveFailed, QueueSendFailed } from '@anabranch/queue'
+import {
+  QueueConfigError,
+  QueueReceiveFailed,
+  QueueSendFailed,
+} from '@anabranch/queue'
 
 export class RabbitMQAdapter implements StreamAdapter {
   private readonly channel: Channel
@@ -47,9 +51,10 @@ export class RabbitMQAdapter implements StreamAdapter {
       }
 
       if (options?.delayMs || options?.scheduledAt) {
-        throw new Error(
+        throw new QueueConfigError(
           'Delayed messages require the rabbitmq-delayed-message-exchange plugin. ' +
             'Install it or use a broker that supports x-delayed-message.',
+          queue,
         )
       }
 
@@ -62,6 +67,56 @@ export class RabbitMQAdapter implements StreamAdapter {
       })
 
       return id
+    } catch (error) {
+      throw new QueueSendFailed(
+        error instanceof Error ? error.message : String(error),
+        queue,
+        error,
+      )
+    }
+  }
+
+  async sendBatch<T>(
+    queue: string,
+    data: T[],
+    options?: SendOptions,
+  ): Promise<string[]> {
+    try {
+      await this.assertQueue(queue)
+
+      const ids: string[] = []
+      const queueName = this.key(queue)
+      const now = Date.now()
+
+      for (const item of data) {
+        const id = crypto.randomUUID()
+        const envelope: StoredEnvelope<T> = {
+          id,
+          data: item,
+          timestamp: now,
+          attempt: 1,
+          headers: options?.headers,
+        }
+
+        if (options?.delayMs || options?.scheduledAt) {
+          throw new QueueConfigError(
+            'Delayed messages require the rabbitmq-delayed-message-exchange plugin. ' +
+              'Install it or use a broker that supports x-delayed-message.',
+            queue,
+          )
+        }
+
+        const content = Buffer.from(JSON.stringify(envelope))
+        this.channel.sendToQueue(queueName, content, {
+          persistent: true,
+          messageId: id,
+          headers: options?.headers ?? {},
+          priority: options?.priority,
+        })
+        ids.push(id)
+      }
+
+      return ids
     } catch (error) {
       throw new QueueSendFailed(
         error instanceof Error ? error.message : String(error),
@@ -136,8 +191,16 @@ export class RabbitMQAdapter implements StreamAdapter {
       const envelope: StoredEnvelope<unknown> = JSON.parse(
         msg.content.toString(),
       )
-      envelope.attempt += 1
+      const attempt = envelope.attempt + 1
+      const config = this.getConfig(_queue)
 
+      if (attempt > config.maxAttempts) {
+        // Let the broker-side DLQ handle it
+        this.channel.nack(msg, false, false)
+        return Promise.resolve()
+      }
+
+      envelope.attempt = attempt
       const content = Buffer.from(JSON.stringify(envelope))
 
       this.channel.sendToQueue(
@@ -195,13 +258,29 @@ export class RabbitMQAdapter implements StreamAdapter {
         }
 
         const finish = () => {
+          if (done) return
           done = true
+          if (signal && onAbort) {
+            signal.removeEventListener('abort', onAbort)
+          }
           if (resolve) {
             resolve({
               value: undefined as unknown as QueueMessage<T>,
               done: true,
             })
           }
+        }
+
+        let onAbort: (() => void) | undefined
+        if (signal) {
+          onAbort = () => {
+            if (consumerTag) {
+              channel.cancel(consumerTag).then(finish)
+            } else {
+              finish()
+            }
+          }
+          signal.addEventListener('abort', onAbort, { once: true })
         }
 
         const start = async () => {
@@ -235,9 +314,10 @@ export class RabbitMQAdapter implements StreamAdapter {
 
             consumerTag = tag
 
-            signal?.addEventListener('abort', () => {
-              channel.cancel(consumerTag!).then(finish)
-            }, { once: true })
+            if (signal?.aborted) {
+              await channel.cancel(consumerTag)
+              finish()
+            }
           } catch (error) {
             finish()
             if (reject) {

@@ -289,7 +289,12 @@ export class Task<T, E> {
         let remaining = merged.length
         let resolved = false
         const abortListener = signal
-          ? () => reject(signal.reason ?? new Error('Task aborted'))
+          ? () => {
+            if (resolved) return
+            resolved = true
+            cleanup.forEach((cleanupFn) => cleanupFn())
+            reject(signal.reason ?? new Error('Task aborted'))
+          }
           : undefined
 
         if (abortListener && signal) {

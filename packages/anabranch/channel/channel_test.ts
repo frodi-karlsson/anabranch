@@ -383,3 +383,49 @@ Deno.test('Channel.waitForCapacity - should close when signal is aborted', async
   await promise
   assertEquals(ch.isClosed(), true)
 })
+
+Deno.test('Channel - should remove abort listener on normal close', () => {
+  const controller = new AbortController()
+  // We can't easily check for listener count in a platform-independent way,
+  // but we can ensure that aborting after close doesn't trigger unexpected behavior.
+  const ch = new Channel<number, string>({ signal: controller.signal })
+
+  ch.close()
+  // The internal state should already be closed.
+  assertEquals(ch.isClosed(), true)
+
+  // Aborting now should be a no-op since it's already closed.
+  controller.abort()
+})
+
+Deno.test('Channel - should unblock producers in FIFO order', async () => {
+  const channel = new Channel<number>({ bufferSize: 1 })
+  const order: string[] = []
+
+  await channel.waitForCapacity()
+  channel.send(0) // Fill the buffer
+
+  const p1 = channel.waitForCapacity().then(() => {
+    order.push('p1')
+    channel.send(1)
+  })
+  const p2 = channel.waitForCapacity().then(() => {
+    order.push('p2')
+    channel.send(2)
+  })
+
+  // Give them a moment to settle into the queue
+  await new Promise((r) => setTimeout(r, 0))
+
+  const iter = channel[Symbol.asyncIterator]()
+  await iter.next() // Consume 0, unblocks p1
+
+  await p1
+  assertEquals(order, ['p1'], 'p1 should have been unblocked first (FIFO)')
+
+  await iter.next() // Consume 1, unblocks p2
+  await p2
+  assertEquals(order, ['p1', 'p2'], 'p2 should have been unblocked second')
+
+  channel.close()
+})

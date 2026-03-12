@@ -9,6 +9,8 @@ export class _ChannelSource<T, E> {
   private readonly bufferSize: number
   private readonly onDrop?: (value: T) => Promisable<void>
   private readonly onClose?: () => Promisable<void>
+  private readonly abortHandler?: () => void
+  private readonly signal?: AbortSignal
 
   constructor(options: _ChannelOptions<T> = {}) {
     this.bufferSize = Number.isFinite(options.bufferSize)
@@ -16,11 +18,11 @@ export class _ChannelSource<T, E> {
       : Infinity
     this.onDrop = options.onDrop
     this.onClose = options.onClose
+    this.signal = options.signal
 
-    const handleAbort = () => {
+    this.abortHandler = () => {
       this.closed = true
       this.wakeConsumers()
-      // Swap array to resolve in O(1)
       const currentProducers = this.producers
       this.producers = []
       for (const producer of currentProducers) {
@@ -28,11 +30,13 @@ export class _ChannelSource<T, E> {
       }
     }
 
-    if (options.signal) {
-      if (options.signal.aborted) {
-        handleAbort()
+    if (this.signal) {
+      if (this.signal.aborted) {
+        this.abortHandler()
       } else {
-        options.signal.addEventListener('abort', handleAbort, { once: true })
+        this.signal.addEventListener('abort', this.abortHandler, {
+          once: true,
+        })
       }
     }
   }
@@ -50,20 +54,28 @@ export class _ChannelSource<T, E> {
     }
 
     this.queue.push({ type: 'success', value } as Result<T, E>)
-    this.wake()
+    this.wakeConsumers()
   }
 
   fail(error: E): void {
     if (this.closed) return
 
     this.queue.push({ type: 'error', error } as Result<T, E>)
-    this.wake()
+    this.wakeConsumers()
   }
 
   close(): void {
     if (this.closed) return
     this.closed = true
-    this.wake()
+    if (this.signal && this.abortHandler) {
+      this.signal.removeEventListener('abort', this.abortHandler)
+    }
+    this.wakeConsumers()
+    const currentProducers = this.producers
+    this.producers = []
+    for (const producer of currentProducers) {
+      producer()
+    }
   }
 
   isClosed(): boolean {
@@ -78,17 +90,10 @@ export class _ChannelSource<T, E> {
     }
   }
 
-  private wake(): void {
-    this.wakeConsumers()
-    const currentProducers = this.producers
-    this.producers = []
-    for (const producer of currentProducers) {
-      producer()
-    }
-  }
-
   waitForCapacity(): Promise<void> {
-    if (this.closed) return Promise.resolve()
+    if (this.closed) {
+      return Promise.resolve()
+    }
     if (this.queueSize() < this.bufferSize || this.bufferSize === Infinity) {
       return Promise.resolve()
     }
@@ -110,7 +115,7 @@ export class _ChannelSource<T, E> {
             this.head = 0
           }
 
-          const producer = this.producers.pop()
+          const producer = this.producers.shift()
           if (producer) producer()
 
           yield item

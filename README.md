@@ -3,6 +3,8 @@
 A TypeScript monorepo for async utilities with first-class error handling.
 Compatible with Deno, Node.js, and, occasionally, browsers.
 
+![Animation showing composability of Anabranch](media/swap-anim.gif)
+
 ## Scripts
 
 ```bash

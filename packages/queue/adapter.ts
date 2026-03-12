@@ -52,21 +52,64 @@ export interface NackOptions {
  * Queue adapter interface for low-level queue operations.
  */
 export interface QueueAdapter {
+  /**
+   * Send a single message to the specified queue.
+   * @param queue Name of the destination queue.
+   * @param data Payload to send.
+   * @param options Delivery options like delay or headers.
+   * @returns The unique ID assigned to the message by the broker.
+   */
   send<T>(
     queue: string,
     data: T,
     options?: SendOptions,
   ): Promise<string>
 
+  /**
+   * Send a batch of messages to the specified queue.
+   * Implementation should optimize this operation if possible (e.g. using pipelines or batch APIs).
+   * @param queue Name of the destination queue.
+   * @param data Array of payloads to send.
+   * @param options Delivery options applied to all messages in the batch.
+   * @returns Array of unique IDs assigned to the messages.
+   */
+  sendBatch<T>(
+    queue: string,
+    data: T[],
+    options?: SendOptions,
+  ): Promise<string[]>
+
+  /**
+   * Retrieve one or more messages from the specified queue.
+   * @param queue Name of the queue to receive from.
+   * @param count Maximum number of messages to retrieve in this call.
+   * @returns Array of messages retrieved from the broker.
+   */
   receive<T>(
     queue: string,
     count?: number,
   ): Promise<QueueMessage<T>[]>
 
+  /**
+   * Acknowledge that one or more messages have been successfully processed.
+   * The broker should remove these messages from the queue.
+   * @param queue Name of the queue.
+   * @param ids Unique IDs of the messages to acknowledge.
+   */
   ack(queue: string, ...ids: string[]): Promise<void>
 
+  /**
+   * Indicate that a message processing failed.
+   * @param queue Name of the queue.
+   * @param id Unique ID of the message.
+   * @param options How to handle the failed message (requeue, delay, dead-letter).
+   */
   nack(queue: string, id: string, options?: NackOptions): Promise<void>
 
+  /**
+   * Release any resources held by this adapter instance.
+   * Does not necessarily terminate the underlying connection (which is managed by the Connector).
+   */
   close(): Promise<void>
 }
 

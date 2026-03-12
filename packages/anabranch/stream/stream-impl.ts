@@ -180,10 +180,16 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
             const currentIndex = result.type === 'success' ? arrivalIndex++ : -1
             Promise.resolve()
               .then(async () => {
-                const outputs = await handler(result, currentIndex)
-                if (!cancelled) {
-                  for (const output of outputs) {
-                    push(output)
+                try {
+                  const outputs = await handler(result, currentIndex)
+                  if (!cancelled) {
+                    for (const output of outputs) {
+                      push(output)
+                    }
+                  }
+                } catch (error) {
+                  if (!cancelled) {
+                    push({ type: 'error', error: error as E2 } as Result<U, E2>)
                   }
                 }
               })
@@ -884,21 +890,28 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
         const leftIter = left()
         const rightIter = right()
 
-        pending.set(leftIter, pullNext(leftIter))
-        pending.set(rightIter, pullNext(rightIter))
+        try {
+          pending.set(leftIter, pullNext(leftIter))
+          pending.set(rightIter, pullNext(rightIter))
 
-        while (pending.size > 0) {
-          const { iter, result, error } = await Promise.race(pending.values())
+          while (pending.size > 0) {
+            const { iter, result, error } = await Promise.race(pending.values())
 
-          if (error) {
-            yield { type: 'error', error } as Result<T, E>
-            pending.delete(iter)
-          } else if (result?.done) {
-            pending.delete(iter)
-          } else {
-            yield result!.value
-            pending.set(iter, pullNext(iter))
+            if (error) {
+              yield { type: 'error', error } as Result<T, E>
+              pending.delete(iter)
+            } else if (result?.done) {
+              pending.delete(iter)
+            } else {
+              yield result!.value
+              pending.set(iter, pullNext(iter))
+            }
           }
+        } finally {
+          await Promise.all([
+            leftIter.return?.(undefined),
+            rightIter.return?.(undefined),
+          ])
         }
       },
       this.concurrency,

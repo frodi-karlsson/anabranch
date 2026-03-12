@@ -7,6 +7,7 @@ import type {
   SendOptions,
 } from './adapter.ts'
 import {
+  QueueBufferFull,
   QueueNackFailed,
   QueueReceiveFailed,
   QueueSendFailed,
@@ -263,12 +264,92 @@ export function createInMemory(options?: InMemoryOptions): InMemoryConnector {
               if (maxBufferSize !== Infinity) {
                 onDrop?.(message)
               }
-              return Promise.reject(new Error('Buffer full'))
+              return Promise.reject(new QueueBufferFull(queueName))
             }
             queue.messages.push(message)
           }
 
           return Promise.resolve(id)
+        },
+
+        sendBatch<T>(
+          queueName: string,
+          data: T[],
+          sendOptions?: SendOptions,
+        ): Promise<string[]> {
+          if (ended) {
+            return Promise.reject(
+              new QueueSendFailed('Connector ended', queueName),
+            )
+          }
+
+          const ids: string[] = []
+          for (const _item of data) {
+            // We can reuse the send logic here for simplicity in the memory adapter
+            // since there's no network overhead to optimize away.
+            ids.push(generateId())
+          }
+
+          let queue = queues.get(queueName)
+          if (!queue) {
+            const config = queueConfigs[queueName] ?? {}
+            queue = {
+              messages: [],
+              delayed: new Map(),
+              inflight: new Map(),
+              options: {
+                ...defaultOptions,
+                ...config,
+                deadLetterQueue: config.deadLetterQueue ?? '',
+                deadLetterOptions: {
+                  ...defaultOptions.deadLetterOptions,
+                  ...config.deadLetterOptions,
+                },
+              },
+            }
+            queues.set(queueName, queue)
+          }
+
+          const delayMs = sendOptions?.delayMs ??
+            (sendOptions?.scheduledAt
+              ? Math.max(0, sendOptions.scheduledAt.getTime() - Date.now())
+              : 0)
+
+          const timestamp = Date.now()
+          const metadata = sendOptions?.headers
+            ? { headers: sendOptions.headers }
+            : undefined
+
+          for (let i = 0; i < data.length; i++) {
+            const message: QueueMessage<T> = {
+              id: ids[i],
+              data: data[i],
+              attempt: 1,
+              timestamp,
+              metadata,
+            }
+
+            if (delayMs > 0) {
+              const bucket = Math.ceil((Date.now() + delayMs) / 1000)
+              if (!queue.delayed.has(bucket)) {
+                queue.delayed.set(bucket, [])
+              }
+              queue.delayed.get(bucket)!.push(message)
+              scheduleDelayedProcessingInner(queue)
+            } else {
+              if (queue.messages.length >= maxBufferSize) {
+                if (maxBufferSize !== Infinity) {
+                  onDrop?.(message)
+                }
+                // If we fail mid-batch, we've already pushed some.
+                // For memory adapter this is fine as it's not transactional.
+                return Promise.reject(new QueueBufferFull(queueName))
+              }
+              queue.messages.push(message)
+            }
+          }
+
+          return Promise.resolve(ids)
         },
 
         receive<T>(
@@ -311,10 +392,19 @@ export function createInMemory(options?: InMemoryOptions): InMemoryConnector {
 
           const queue = queues.get(queueName)
           if (!queue) return Promise.resolve()
+
+          let anyFoundInMessages = false
           for (const id of ids) {
-            queue.inflight.delete(id)
+            if (queue.inflight.has(id)) {
+              queue.inflight.delete(id)
+            } else {
+              anyFoundInMessages = true
+            }
           }
-          queue.messages = queue.messages.filter((m) => !ids.includes(m.id))
+
+          if (anyFoundInMessages) {
+            queue.messages = queue.messages.filter((m) => !ids.includes(m.id))
+          }
           return Promise.resolve()
         },
 

@@ -18,15 +18,15 @@ import {
 async function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   if (signal?.aborted) return
   await new Promise<void>((resolve) => {
-    const timerId = setTimeout(resolve, ms)
-    signal?.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(timerId)
-        resolve()
-      },
-      { once: true },
-    )
+    const onAbort = () => {
+      clearTimeout(timerId)
+      resolve()
+    }
+    const timerId = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal?.addEventListener('abort', onAbort, { once: true })
   })
 }
 
@@ -123,13 +123,14 @@ export class Queue {
     options?: SendOptions,
   ): Task<string, QueueSendFailed> {
     return Task.of(async () => await this.adapter.send(queue, data, options))
-      .mapErr((error) =>
-        new QueueSendFailed(
+      .mapErr((error) => {
+        if (error instanceof QueueSendFailed) return error
+        return new QueueSendFailed(
           error instanceof Error ? error.message : String(error),
           queue,
           error,
         )
-      )
+      })
   }
 
   /**
@@ -154,27 +155,29 @@ export class Queue {
     options?: SendOptions & { parallel?: boolean },
   ): Task<string[], QueueSendFailed> {
     return Task.of(async () => {
-      const ids: string[] = []
-
-      if (options?.parallel) {
-        const promises = data.map((item) =>
-          this.adapter.send(queue, item, options).catch((e) => {
-            throw new QueueSendFailed(
-              e instanceof Error ? e.message : String(e),
-              queue,
-              e,
-            )
-          })
-        )
-        const results = await Promise.all(promises)
-        return results
+      if (!options?.parallel) {
+        return await this.adapter.sendBatch(queue, data, options)
       }
 
-      for (const item of data) {
-        const id = await this.adapter.send(queue, item, options)
-        ids.push(id)
-      }
-      return ids
+      const promises = data.map((item) =>
+        this.adapter.send(queue, item, options).catch((e) => {
+          if (e instanceof QueueSendFailed) throw e
+          throw new QueueSendFailed(
+            e instanceof Error ? e.message : String(e),
+            queue,
+            e,
+          )
+        })
+      )
+      const results = await Promise.all(promises)
+      return results
+    }).mapErr((error) => {
+      if (error instanceof QueueSendFailed) return error
+      return new QueueSendFailed(
+        error instanceof Error ? error.message : String(error),
+        queue,
+        error,
+      )
     })
   }
 
@@ -292,14 +295,24 @@ export class Queue {
       async function* () {
         if (isStreamAdapter) {
           const streamAdapter = adapter as StreamAdapter
-          const iterable = streamAdapter.subscribe<T>(queue, {
-            signal,
-            prefetch,
-          })
+          try {
+            const iterable = streamAdapter.subscribe<T>(queue, {
+              signal,
+              prefetch,
+            })
 
-          for await (const msg of iterable) {
+            for await (const msg of iterable) {
+              if (signal?.aborted) return
+              yield { type: 'success', value: msg }
+            }
+          } catch (error) {
             if (signal?.aborted) return
-            yield { type: 'success', value: msg }
+            const queueError = new QueueReceiveFailed(
+              error instanceof Error ? error.message : String(error),
+              queue,
+              error,
+            )
+            yield { type: 'error', error: queueError }
           }
           return
         }
@@ -353,14 +366,15 @@ export class Queue {
     return Task.of(async () => {
       if (ids.length === 0) return
       return await this.adapter.ack(queue, ...ids)
-    }).mapErr((error) =>
-      new QueueAckFailed(
+    }).mapErr((error) => {
+      if (error instanceof QueueAckFailed) return error
+      return new QueueAckFailed(
         error instanceof Error ? error.message : String(error),
         queue,
         ids[0],
         error,
       )
-    )
+    })
   }
 
   /**
@@ -386,13 +400,15 @@ export class Queue {
     },
   ): Task<void, QueueAckFailed | QueueMaxAttemptsExceeded> {
     return Task.of(async () => await this.adapter.nack(queue, id, options))
-      .mapErr((error) =>
-        new QueueAckFailed(
+      .mapErr((error) => {
+        if (error instanceof QueueAckFailed) return error
+        if (error instanceof QueueMaxAttemptsExceeded) return error
+        return new QueueAckFailed(
           error instanceof Error ? error.message : String(error),
           queue,
           id,
           error,
         )
-      )
+      })
   }
 }

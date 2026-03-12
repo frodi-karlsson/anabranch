@@ -1,5 +1,6 @@
-import { assertEquals, assertExists } from '@std/assert'
-import { createInMemory, Queue } from './index.ts'
+import { assertEquals, assertExists, assertRejects } from '@std/assert'
+import { createInMemory, Queue, QueueBufferFull } from './index.ts'
+import type { QueueConnector } from './adapter.ts'
 
 Deno.test({
   name: 'Queue.send - should send a message and return an ID',
@@ -247,11 +248,10 @@ Deno.test({
     await queue.send('test-queue', { id: 1 }).run()
     await queue.send('test-queue', { id: 2 }).run()
 
-    try {
-      await queue.send('test-queue', { id: 3 }).run()
-    } catch {
-      // Expected to reject
-    }
+    await assertRejects(
+      () => queue.send('test-queue', { id: 3 }).run(),
+      QueueBufferFull,
+    )
 
     await queue.close().run()
   },
@@ -551,5 +551,37 @@ Deno.test({
     assertEquals(successes[1].metadata?.headers?.['x-tenant'], 'globex')
 
     await queue.close().run()
+  },
+})
+
+Deno.test({
+  name:
+    'Queue.continuousStream - should capture errors from StreamAdapter subscription',
+  async fn() {
+    const connector = {
+      connect: () =>
+        Promise.resolve({
+          subscribe: () => {
+            return (async function* () {
+              yield { id: '1', data: 'ok', attempt: 1, timestamp: Date.now() }
+              throw new Error('connection lost')
+            })()
+          },
+          close: () => Promise.resolve(),
+        }),
+      end: () => Promise.resolve(),
+    }
+
+    const queue = await Queue.connect(connector as unknown as QueueConnector)
+      .run()
+    const results = await queue.continuousStream('test').toArray()
+
+    assertEquals(results.length, 2)
+    assertEquals(results[0].type, 'success')
+    assertEquals(results[1].type, 'error')
+    assertEquals(
+      (results[1] as { type: 'error'; error: Error }).error.message,
+      'connection lost',
+    )
   },
 })

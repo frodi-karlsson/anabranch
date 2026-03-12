@@ -5,6 +5,7 @@
  */
 import { assertEquals, assertExists } from '@std/assert'
 import { createRedis } from './index.ts'
+import { Queue } from '@anabranch/queue'
 
 const REDIS_URL = Deno.env.get('REDIS_URL')
 
@@ -212,6 +213,59 @@ Deno.test({
     await queue2.ack(queueName, messages[0].id)
     await queue2.close()
 
+    await connector.end()
+  },
+})
+
+Deno.test({
+  name: 'RedisQueue - visibility timeout expiration',
+  ignore: !REDIS_URL,
+  async fn() {
+    const queueName = `test-${crypto.randomUUID().slice(0, 8)}`
+    const connector = createRedis({
+      connection: REDIS_URL!,
+      defaultVisibilityTimeout: 100,
+    })
+    const queue = await connector.connect()
+
+    await queue.send(queueName, { data: 'timeout-test' })
+
+    // 1. Receive message (moves to inflight)
+    const first = await queue.receive(queueName)
+    assertEquals(first.length, 1)
+
+    // 2. Wait for timeout
+    await new Promise((resolve) => setTimeout(resolve, 150))
+
+    // 3. Receive again - should expire the previous one and return it
+    const second = await queue.receive(queueName)
+    assertEquals(second.length, 1)
+    assertEquals(second[0].id, first[0].id)
+    assertEquals(second[0].attempt, 1) // In Redis, attempt only increments on nack
+
+    await queue.ack(queueName, second[0].id)
+    await connector.end()
+  },
+})
+
+Deno.test({
+  name: 'RedisQueue - sendBatch sends multiple messages in one pipeline',
+  ignore: !REDIS_URL,
+  async fn() {
+    const queueName = `test-${crypto.randomUUID().slice(0, 8)}`
+    const connector = createRedis(REDIS_URL!)
+    const queue = await Queue.connect(connector).run()
+
+    const data = [{ n: 1 }, { n: 2 }, { n: 3 }]
+    const ids = await queue.sendBatch(queueName, data).run()
+
+    assertEquals(ids.length, 3)
+
+    const messages = await queue.stream<{ n: number }>(queueName).collect()
+    assertEquals(messages.length, 3)
+    assertEquals(messages.map((m) => m.data.n).sort(), [1, 2, 3])
+
+    await queue.ack(queueName, ...ids).run()
     await connector.end()
   },
 })
