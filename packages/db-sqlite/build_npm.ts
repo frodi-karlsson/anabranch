@@ -20,6 +20,7 @@ await build({
   package: {
     name: '@anabranch/db-sqlite',
     version,
+    sideEffects: false,
     description,
     license: 'MIT',
     repository: {

@@ -23,6 +23,7 @@ await build({
   package: {
     name: '@anabranch/web-client',
     version,
+    sideEffects: false,
     description,
     license: 'MIT',
     repository: {

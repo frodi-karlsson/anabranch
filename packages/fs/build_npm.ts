@@ -23,6 +23,7 @@ await build({
   package: {
     name: '@anabranch/fs',
     version,
+    sideEffects: false,
     description,
     license: 'MIT',
     repository: {

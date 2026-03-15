@@ -23,6 +23,7 @@ await build({
   package: {
     name: '@anabranch/storage-s3',
     version,
+    sideEffects: false,
     description,
     license: 'MIT',
     repository: {

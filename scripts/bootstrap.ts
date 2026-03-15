@@ -125,6 +125,7 @@ await build({
   package: {
     name: "@anabranch/${pkgName}",
     version,
+    sideEffects: false,
     description,
     license: "MIT",
     repository: {

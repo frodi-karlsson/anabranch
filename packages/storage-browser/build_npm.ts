@@ -23,6 +23,7 @@ await build({
   package: {
     name: '@anabranch/storage-browser',
     version,
+    sideEffects: false,
     description,
     license: 'MIT',
     repository: {

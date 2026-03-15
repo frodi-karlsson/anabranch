@@ -23,6 +23,7 @@ await build({
   package: {
     name: '@anabranch/db',
     version,
+    sideEffects: false,
     description,
     license: 'MIT',
     repository: {

@@ -17,6 +17,7 @@ await build({
   package: {
     name: 'anabranch',
     version,
+    sideEffects: false,
     description: 'Async streams that keep flowing, even when things go wrong',
     license: 'MIT',
     repository: {

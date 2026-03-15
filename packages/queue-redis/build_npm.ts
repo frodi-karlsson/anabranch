@@ -23,6 +23,7 @@ await build({
   package: {
     name: '@anabranch/queue-redis',
     version,
+    sideEffects: false,
     description,
     license: 'MIT',
     repository: {

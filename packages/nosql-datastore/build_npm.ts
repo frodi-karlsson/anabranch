@@ -23,6 +23,7 @@ await build({
   package: {
     name: '@anabranch/nosql-datastore',
     version,
+    sideEffects: false,
     description,
     license: 'MIT',
     repository: {

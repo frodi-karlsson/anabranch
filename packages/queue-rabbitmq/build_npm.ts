@@ -23,6 +23,7 @@ await build({
   package: {
     name: '@anabranch/queue-rabbitmq',
     version,
+    sideEffects: false,
     description,
     license: 'MIT',
     repository: {

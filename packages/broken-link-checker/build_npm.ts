@@ -24,6 +24,7 @@ await build({
   package: {
     name: '@anabranch/broken-link-checker',
     version,
+    sideEffects: false,
     description,
     license: 'MIT',
     repository: {
