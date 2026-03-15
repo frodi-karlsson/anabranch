@@ -13,6 +13,7 @@ await build({
   outDir: `${dir}/npm`,
   shims: { deno: false },
   compilerOptions: {
+    target: 'ES2023',
     lib: ['ESNext'],
   },
   scriptModule: false,

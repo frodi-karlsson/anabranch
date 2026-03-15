@@ -9,6 +9,20 @@ import { QueueAborted } from '@anabranch/queue'
 import { RabbitMQAdapter } from './adapter.ts'
 import process from 'node:process'
 
+/**
+ * Creates a RabbitMQ queue connector.
+ * @param options - Connection string or configuration options
+ * @example
+ * ```ts
+ * const connector = createRabbitMQ("amqp://localhost:5672");
+ * // or with options:
+ * const connector = createRabbitMQ({
+ *   connection: "amqp://localhost:5672",
+ *   prefix: "my-app",
+ *   queues: { notifications: { maxAttempts: 3 } }
+ * });
+ * ```
+ */
 export function createRabbitMQ(
   options?: string | RabbitMQQueueOptions,
 ): RabbitMQConnector {
@@ -73,14 +87,26 @@ export function createRabbitMQ(
   }
 }
 
+/**
+ * Configuration options for RabbitMQ connector.
+ */
 export interface RabbitMQQueueOptions {
+  /** Connection URL or amqplib connection options */
   connection: string | object
+  /** Prefix for queue names (default: "abq") */
   prefix?: string
+  /** Queue-specific configuration */
   queues?: Record<string, QueueOptions>
+  /** Default prefetch count (default: 10) */
   defaultPrefetch?: number
 }
 
+/**
+ * RabbitMQ queue connector for creating adapter instances.
+ */
 export interface RabbitMQConnector extends QueueConnector {
+  /** Establishes connection and returns a queue adapter */
   connect(signal?: AbortSignal): Promise<QueueAdapter>
+  /** Closes the RabbitMQ connection */
   end(): Promise<void>
 }

@@ -11,6 +11,7 @@ await build({
   shims: { deno: false },
   compilerOptions: {
     lib: ['ESNext', 'WebWorker'],
+    target: 'ES2023',
   },
   scriptModule: false,
   test: false,

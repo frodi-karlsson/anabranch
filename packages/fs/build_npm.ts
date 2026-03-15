@@ -17,6 +17,7 @@ await build({
   shims: { deno: false },
   compilerOptions: {
     lib: ['ESNext'],
+    target: 'ES2023',
   },
   scriptModule: false,
   test: false,

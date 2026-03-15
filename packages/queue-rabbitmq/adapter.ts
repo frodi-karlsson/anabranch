@@ -13,6 +13,9 @@ import {
   QueueSendFailed,
 } from '@anabranch/queue'
 
+/**
+ * RabbitMQ adapter implementing the queue StreamAdapter interface.
+ */
 export class RabbitMQAdapter implements StreamAdapter {
   private readonly channel: Channel
   private readonly prefix: string
@@ -33,6 +36,7 @@ export class RabbitMQAdapter implements StreamAdapter {
     this.defaultPrefetch = options.defaultPrefetch
   }
 
+  /** Sends a single message to a queue. */
   async send<T>(
     queue: string,
     data: T,
@@ -76,6 +80,7 @@ export class RabbitMQAdapter implements StreamAdapter {
     }
   }
 
+  /** Sends multiple messages to a queue in a batch. */
   async sendBatch<T>(
     queue: string,
     data: T[],
@@ -126,6 +131,7 @@ export class RabbitMQAdapter implements StreamAdapter {
     }
   }
 
+  /** Retrieves messages from a queue (pull-based). @default count: 10 */
   async receive<T>(queue: string, count = 10): Promise<QueueMessage<T>[]> {
     try {
       await this.assertQueue(queue)
@@ -161,6 +167,7 @@ export class RabbitMQAdapter implements StreamAdapter {
     }
   }
 
+  /** Acknowledges successful message processing. */
   ack(_queue: string, ...ids: string[]): Promise<void> {
     for (const id of ids) {
       const msg = this.inflight.get(id)
@@ -172,6 +179,7 @@ export class RabbitMQAdapter implements StreamAdapter {
     return Promise.resolve()
   }
 
+  /** Rejects a message, optionally requeuing or sending to dead letter queue. */
   nack(
     _queue: string,
     id: string,
@@ -222,10 +230,12 @@ export class RabbitMQAdapter implements StreamAdapter {
     return Promise.resolve()
   }
 
+  /** Closes the RabbitMQ channel. */
   async close(): Promise<void> {
     await this.channel.close()
   }
 
+  /** Subscribes to messages from a queue (push-based). */
   subscribe<T>(
     queue: string,
     options?: { signal?: AbortSignal; prefetch?: number },

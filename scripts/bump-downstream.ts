@@ -17,6 +17,28 @@
 import { bumpVersion, log, runGit } from './utils.ts'
 import { getDownstream } from './deps.ts'
 
+async function getLatestTagVersion(pkgName: string): Promise<string | null> {
+  const { stdout } = await new Deno.Command('git', {
+    args: ['tag', '-l', `${pkgName}@*`],
+  }).output()
+
+  const tags = new TextDecoder().decode(stdout).trim().split('\n').filter(
+    Boolean,
+  )
+  if (tags.length === 0) return null
+
+  tags.sort((a, b) => {
+    const va = a.split('@')[1]
+    const vb = b.split('@')[1]
+    return va.localeCompare(vb, undefined, { numeric: true })
+  })
+
+  const latest = tags[tags.length - 1]
+  let version = latest.split('@')[1]
+  if (version.startsWith('v')) version = version.slice(1)
+  return version
+}
+
 await main()
 
 async function main(): Promise<void> {
@@ -73,18 +95,19 @@ async function main(): Promise<void> {
   const bumped: { package: string; next: string; triggers: string[] }[] = []
 
   for (const [pkgName, triggers] of dependentSet) {
-    const path = `${repoRoot}/packages/${pkgName}/deno.json`
-    const data = JSON.parse(await Deno.readTextFile(path))
-    const next = bumpVersion(data.version, 'patch')
+    const currentVersion = await getLatestTagVersion(pkgName) ?? '0.0.0'
+    const next = bumpVersion(currentVersion, 'patch')
 
     log(
       dryRun,
-      `  ${pkgName}: ${data.version} -> ${next} (triggered by: ${
+      `  ${pkgName}: ${currentVersion} -> ${next} (triggered by: ${
         triggers.join(', ')
       })`,
     )
 
     if (!dryRun) {
+      const path = `${repoRoot}/packages/${pkgName}/deno.json`
+      const data = JSON.parse(await Deno.readTextFile(path))
       data.version = next
       await Deno.writeTextFile(path, JSON.stringify(data, null, 2) + '\n')
     }
