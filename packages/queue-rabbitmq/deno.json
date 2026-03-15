@@ -1,6 +1,6 @@
 {
   "name": "@anabranch/queue-rabbitmq",
-  "version": "0.2.0",
+  "version": "0.2.4",
   "exports": "./index.ts",
   "publish": {
     "exclude": [
