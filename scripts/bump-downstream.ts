@@ -24,19 +24,28 @@ async function getLatestTagVersion(pkgName: string): Promise<string | null> {
 
   const tags = new TextDecoder().decode(stdout).trim().split('\n').filter(
     Boolean,
-  )
-  if (tags.length === 0) return null
-
-  tags.sort((a, b) => {
-    const va = a.split('@')[1]
-    const vb = b.split('@')[1]
-    return va.localeCompare(vb, undefined, { numeric: true })
+  ).map((tag) => {
+    const version = tag.split('@')[1]
+    return {
+      original: tag,
+      version: version.startsWith('v') ? version.slice(1) : version,
+    }
   })
 
-  const latest = tags[tags.length - 1]
-  let version = latest.split('@')[1]
-  if (version.startsWith('v')) version = version.slice(1)
-  return version
+  if (tags.length === 0) return null
+
+  tags.sort((a, b) =>
+    a.version.localeCompare(b.version, undefined, { numeric: true })
+  )
+
+  return tags[tags.length - 1].version
+}
+
+async function isTaggedAtHead(pkgName: string): Promise<boolean> {
+  const { stdout } = await new Deno.Command('git', {
+    args: ['tag', '--points-at', 'HEAD', `${pkgName}@*`],
+  }).output()
+  return new TextDecoder().decode(stdout).trim().length > 0
 }
 
 await main()
@@ -95,6 +104,11 @@ async function main(): Promise<void> {
   const bumped: { package: string; next: string; triggers: string[] }[] = []
 
   for (const [pkgName, triggers] of dependentSet) {
+    if (await isTaggedAtHead(pkgName)) {
+      console.log(`  ${pkgName}: already bumped on this commit, skipping`)
+      continue
+    }
+
     const currentVersion = await getLatestTagVersion(pkgName) ?? '0.0.0'
     const next = bumpVersion(currentVersion, 'patch')
 
@@ -125,7 +139,7 @@ async function main(): Promise<void> {
   if (!dryRun) {
     await runGit('add', ...pkgNames.map((p) => `packages/${p}/deno.json`))
     await runGit('commit', '-m', commitMsg)
-    await runGit('push')
+    await runGit('push', 'origin', 'HEAD:main')
   }
 
   for (const b of bumped) {
