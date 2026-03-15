@@ -15,7 +15,7 @@
  */
 
 import { bumpVersion, log, runGit, runGitChecked } from './utils.ts'
-import { getDownstream } from './deps.ts'
+import { getTransitiveDownstream } from './deps.ts'
 
 async function getLatestTagVersion(pkgName: string): Promise<string | null> {
   const { stdout } = await new Deno.Command('git', {
@@ -78,17 +78,16 @@ async function main(): Promise<void> {
     }`,
   )
 
-  // Collect dependents for all upstreams, deduplicate.
-  // A package may depend on multiple of the released upstreams — bump it once.
-  const dependentSet = new Map<string, string[]>() // pkg -> upstreams that triggered it
+  // Compute full transitive downstream closure in topological order.
+  // This ensures every affected package is bumped exactly once, even when
+  // a tier-2 package (e.g. db-postgres) depends on both a tier-1 package
+  // (db) and the root upstream (anabranch).
+  const upstreamNames = releases.map((r) => r.upstream)
+  const sorted = await getTransitiveDownstream(upstreamNames)
 
-  for (const { upstream } of releases) {
-    const dependents = await getDownstream(upstream)
-    for (const dep of dependents) {
-      const triggers = dependentSet.get(dep) ?? []
-      triggers.push(upstream)
-      dependentSet.set(dep, triggers)
-    }
+  const dependentSet = new Map<string, string[]>()
+  for (const name of sorted) {
+    dependentSet.set(name, upstreamNames)
   }
 
   if (dependentSet.size === 0) {

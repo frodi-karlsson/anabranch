@@ -7,7 +7,7 @@
  * "@anabranch/<n>" — the same scope used in the workspace.
  *
  * Usage (as a module):
- *   import { getDownstream, loadGraph } from './deps.ts'
+ *   import { getDownstream, getTransitiveDownstream, loadGraph } from './deps.ts'
  *
  * Usage (as a script, prints the full graph):
  *   deno run -A scripts/deps.ts
@@ -50,6 +50,89 @@ export async function getDownstream(upstream: string): Promise<string[]> {
   return graph
     .filter((pkg) => pkg.deps.includes(upstream))
     .map((pkg) => pkg.name)
+}
+
+/**
+ * Returns all transitive downstream packages for the given upstreams, in topological order.
+ *
+ * Packages earlier in the result do not depend on packages later in the result.
+ * The upstream packages themselves are excluded from the output.
+ */
+export async function getTransitiveDownstream(
+  upstreams: string[],
+): Promise<string[]> {
+  const graph = await loadGraph()
+
+  // Build reverse adjacency: upstream -> direct dependents
+  const reverseAdj = new Map<string, string[]>()
+  for (const pkg of graph) {
+    for (const dep of pkg.deps) {
+      const list = reverseAdj.get(dep) ?? []
+      list.push(pkg.name)
+      reverseAdj.set(dep, list)
+    }
+  }
+
+  // BFS to find full transitive downstream closure
+  const upstreamSet = new Set(upstreams)
+  const visited = new Set(upstreams)
+  const queue = [...upstreams]
+
+  while (queue.length > 0) {
+    const u = queue.shift()!
+    for (const dependent of reverseAdj.get(u) ?? []) {
+      if (!visited.has(dependent)) {
+        visited.add(dependent)
+        queue.push(dependent)
+      }
+    }
+  }
+
+  const downstreamSet = new Set(
+    [...visited].filter((name) => !upstreamSet.has(name)),
+  )
+
+  if (downstreamSet.size === 0) return []
+
+  // Topological sort (Kahn's algorithm) on the downstream subgraph
+  const pkgMap = new Map(graph.map((p) => [p.name, p]))
+  const inDegree = new Map<string, number>()
+  const subAdj = new Map<string, string[]>()
+
+  for (const name of downstreamSet) {
+    inDegree.set(name, 0)
+    subAdj.set(name, [])
+  }
+
+  for (const name of downstreamSet) {
+    const pkg = pkgMap.get(name)!
+    for (const dep of pkg.deps) {
+      if (downstreamSet.has(dep)) {
+        subAdj.get(dep)!.push(name)
+        inDegree.set(name, inDegree.get(name)! + 1)
+      }
+    }
+  }
+
+  const sorted: string[] = []
+  const ready = [...downstreamSet].filter((n) => inDegree.get(n) === 0)
+
+  while (ready.length > 0) {
+    const u = ready.shift()!
+    sorted.push(u)
+    for (const dependent of subAdj.get(u)!) {
+      const deg = inDegree.get(dependent)! - 1
+      inDegree.set(dependent, deg)
+      if (deg === 0) ready.push(dependent)
+    }
+  }
+
+  if (sorted.length !== downstreamSet.size) {
+    const stuck = [...downstreamSet].filter((n) => !sorted.includes(n))
+    throw new Error(`Cycle detected among packages: ${stuck.join(', ')}`)
+  }
+
+  return sorted
 }
 
 // --- CLI: print full graph ---
