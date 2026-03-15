@@ -14,7 +14,7 @@
  *   deno run -A scripts/bump-downstream.ts anabranch@1.0.0 web-client@0.5.0 --dry-run
  */
 
-import { bumpVersion, log, runGit } from './utils.ts'
+import { bumpVersion, log, runGit, runGitChecked } from './utils.ts'
 import { getDownstream } from './deps.ts'
 
 async function getLatestTagVersion(pkgName: string): Promise<string | null> {
@@ -139,7 +139,24 @@ async function main(): Promise<void> {
   if (!dryRun) {
     await runGit('add', ...pkgNames.map((p) => `packages/${p}/deno.json`))
     await runGit('commit', '-m', commitMsg)
-    await runGit('push', 'origin', 'HEAD:main')
+    const pushOk = await runGitChecked('push', 'origin', 'HEAD:main')
+
+    if (!pushOk) {
+      // Push failed - likely another job won the race. Check if downstream
+      // bump already exists on remote.
+      console.log('Push failed, checking if downstream already bumped...')
+      await runGit('fetch', 'origin', 'main', '--tags')
+      const remoteTags = await getTagsPointsAt('origin/main')
+      const allTagged = bumped.every((b) =>
+        remoteTags.some((t) => t === `${b.package}@${b.next}`)
+      )
+      if (allTagged) {
+        console.log('All packages already tagged on remote, skipping.')
+        Deno.exit(0)
+      }
+      console.error('Push failed and tags missing - unexpected state.')
+      Deno.exit(1)
+    }
   }
 
   for (const b of bumped) {
@@ -152,4 +169,11 @@ async function main(): Promise<void> {
   }
 
   if (dryRun) console.log('\n[DRY-RUN] Re-run without --dry-run to apply.')
+}
+
+async function getTagsPointsAt(ref: string): Promise<string[]> {
+  const { stdout } = await new Deno.Command('git', {
+    args: ['tag', '--points-at', ref],
+  }).output()
+  return new TextDecoder().decode(stdout).trim().split('\n').filter(Boolean)
 }

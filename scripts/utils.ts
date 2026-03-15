@@ -141,6 +141,12 @@ export async function runGit(...args: string[]): Promise<void> {
   await proc.output()
 }
 
+export async function runGitChecked(...args: string[]): Promise<boolean> {
+  const proc = new Deno.Command('git', { args })
+  const result = await proc.output()
+  return result.success
+}
+
 export function log(dryRun: boolean, ...msg: unknown[]): void {
   console.log(dryRun ? '[DRY-RUN] ' : '', ...msg)
 }
