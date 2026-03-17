@@ -51,7 +51,7 @@ export class Channel<T, E = never> extends _StreamImpl<T, E> {
   }
 
   /** Returns a new channel with the given drop callback, invoked when a value is dropped due to a full buffer. */
-  withOnDrop(onDrop: (value: T) => Promisable<void>): Channel<T, E> {
+  withOnDrop(onDrop: (value: T) => void): Channel<T, E> {
     const next = { ...this.options, onDrop }
     return new Channel(new _ChannelSource<T, E>(next), next)
   }
@@ -108,7 +108,7 @@ export class Channel<T, E = never> extends _StreamImpl<T, E> {
 
 interface ChannelConfig<T> {
   bufferSize?: number
-  onDrop?: (value: T) => Promisable<void>
+  onDrop?: (value: T) => void
   onClose?: () => Promisable<void>
   signal?: AbortSignal
 }

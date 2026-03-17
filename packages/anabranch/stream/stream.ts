@@ -60,12 +60,12 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * const flattened = stream.flatMap((value) => [value, value * 10]);
    * ```
    */
-  flatMap<U>(
+  flatMap<U, E2 = E>(
     fn: (
       value: T,
       arrivalIndex: number,
     ) => Promisable<AsyncIterable<U> | Iterable<U>>,
-  ): Stream<U, E>
+  ): Stream<U, E | E2>
   /**
    * Similar to `Array.prototype.filter`, but works on the stream of results. If the provided function throws an error or returns a rejected promise, the error will be collected and emitted as an error result in the stream.
    *

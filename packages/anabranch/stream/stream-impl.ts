@@ -325,16 +325,16 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
     )
   }
 
-  flatMap<U>(
+  flatMap<U, E2 = E>(
     fn: (
       value: T,
       arrivalIndex: number,
     ) => Promisable<AsyncIterable<U> | Iterable<U>>,
-  ): Stream<U, E> {
+  ): Stream<U, E | E2> {
     const concurrency = this.concurrency
     const bufferSize = this.bufferSize
     if (concurrency > 1) {
-      return new _StreamImpl<U, E>(
+      return new _StreamImpl<U, E | E2>(
         () => this.concurrentFlatMap(fn, concurrency, bufferSize),
         concurrency,
         bufferSize,
@@ -343,22 +343,25 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
     let successIndex = 0
     return this.transform(async (result) => {
       if (result.type !== 'success') {
-        return [result as unknown as Result<U, E>]
+        return [result as unknown as Result<U, E | E2>]
       }
 
       try {
         const mapped = await fn(result.value, successIndex++)
-        const outputs: Result<U, E>[] = []
+        const outputs: Result<U, E | E2>[] = []
         try {
           for await (const value of toAsyncIterable<U>(mapped)) {
-            outputs.push({ type: 'success', value } as Result<U, E>)
+            outputs.push({ type: 'success', value } as Result<U, E | E2>)
           }
         } catch (error) {
-          outputs.push({ type: 'error', error: error as E } as Result<U, E>)
+          outputs.push({
+            type: 'error',
+            error: error as E | E2,
+          } as Result<U, E | E2>)
         }
         return outputs
       } catch (error) {
-        return [{ type: 'error', error: error as E } as Result<U, E>]
+        return [{ type: 'error', error: error as E | E2 } as Result<U, E | E2>]
       }
     })
   }

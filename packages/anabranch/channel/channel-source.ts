@@ -7,7 +7,7 @@ export class _ChannelSource<T, E> {
   private consumers: Array<() => void> = []
   private producers: Array<() => void> = []
   private readonly bufferSize: number
-  private readonly onDrop?: (value: T) => Promisable<void>
+  private readonly onDrop?: (value: T) => void
   private readonly onClose?: () => Promisable<void>
   private readonly abortHandler?: () => void
   private readonly signal?: AbortSignal
@@ -136,7 +136,7 @@ export class _ChannelSource<T, E> {
 
 export interface _ChannelOptions<T> {
   bufferSize?: number
-  onDrop?: (value: T) => Promisable<void>
+  onDrop?: (value: T) => void
   onClose?: () => Promisable<void>
   signal?: AbortSignal
 }
