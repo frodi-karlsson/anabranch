@@ -129,12 +129,18 @@ export class Source<T, E> extends _StreamImpl<T, E> {
 
   /**
    * Creates a {@link Source} that yields a {@link Tick} on each cron schedule match.
-   * Supports 5-field (minute) and 6-field (second) cron expressions.
+   * Supports 5-field (minute) and 6-field (second) cron expressions,
+   * day/month names (MON-FRI, JAN), and aliases (@daily, @hourly).
+   *
+   * This is an in-process scheduler — timing is best-effort (typically within
+   * ~50ms). If a tick handler runs longer than the interval, the next tick fires
+   * after the handler completes (ticks are not queued). State is not persisted
+   * across process restarts.
    *
    * @example Clean expired sessions every 5 minutes
    * ```ts
-   * const cron = "0,5,10,15,20,25,30,35,40,45,50,55 * * * *";
-   * await Source.fromSchedule(cron, { signal })
+   * const every5min = "0,5,10,15,20,25,30,35,40,45,50,55 * * * *";
+   * await Source.fromSchedule(every5min, { signal })
    *   .map(async () => await db.execute("DELETE FROM sessions WHERE expired"))
    *   .partition();
    * ```
