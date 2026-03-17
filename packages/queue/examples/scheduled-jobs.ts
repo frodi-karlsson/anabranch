@@ -15,45 +15,7 @@
 import { Source } from '@anabranch/anabranch'
 import { createInMemory, Queue } from '../index.ts'
 
-interface HealthTick {
-  tick: number
-  scheduledAt: string
-}
-
-interface CheckResult {
-  tick: number
-  check: string
-  healthy: boolean
-  latencyMs: number
-}
-
-async function checkApi(tick: number): Promise<CheckResult> {
-  const latency = Math.floor(Math.random() * 100) + 20
-  await new Promise((r) => setTimeout(r, latency))
-  return {
-    tick,
-    check: 'api',
-    healthy: Math.random() > 0.1,
-    latencyMs: latency,
-  }
-}
-
-async function checkDatabase(tick: number): Promise<CheckResult> {
-  const latency = Math.floor(Math.random() * 150) + 30
-  await new Promise((r) => setTimeout(r, latency))
-  return {
-    tick,
-    check: 'db',
-    healthy: Math.random() > 0.15,
-    latencyMs: latency,
-  }
-}
-
-async function checkDisk(tick: number): Promise<CheckResult> {
-  const latency = Math.floor(Math.random() * 50) + 5
-  await new Promise((r) => setTimeout(r, latency))
-  return { tick, check: 'disk', healthy: true, latencyMs: latency }
-}
+main().catch(console.error)
 
 async function main() {
   const connector = createInMemory()
@@ -118,4 +80,42 @@ async function main() {
   await connector.end()
 }
 
-main().catch(console.error)
+async function checkApi(tick: number): Promise<CheckResult> {
+  const latency = Math.floor(Math.random() * 100) + 20
+  await new Promise((r) => setTimeout(r, latency))
+  return {
+    tick,
+    check: 'api',
+    healthy: Math.random() > 0.1,
+    latencyMs: latency,
+  }
+}
+
+async function checkDatabase(tick: number): Promise<CheckResult> {
+  const latency = Math.floor(Math.random() * 150) + 30
+  await new Promise((r) => setTimeout(r, latency))
+  return {
+    tick,
+    check: 'db',
+    healthy: Math.random() > 0.15,
+    latencyMs: latency,
+  }
+}
+
+async function checkDisk(tick: number): Promise<CheckResult> {
+  const latency = Math.floor(Math.random() * 50) + 5
+  await new Promise((r) => setTimeout(r, latency))
+  return { tick, check: 'disk', healthy: true, latencyMs: latency }
+}
+
+interface HealthTick {
+  tick: number
+  scheduledAt: string
+}
+
+interface CheckResult {
+  tick: number
+  check: string
+  healthy: boolean
+  latencyMs: number
+}
