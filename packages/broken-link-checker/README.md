@@ -9,12 +9,12 @@ exponential backoff, and streaming results.
 ```ts
 import { BrokenLinkChecker } from '@anabranch/broken-link-checker'
 
-const stream = new BrokenLinkChecker({
-  concurrency: 20,
-  timeout: 15_000,
-  retry: { attempts: 3, delay: (attempt) => 1000 * 2 ** attempt },
-  logLevel: 'info',
-})
+const stream = BrokenLinkChecker.create()
+  .withConcurrency(20)
+  .withTimeout(15_000)
+  .withRetry({ attempts: 3, delay: (attempt) => 1000 * 2 ** attempt })
+  .withLogLevel('info')
+  .withMaxDepth(5)
   .filterUrls((url) => !url.pathname.endsWith('.pdf'))
   .keepBroken((result) => result.status !== 401)
   .check(['https://my-site.com', 'https://my-site.com/sitemap.xml'])

@@ -26,19 +26,16 @@ timeouts with a clean, composable API:
 ```ts
 import { WebClient } from '@anabranch/web-client'
 
-const client = new WebClient({
-  baseUrl: 'https://api.example.com',
-  headers: { Authorization: 'Bearer token' },
-  timeout: 10_000,
-})
+const client = WebClient.create()
+  .withBaseUrl('https://api.example.com')
+  .withHeaders({ Authorization: 'Bearer token' })
+  .withTimeout(10_000)
 
 const result = await client.get('/users/me').run()
 console.log(result.data)
 
-// Retry with exponential backoff
-await client.post('/items', { body })
-  .retry({ attempts: 3, delay: (i) => 1000 * 2 ** i })
-  .run()
+// Retry with exponential backoff is built in (3 attempts by default)
+await client.post('/items', { body }).run()
 ```
 
 ## Installation
@@ -60,27 +57,25 @@ npm install @anabranch/web-client
 ### Creating a client
 
 ```ts
-const client = new WebClient({
-  baseUrl: 'https://api.example.com',
-  headers: { 'X-Custom-Header': 'value' },
-  timeout: 30_000,
-  fetch: customFetch, // optional custom fetch implementation
-  retry: {
+const client = WebClient.create()
+  .withBaseUrl('https://api.example.com')
+  .withHeaders({ 'X-Custom-Header': 'value' })
+  .withTimeout(30_000)
+  .withRetry({
     attempts: 3,
     delay: (attempt, error) => {
       // Rate-limit-aware delay: use Retry-After header if present
-      if (error?.retryAfter) return error.retryAfter
+      if (error?.details.retryAfter) return error.details.retryAfter * 1000
       return 1000 * 2 ** attempt
     },
-    when: (res) => res.status >= 500 || res.status === 429,
-  },
-})
+    when: (error) => error.details.isRetryable,
+  })
 ```
 
 ### Making requests
 
 ```ts
-// GET with query params
+// GET
 const result = await client.get('/users/123').run()
 console.log(result.data)
 
@@ -88,31 +83,9 @@ console.log(result.data)
 const created = await client.post('/users', { name: 'Alice' }).run()
 
 // PUT, PATCH, DELETE
-await client.put('/users/123', { bio: 'New bio' })
-await client.patch('/users/123', { name: 'Bob' })
-await client.delete('/users/123')
-
-// With custom options
-const result = await client.request(
-  '/endpoint',
-  'POST',
-  { headers: { 'Content-Type': 'application/json' } },
-  { key: 'value' },
-).run()
-```
-
-### Handling responses
-
-```ts
-const result = await client.get('/data').run()
-
-if (result.ok) {
-  console.log('Status:', result.status)
-  console.log('Data:', result.data)
-  console.log('Headers:', result.headers)
-} else {
-  console.log('HTTP Error:', result.status, result.reason)
-}
+await client.put('/users/123', { bio: 'New bio' }).run()
+await client.patch('/users/123', { name: 'Bob' }).run()
+await client.delete('/users/123').run()
 ```
 
 ### Using Task methods
@@ -128,32 +101,13 @@ const cached = await client.get('/api')
 
 // FlatMap for chaining
 const userPosts = await client.get('/users/me')
-  .flatMap((user) => client.get(`/users/${user.id}/posts`))
+  .flatMap((user) => client.get(`/users/${user.data.id}/posts`))
   .run()
 
 // Timeout
 const response = await client.get('/slow-endpoint')
   .timeout(5_000)
   .run()
-```
-
-### Customizing retry behavior
-
-```ts
-// Only retry on server errors
-client.get('/api').retry({
-  attempts: 3,
-  when: (res) => res.status >= 500,
-})
-
-// Custom delay based on error
-client.get('/api').retry({
-  attempts: 5,
-  delay: (attempt, error) => {
-    if (error?.retryAfter) return error.retryAfter * 1000
-    return 1000 * attempt
-  },
-})
 ```
 
 ## API reference

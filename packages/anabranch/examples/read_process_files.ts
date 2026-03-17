@@ -5,7 +5,7 @@
  *
  * Run with:
  * ```
-deno run -A packages/anabranch/examples/read_process_files.ts <directory>a
+deno run -A packages/anabranch/examples/read_process_files.ts <directory>
  * ```
  */
 import { Source } from '../index.ts'
