@@ -138,7 +138,11 @@ export function bumpVersion(current: string, type: BumpSpec['type']): string {
 
 export async function runGit(...args: string[]): Promise<void> {
   const proc = new Deno.Command('git', { args })
-  await proc.output()
+  const result = await proc.output()
+  if (!result.success) {
+    const stderr = new TextDecoder().decode(result.stderr)
+    throw new Error(`git ${args[0]} failed: ${stderr}`)
+  }
 }
 
 export async function runGitChecked(...args: string[]): Promise<boolean> {
@@ -148,5 +152,5 @@ export async function runGitChecked(...args: string[]): Promise<boolean> {
 }
 
 export function log(dryRun: boolean, ...msg: unknown[]): void {
-  console.log(dryRun ? '[DRY-RUN] ' : '', ...msg)
+  console.log(...(dryRun ? ['[DRY-RUN]'] : []), ...msg)
 }
