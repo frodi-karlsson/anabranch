@@ -36,6 +36,7 @@
  * @module
  */
 export { Source } from './source/source.ts'
+export type { Tick } from './source/source.ts'
 export { Task } from './task/task.ts'
 export { Channel } from './channel/channel.ts'
 export { MissingKeyError, NoKeysError, PumpError } from './stream/stream.ts'

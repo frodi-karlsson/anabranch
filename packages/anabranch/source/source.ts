@@ -1,6 +1,15 @@
 import { _StreamImpl } from '../stream/stream-impl.ts'
 import type { Result } from '../util/util.ts'
 import type { Task } from '../task/task.ts'
+import { _nextCronTick } from './cron.ts'
+
+/** A scheduled tick emitted by {@link Source.fromSchedule}. */
+export interface Tick {
+  /** The time this tick was scheduled for. */
+  scheduledAt: Date
+  /** Zero-based index of this tick within the schedule. */
+  index: number
+}
 
 /**
  * The entry point for creating a {@link Stream}. Wraps an async generator so
@@ -114,6 +123,50 @@ export class Source<T, E> extends _StreamImpl<T, E> {
     return Source.from(async function* () {
       for (let i = start; i < end; i++) {
         yield i
+      }
+    })
+  }
+
+  /**
+   * Creates a {@link Source} that yields a {@link Tick} on each cron schedule match.
+   * Supports 5-field (minute) and 6-field (second) cron expressions.
+   *
+   * @example Clean expired sessions every 5 minutes
+   * ```ts
+   * const cron = "0,5,10,15,20,25,30,35,40,45,50,55 * * * *";
+   * await Source.fromSchedule(cron, { signal })
+   *   .map(async () => await db.execute("DELETE FROM sessions WHERE expired"))
+   *   .partition();
+   * ```
+   */
+  static fromSchedule(
+    cron: string,
+    options?: { signal?: AbortSignal },
+  ): Source<Tick, never> {
+    const signal = options?.signal
+    return Source.from<Tick, never>(async function* () {
+      let index = 0
+      while (!signal?.aborted) {
+        const now = new Date()
+        const next = _nextCronTick(cron, now)
+        const delay = next.getTime() - now.getTime()
+
+        if (delay > 0) {
+          const aborted = await new Promise<boolean>((resolve) => {
+            const timer = setTimeout(() => {
+              signal?.removeEventListener('abort', onAbort)
+              resolve(false)
+            }, delay)
+            const onAbort = () => {
+              clearTimeout(timer)
+              resolve(true)
+            }
+            signal?.addEventListener('abort', onAbort, { once: true })
+          })
+          if (aborted) return
+        }
+
+        yield { scheduledAt: next, index: index++ }
       }
     })
   }
