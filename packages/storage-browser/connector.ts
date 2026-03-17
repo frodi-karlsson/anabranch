@@ -23,6 +23,7 @@ function promisify<T>(request: IDBRequest<T>): Promise<T> {
   })
 }
 
+/** Creates a {@link StorageConnector} backed by IndexedDB for browser environments. */
 export function createIndexedDB(
   options?: StorageOptions & { dbName?: string },
 ): StorageConnector {

@@ -40,7 +40,7 @@ Deno.test({
       apiEndpoint: endpoint,
     })
 
-    const storage = new Storage(await connector.connect())
+    const storage = await Storage.connect(connector).run()
 
     try {
       await storage.put('test.txt', 'hello gcs', {
@@ -95,7 +95,7 @@ Deno.test({
       prefix: 'apps/my-app/',
     })
 
-    const storage = new Storage(await connector.connect())
+    const storage = await Storage.connect(connector).run()
 
     try {
       await storage.put('config.json', '{"id": 1}').run()
@@ -129,7 +129,7 @@ Deno.test({
       apiEndpoint: endpoint,
     })
 
-    const storage = new Storage(await connector.connect())
+    const storage = await Storage.connect(connector).run()
 
     try {
       const testContent = 'presigned content gcs'

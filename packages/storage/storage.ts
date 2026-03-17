@@ -55,7 +55,7 @@ import {
  * ```
  */
 export class Storage {
-  constructor(private readonly adapter: StorageAdapter) {}
+  private constructor(private readonly adapter: StorageAdapter) {}
 
   /**
    * Connect to storage via a connector.
@@ -149,17 +149,14 @@ export class Storage {
    * ```
    */
   delete(key: string): Task<void, StorageDeleteFailed> {
-    return Task.of(async () => {
-      try {
-        await this.adapter.delete(key)
-      } catch (error) {
-        throw new StorageDeleteFailed(
+    return Task.of(async () => await this.adapter.delete(key))
+      .mapErr((error) =>
+        new StorageDeleteFailed(
           key,
           error instanceof Error ? error.message : String(error),
           error,
         )
-      }
-    })
+      )
   }
 
   /**

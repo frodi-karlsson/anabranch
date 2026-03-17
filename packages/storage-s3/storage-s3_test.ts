@@ -53,7 +53,7 @@ Deno.test({
       pooled: false,
     })
 
-    const storage = new Storage(await connector.connect())
+    const storage = await Storage.connect(connector).run()
 
     try {
       await storage.put('test.txt', 'hello s3', {
@@ -104,7 +104,7 @@ Deno.test({
       pooled: false,
     })
 
-    const storage = new Storage(await connector.connect())
+    const storage = await Storage.connect(connector).run()
 
     try {
       await storage.put('config.json', '{"id": 1}').run()
@@ -138,7 +138,7 @@ Deno.test({
       pooled: false,
     })
 
-    const storage = new Storage(await connector.connect())
+    const storage = await Storage.connect(connector).run()
 
     try {
       const testContent = 'presigned content'

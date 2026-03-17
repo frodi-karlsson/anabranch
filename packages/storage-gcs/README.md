@@ -18,7 +18,7 @@ const connector = createGcs({
   },
 })
 
-const storage = new Storage(await connector.connect())
+const storage = await Storage.connect(connector).run()
 
 await storage.put('hello.txt', 'world').run()
 
