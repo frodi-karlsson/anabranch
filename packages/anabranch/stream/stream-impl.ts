@@ -1,6 +1,12 @@
 import { _ChannelSource } from '../channel/channel-source.ts'
 import { Death, Promisable, Result } from '../util/util.ts'
-import { MissingKeyError, NoKeysError, PumpError, Stream } from './stream.ts'
+import {
+  MissingKeyError,
+  NoKeysError,
+  PumpError,
+  type SplitOptions,
+  Stream,
+} from './stream.ts'
 import { AggregateError } from '../util/util.ts'
 
 export class _StreamImpl<T, E> implements Stream<T, E> {
@@ -582,7 +588,7 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
   }
 
   scanErr<F>(
-    fn: (acc: F, error: E, arrivalIndex: number) => Promisable<F>,
+    fn: (acc: F, error: E, errorIndex: number) => Promisable<F>,
     initialValue: F,
   ): Stream<T, F> {
     const source = this.source
@@ -591,11 +597,11 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
     return new _StreamImpl<T, F>(
       async function* () {
         let accumulator = initialValue
-        let arrivalIndex = 0
+        let errorIndex = 0
         for await (const result of source()) {
           if (result.type === 'error') {
             try {
-              accumulator = await fn(accumulator, result.error, arrivalIndex++)
+              accumulator = await fn(accumulator, result.error, errorIndex++)
               yield { type: 'error', error: accumulator } as Result<T, F>
             } catch (error) {
               yield { type: 'error', error: error as F } as Result<T, F>
@@ -686,14 +692,14 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
   }
 
   async foldErr<F>(
-    fn: (acc: F, error: E, arrivalIndex: number) => Promisable<F>,
+    fn: (acc: F, error: E, errorIndex: number) => Promisable<F>,
     initialValue: F,
   ): Promise<F> {
     let accumulator = initialValue
-    let arrivalIndex = 0
+    let errorIndex = 0
     for await (const result of this.source()) {
       if (result.type === 'error') {
-        accumulator = await fn(accumulator, result.error, arrivalIndex++)
+        accumulator = await fn(accumulator, result.error, errorIndex++)
       }
     }
     return accumulator
@@ -701,14 +707,14 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
 
   recoverWhen<E2 extends E, U = T>(
     guard: (error: E, errorIndex: number) => error is E2,
-    fn: (error: E2, arrivalIndex: number) => Promisable<U>,
+    fn: (error: E2, recoveryIndex: number) => Promisable<U>,
   ): Stream<T | U, Exclude<E, E2>> {
-    let arrivalIndex = 0
+    let recoveryIndex = 0
     let errorIndex = 0
     return this.transform(async (result) => {
       if (result.type === 'error' && guard(result.error, errorIndex++)) {
         try {
-          const recoveredValue = await fn(result.error, arrivalIndex++)
+          const recoveredValue = await fn(result.error, recoveryIndex++)
           return [
             {
               type: 'success',
@@ -727,7 +733,7 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
   }
 
   recover<U>(
-    fn: (error: E, arrivalIndex: number) => Promisable<U>,
+    fn: (error: E, errorIndex: number) => Promisable<U>,
   ): Stream<T | U, never> {
     let errorIndex = 0
     return this.transform(async (result) => {
@@ -918,14 +924,20 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
     )
   }
 
-  splitN(n: 0 | 1, bufferSize: number): [Stream<T, E | PumpError>]
+  splitN(
+    n: 0 | 1,
+    bufferSize: number,
+    options?: SplitOptions,
+  ): [Stream<T, E | PumpError>]
   splitN(
     n: 2,
     bufferSize: number,
+    options?: SplitOptions,
   ): [Stream<T, E | PumpError>, Stream<T, E | PumpError>]
   splitN(
     n: 3,
     bufferSize: number,
+    options?: SplitOptions,
   ): [
     Stream<T, E | PumpError>,
     Stream<T, E | PumpError>,
@@ -934,23 +946,33 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
   splitN(
     n: 4,
     bufferSize: number,
+    options?: SplitOptions,
   ): [
     Stream<T, E | PumpError>,
     Stream<T, E | PumpError>,
     Stream<T, E | PumpError>,
     Stream<T, E | PumpError>,
   ]
-  splitN(n: number, bufferSize: number): Stream<T, E | PumpError>[]
-  splitN(n: number, bufferSize: number): Stream<T, E | PumpError>[] {
+  splitN(
+    n: number,
+    bufferSize: number,
+    options?: SplitOptions,
+  ): Stream<T, E | PumpError>[]
+  splitN(
+    n: number,
+    bufferSize: number,
+    options?: SplitOptions,
+  ): Stream<T, E | PumpError>[] {
     n = Number.isFinite(n) ? Math.max(1, Math.floor(n)) : 1
 
     bufferSize = Number.isFinite(bufferSize)
       ? Math.max(1, bufferSize)
       : Infinity
 
+    const signal = options?.signal
     const sources = Array.from(
       { length: n },
-      () => new _ChannelSource<T, E | PumpError>({ bufferSize }), //
+      () => new _ChannelSource<T, E | PumpError>({ bufferSize, signal }), //
     )
 
     const pump = async () => {
@@ -997,6 +1019,7 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
     keys: readonly K[],
     cb: (value: T, arrivalIndex: number) => Promisable<K>,
     bufferSize: number,
+    options?: SplitOptions,
   ): Record<K, Stream<T, E | MissingKeyError | PumpError | NoKeysError>> {
     if (keys.length === 0) {
       throw new NoKeysError()
@@ -1014,12 +1037,13 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
     const normalizedBufferSize = Number.isFinite(bufferSize)
       ? Math.max(1, bufferSize)
       : Infinity
+    const signal = options?.signal
 
     for (const key of keys) {
       const source = new _ChannelSource<
         T,
         E | MissingKeyError | PumpError | NoKeysError
-      >({ bufferSize: normalizedBufferSize }) //
+      >({ bufferSize: normalizedBufferSize, signal }) //
       channels.set(key, source)
       resultRecord[key] = new _StreamImpl(
         () => source.generator(),

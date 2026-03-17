@@ -6,8 +6,14 @@ import type {
   QueueOptions,
   SendOptions,
 } from '@anabranch/queue'
-import { QueueReceiveFailed, QueueSendFailed } from '@anabranch/queue'
+import {
+  QueueAckFailed,
+  QueueNackFailed,
+  QueueReceiveFailed,
+  QueueSendFailed,
+} from '@anabranch/queue'
 
+/** Redis-backed queue adapter using sorted sets for ordering and visibility timeout. */
 export class RedisAdapter implements QueueAdapter {
   private readonly redis: RedisClient
   private readonly prefix: string
@@ -190,12 +196,21 @@ export class RedisAdapter implements QueueAdapter {
   async ack(queue: string, ...ids: string[]): Promise<void> {
     if (ids.length === 0) return
 
-    const pipeline = this.redis.pipeline()
-    for (const id of ids) {
-      pipeline.zrem(this.key(queue, 'inflight'), id)
-      pipeline.hdel(this.key(queue, 'data'), id)
+    try {
+      const pipeline = this.redis.pipeline()
+      for (const id of ids) {
+        pipeline.zrem(this.key(queue, 'inflight'), id)
+        pipeline.hdel(this.key(queue, 'data'), id)
+      }
+      await pipeline.exec()
+    } catch (error) {
+      throw new QueueAckFailed(
+        error instanceof Error ? error.message : String(error),
+        queue,
+        ids.join(','),
+        error,
+      )
     }
-    await pipeline.exec()
   }
 
   async nack(
@@ -203,44 +218,59 @@ export class RedisAdapter implements QueueAdapter {
     id: string,
     options?: NackOptions,
   ): Promise<void> {
-    const inflightKey = this.key(queue, 'inflight')
-    const dataKey = this.key(queue, 'data')
-    const config = this.getConfig(queue)
+    try {
+      const inflightKey = this.key(queue, 'inflight')
+      const dataKey = this.key(queue, 'data')
+      const config = this.getConfig(queue)
 
-    await this.redis.zrem(inflightKey, id)
-
-    if (options?.deadLetter && config.deadLetterQueue) {
-      await this.routeToDlq(queue, id, config.deadLetterQueue)
-      return
-    }
-
-    if (options?.requeue) {
-      const raw = await this.redis.hget(dataKey, id)
-      if (!raw) return
-
-      const envelope: StoredMessage<unknown> = JSON.parse(raw)
-
-      envelope.attempt += 1
-
-      if (envelope.attempt > config.maxAttempts && config.deadLetterQueue) {
+      if (options?.deadLetter && config.deadLetterQueue) {
         await this.routeToDlq(queue, id, config.deadLetterQueue)
         return
       }
 
-      const delay = options.delay ?? 0
-      const target = delay > 0
-        ? this.key(queue, 'delayed')
-        : this.key(queue, 'pending')
-      const score = Date.now() + delay
+      if (options?.requeue) {
+        const raw = await this.redis.hget(dataKey, id)
+        if (!raw) {
+          await this.redis.zrem(inflightKey, id)
+          return
+        }
 
+        const envelope: StoredMessage<unknown> = JSON.parse(raw)
+
+        envelope.attempt += 1
+
+        if (envelope.attempt > config.maxAttempts && config.deadLetterQueue) {
+          await this.routeToDlq(queue, id, config.deadLetterQueue)
+          return
+        }
+
+        const delay = options.delay ?? 0
+        const target = delay > 0
+          ? this.key(queue, 'delayed')
+          : this.key(queue, 'pending')
+        const score = Date.now() + delay
+
+        await this.redis.pipeline()
+          .zrem(inflightKey, id)
+          .hset(dataKey, id, JSON.stringify(envelope))
+          .zadd(target, score, id)
+          .exec()
+        return
+      }
+
+      // Discard: remove from inflight and delete data atomically
       await this.redis.pipeline()
-        .hset(dataKey, id, JSON.stringify(envelope))
-        .zadd(target, score, id)
+        .zrem(inflightKey, id)
+        .hdel(dataKey, id)
         .exec()
-      return
+    } catch (error) {
+      throw new QueueNackFailed(
+        error instanceof Error ? error.message : String(error),
+        queue,
+        id,
+        error,
+      )
     }
-
-    await this.redis.hdel(dataKey, id)
   }
 
   async close(): Promise<void> {}
@@ -306,6 +336,7 @@ export class RedisAdapter implements QueueAdapter {
     }
 
     await this.redis.pipeline()
+      .zrem(this.key(sourceQueue, 'inflight'), id)
       .hset(
         this.key(dlqName, 'data'),
         dlqEnvelope.id,

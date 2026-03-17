@@ -3,6 +3,7 @@ import { PumpError, type Result, Source } from '../index.ts'
 import { deferred, failure, streamFrom, success } from '../test_utils.ts'
 import { Death, ErrorResult } from '../util/util.ts'
 import { MissingKeyError, NoKeysError } from './stream.ts'
+import { _StreamImpl } from './stream-impl.ts'
 
 Deno.test('Stream.toArray - should collect all results', async () => {
   const stream = streamFrom<number, string>([
@@ -1454,6 +1455,83 @@ Deno.test('Stream.scanErr - should emit running accumulator for errors', async (
   ])
 })
 
+Deno.test('Stream.scanErr - should pass successes through unchanged', async () => {
+  const stream = streamFrom<number, string>([
+    success(1),
+    success(2),
+  ])
+  const scanned = stream.scanErr((acc, error) => `${acc}|${error}`, '')
+
+  const results = await scanned.toArray()
+
+  assertEquals(results, [
+    { type: 'success', value: 1 },
+    { type: 'success', value: 2 },
+  ])
+})
+
+Deno.test('Stream.scanErr - should emit error when callback throws', async () => {
+  const thrownError = new Error('callback broke')
+  const stream = streamFrom<number, string>([
+    failure('first'),
+    failure('second'),
+    failure('third'),
+  ])
+  const scanned = stream.scanErr<string | Error>((acc, error) => {
+    if (error === 'second') throw thrownError
+    return `${acc}|${error}`
+  }, '')
+
+  const results = await scanned.toArray()
+
+  assertEquals(results[0], { type: 'error', error: '|first' })
+  assertEquals(results[1], { type: 'error', error: thrownError })
+  // Accumulator retains its previous value ("|first") after the throw
+  assertEquals(results[2], { type: 'error', error: '|first|third' })
+})
+
+Deno.test('Stream.scanErr - should provide correct errorIndex', async () => {
+  const stream = streamFrom<number, string>([
+    success(1),
+    failure('a'),
+    success(2),
+    failure('b'),
+    failure('c'),
+  ])
+  const seen: Array<{ error: string; index: number }> = []
+  await stream.scanErr((acc, error, index) => {
+    seen.push({ error, index })
+    return acc + 1
+  }, 0).toArray()
+
+  assertEquals(seen, [
+    { error: 'a', index: 0 },
+    { error: 'b', index: 1 },
+    { error: 'c', index: 2 },
+  ])
+})
+
+Deno.test('Stream.scanErr - should handle async callback', async () => {
+  const stream = streamFrom<number, string>([
+    failure('x'),
+    failure('y'),
+  ])
+  const scanned = stream.scanErr(
+    async (acc, error) => {
+      await new Promise((r) => setTimeout(r, 1))
+      return [...acc, error]
+    },
+    [] as string[],
+  )
+
+  const results = await scanned.toArray()
+
+  assertEquals(results, [
+    { type: 'error', error: ['x'] },
+    { type: 'error', error: ['x', 'y'] },
+  ])
+})
+
 Deno.test('Stream.chunks - should group successes into arrays', async () => {
   const stream = streamFrom<number, string>([
     success(1),
@@ -1662,6 +1740,56 @@ Deno.test('Stream.merge - should complete when both streams are done', async () 
   const values = results.map((r) => (r as { value: number }).value)
   assertEquals(values.includes(1), true)
   assertEquals(values.includes(2), true)
+})
+
+Deno.test('Stream.merge - should remove dead iterator after throw but keep the other alive', async () => {
+  const throwing = new _StreamImpl<number, Error>(
+    async function* () {
+      yield { type: 'success', value: 1 } as Result<number, Error>
+      throw new Error('transient')
+    },
+    1,
+    Infinity,
+  )
+
+  const other = streamFrom<number, Error>([success(10), success(20)])
+
+  const merged = throwing.merge(other)
+  const results = await merged.toArray()
+
+  const values = results
+    .filter((r) => r.type === 'success')
+    .map((r) => (r as { type: 'success'; value: number }).value)
+  const errors = results.filter((r) => r.type === 'error')
+
+  assertEquals(values.includes(1), true, 'should have value 1 before throw')
+  assertEquals(values.includes(10), true, 'should have value 10 from other')
+  assertEquals(values.includes(20), true, 'should have value 20 from other')
+  assertEquals(errors.length, 1, 'should have the transient error')
+})
+
+Deno.test('Stream.merge - should continue other stream after one stream with error results', async () => {
+  const withErrors = streamFrom<number, string>([
+    success(1),
+    failure('oops'),
+    success(2),
+  ])
+  const clean = streamFrom<number, string>([success(10)])
+
+  const merged = withErrors.merge(clean)
+  const results = await merged.toArray()
+
+  const values = results
+    .filter((r) => r.type === 'success')
+    .map((r) => (r as { type: 'success'; value: number }).value)
+  const errors = results
+    .filter((r) => r.type === 'error')
+    .map((r) => (r as { type: 'error'; error: string }).error)
+
+  assertEquals(values.includes(1), true)
+  assertEquals(values.includes(2), true)
+  assertEquals(values.includes(10), true)
+  assertEquals(errors, ['oops'])
 })
 
 Deno.test('Stream.splitN - should apply backpressure when one branch is slow', async () => {
@@ -1923,6 +2051,145 @@ Deno.test('Stream.splitBy - backpressure on one branch eventually pauses upstrea
 
   await evenIter.return?.()
   await oddIter.return?.()
+})
+
+Deno.test('Stream.splitN - should stop pump when signal is aborted', async () => {
+  const controller = new AbortController()
+  let generatedCount = 0
+
+  const stream = Source.from<number, never>(async function* () {
+    while (true) {
+      generatedCount++
+      yield generatedCount
+      await new Promise((resolve) => setTimeout(resolve, 5))
+    }
+  })
+
+  const [a, b] = stream.splitN(2, 4, { signal: controller.signal })
+
+  const resultsA: number[] = []
+  const resultsB: number[] = []
+
+  const consumeA = (async () => {
+    for await (const result of a.successes()) {
+      resultsA.push(result)
+    }
+  })()
+
+  const consumeB = (async () => {
+    for await (const result of b.successes()) {
+      resultsB.push(result)
+    }
+  })()
+
+  // Let some items flow
+  await new Promise((resolve) => setTimeout(resolve, 50))
+
+  const countBefore = generatedCount
+  controller.abort()
+
+  await Promise.all([consumeA, consumeB])
+
+  // After abort, the source should have stopped
+  await new Promise((resolve) => setTimeout(resolve, 30))
+  assertEquals(
+    generatedCount <= countBefore + 1,
+    true,
+    'source should stop after abort',
+  )
+
+  // Both streams should have received the same items
+  assertEquals(resultsA, resultsB)
+})
+
+Deno.test('Stream.splitN - should close immediately with pre-aborted signal', async () => {
+  const controller = new AbortController()
+  controller.abort()
+
+  const stream = Source.from<number, never>(async function* () {
+    yield 1
+    yield 2
+  })
+
+  const [a, b] = stream.splitN(2, 4, { signal: controller.signal })
+
+  const resultsA = await a.toArray()
+  const resultsB = await b.toArray()
+
+  assertEquals(resultsA, [])
+  assertEquals(resultsB, [])
+})
+
+Deno.test('Stream.splitBy - should stop pump when signal is aborted', async () => {
+  const controller = new AbortController()
+  let generatedCount = 0
+
+  const stream = Source.from<number, never>(async function* () {
+    while (true) {
+      generatedCount++
+      yield generatedCount
+      await new Promise((resolve) => setTimeout(resolve, 5))
+    }
+  })
+
+  const { even, odd } = stream.splitBy(
+    ['even', 'odd'] as const,
+    (n) => (n % 2 === 0 ? 'even' : 'odd'),
+    4,
+    { signal: controller.signal },
+  )
+
+  const evens: number[] = []
+  const odds: number[] = []
+
+  const consumeEven = (async () => {
+    for await (const result of even.successes()) {
+      evens.push(result)
+    }
+  })()
+
+  const consumeOdd = (async () => {
+    for await (const result of odd.successes()) {
+      odds.push(result)
+    }
+  })()
+
+  await new Promise((resolve) => setTimeout(resolve, 50))
+
+  const countBefore = generatedCount
+  controller.abort()
+
+  await Promise.all([consumeEven, consumeOdd])
+
+  await new Promise((resolve) => setTimeout(resolve, 30))
+  assertEquals(
+    generatedCount <= countBefore + 1,
+    true,
+    'source should stop after abort',
+  )
+})
+
+Deno.test('Stream.splitBy - should close immediately with pre-aborted signal', async () => {
+  const controller = new AbortController()
+  controller.abort()
+
+  const stream = Source.from<number, never>(async function* () {
+    yield 1
+    yield 2
+  })
+
+  const { a, b } = stream.splitBy(
+    ['a', 'b'] as const,
+    () => 'a',
+    4,
+    { signal: controller.signal },
+  )
+
+  const resultsA = await a.toArray()
+  const resultsB = await b.toArray()
+
+  assertEquals(resultsA, [])
+  assertEquals(resultsB, [])
 })
 
 Deno.test('Stream.flatten - should flatten standard arrays (Iterable)', async () => {

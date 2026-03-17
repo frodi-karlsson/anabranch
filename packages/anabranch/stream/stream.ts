@@ -219,7 +219,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * @see {@link Stream.foldErr}
    */
   scanErr<F>(
-    fn: (acc: F, error: E, arrivalIndex: number) => Promisable<F>,
+    fn: (acc: F, error: E, errorIndex: number) => Promisable<F>,
     initialValue: F,
   ): Stream<T, F>
   /**
@@ -241,7 +241,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    *
    * @see {@link Stream.map}
    */
-  mapErr<F>(fn: (error: E, arrivalIndex: number) => Promisable<F>): Stream<T, F>
+  mapErr<F>(fn: (error: E, errorIndex: number) => Promisable<F>): Stream<T, F>
   /**
    * Similar to `Array.prototype.filter`, but works on the stream of errors. If the provided function throws an error or returns a rejected promise, the error will be collected and emitted as an error result in the stream.
    *
@@ -261,10 +261,10 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * @see {@link Stream.filter}
    */
   filterErr<F extends E>(
-    fn: (error: E, arrivalIndex: number) => error is F,
+    fn: (error: E, errorIndex: number) => error is F,
   ): Stream<T, F>
   filterErr(
-    fn: (error: E, arrivalIndex: number) => Promisable<boolean>,
+    fn: (error: E, errorIndex: number) => Promisable<boolean>,
   ): Stream<T, E>
   /**
    * Similar to `Array.prototype.reduce`, but works on the stream of errors. If the provided function throws an error or returns a rejected promise, the new error will be collected and emitted as an error result in the stream.
@@ -287,7 +287,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * @see {@link Stream.fold}
    */
   foldErr<F>(
-    fn: (acc: F, error: E, arrivalIndex: number) => Promisable<F>,
+    fn: (acc: F, error: E, errorIndex: number) => Promisable<F>,
     initialValue: F,
   ): Promise<F>
   /**
@@ -307,8 +307,8 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * @throws @see {@link Death} If the provided function itself throws an error or returns a rejected promise. In this case, the original error is lost and the new error is thrown instead.
    */
   recoverWhen<E2 extends E, U>(
-    guard: (error: E, arrivalIndex: number) => error is E2,
-    fn: (error: E2, arrivalIndex: number) => Promisable<U>,
+    guard: (error: E, errorIndex: number) => error is E2,
+    fn: (error: E2, recoveryIndex: number) => Promisable<U>,
   ): Stream<T | U, Exclude<E, E2>>
   /**
    * Recovers from all errors by applying the provided function to transform them into successful values. This allows you to handle all errors gracefully while still collecting successful values in the stream.
@@ -327,7 +327,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * @throws @see {@link Death} If the provided function itself throws an error or returns a rejected promise. In this case, the original error is lost and the new error is thrown instead.
    */
   recover<U>(
-    fn: (error: E, arrivalIndex: number) => Promisable<U>,
+    fn: (error: E, errorIndex: number) => Promisable<U>,
   ): Stream<T | U, never>
   /**
    * Throws the specified error types if they are encountered in the stream. This allows you to handle specific errors immediately while continuing to process other errors.
@@ -510,10 +510,15 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * }
    * ```
    */
-  splitN(n: 0 | 1, bufferSize: number): [Stream<T, E | PumpError>]
+  splitN(
+    n: 0 | 1,
+    bufferSize: number,
+    options?: SplitOptions,
+  ): [Stream<T, E | PumpError>]
   splitN(
     n: 2,
     bufferSize: number,
+    options?: SplitOptions,
   ): [Stream<T, E | PumpError>, Stream<T, E | PumpError>]
   splitN(
     n: 3,
@@ -523,6 +528,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
      * If you called this on a stream with the default Infinity buffer size, it would be easy to accidentally create an unbounded buffer that grows indefinitely if one of the split streams is slow or stalls.
      */
     bufferSize: number,
+    options?: SplitOptions,
   ): [
     Stream<T, E | PumpError>,
     Stream<T, E | PumpError>,
@@ -531,13 +537,18 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
   splitN(
     n: 4,
     bufferSize: number,
+    options?: SplitOptions,
   ): [
     Stream<T, E | PumpError>,
     Stream<T, E | PumpError>,
     Stream<T, E | PumpError>,
     Stream<T, E | PumpError>,
   ]
-  splitN(n: number, bufferSize: number): Stream<T, E | PumpError>[]
+  splitN(
+    n: number,
+    bufferSize: number,
+    options?: SplitOptions,
+  ): Stream<T, E | PumpError>[]
 
   /**
    * Splits the stream into separate streams based on computed keys. Each result is sent to the stream corresponding to its computed key. If a result's key does not match any of the provided keys, an error result is emitted for that value. The split streams share the same source, so they are not independent; if one split stream is slower than the others, it will cause backpressure on the source stream and all other splits until it catches up. Use with caution to avoid unintended bottlenecks.
@@ -571,6 +582,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
     keys: readonly K[],
     cb: (value: T, arrivalIndex: number) => Promisable<K>,
     bufferSize: number,
+    options?: SplitOptions,
   ): Record<K, Stream<T, E | MissingKeyError | PumpError | NoKeysError>>
 
   /**
@@ -599,6 +611,12 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
   _getSource(): () => AsyncGenerator<Result<T, E>>
 
   [Symbol.asyncIterator](): AsyncIterator<Result<T, E>>
+}
+
+/** Options for `splitN` and `splitBy`. */
+export interface SplitOptions {
+  /** When aborted, all split channels close and the pump stops. */
+  signal?: AbortSignal
 }
 
 /**

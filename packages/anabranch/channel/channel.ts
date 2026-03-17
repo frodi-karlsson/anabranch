@@ -1,5 +1,6 @@
+import { type Promisable } from '../util/util.ts'
 import { _StreamImpl } from '../stream/stream-impl.ts'
-import { _ChannelOptions, _ChannelSource } from './channel-source.ts'
+import { _ChannelSource } from './channel-source.ts'
 
 /**
  * Channel is a concurrency primitive for communicating between producers and consumers with backpressure support.
@@ -8,14 +9,63 @@ import { _ChannelOptions, _ChannelSource } from './channel-source.ts'
  * The channel supports an optional buffer with a configurable size. If the buffer is full, new values will be dropped and an optional `onDrop` callback will be called.
  * Producers can wait for capacity in the channel using `waitForCapacity()`, which resolves when there the total number of buffered and pending values is less than the buffer size or when the channel is closed. If the channel is aborted via the signal, this will reject with an AbortError.
  * The channel can be closed by calling `close()`, which will signal to consumers that no more values will be sent and unblock any waiting producers.
+ *
+ * @example
+ * ```ts
+ * import { Channel } from "anabranch";
+ *
+ * const ch = Channel.create<number>()
+ *   .withBufferSize(10)
+ *   .withOnDrop((n) => console.log("dropped", n));
+ *
+ * ch.send(1);
+ * ch.send(2);
+ * ch.close();
+ *
+ * for await (const result of ch) {
+ *   console.log(result);
+ * }
+ * ```
  */
 export class Channel<T, E = never> extends _StreamImpl<T, E> {
   private sourceImpl: _ChannelSource<T, E>
 
-  constructor(options: _ChannelOptions<T> = {}) {
-    const sourceImpl = new _ChannelSource<T, E>(options)
+  private constructor(
+    sourceImpl: _ChannelSource<T, E>,
+    private options: ChannelConfig<T>,
+  ) {
     super(() => sourceImpl.generator(), Infinity, Infinity)
     this.sourceImpl = sourceImpl
+  }
+
+  /** Creates a new unbuffered channel. */
+  static create<T, E = never>(): Channel<T, E> {
+    const options: ChannelConfig<T> = {}
+    return new Channel(new _ChannelSource<T, E>(options), options)
+  }
+
+  /** Returns a new channel with the given buffer size. */
+  withBufferSize(bufferSize: number): Channel<T, E> {
+    const next = { ...this.options, bufferSize }
+    return new Channel(new _ChannelSource<T, E>(next), next)
+  }
+
+  /** Returns a new channel with the given drop callback, invoked when a value is dropped due to a full buffer. */
+  withOnDrop(onDrop: (value: T) => Promisable<void>): Channel<T, E> {
+    const next = { ...this.options, onDrop }
+    return new Channel(new _ChannelSource<T, E>(next), next)
+  }
+
+  /** Returns a new channel with the given close callback, invoked when the channel's consumer finishes iterating. */
+  withOnClose(onClose: () => Promisable<void>): Channel<T, E> {
+    const next = { ...this.options, onClose }
+    return new Channel(new _ChannelSource<T, E>(next), next)
+  }
+
+  /** Returns a new channel with the given abort signal. When aborted, the channel closes and all waiting producers are unblocked. */
+  withSignal(signal: AbortSignal): Channel<T, E> {
+    const next = { ...this.options, signal }
+    return new Channel(new _ChannelSource<T, E>(next), next)
   }
 
   /**
@@ -56,12 +106,9 @@ export class Channel<T, E = never> extends _StreamImpl<T, E> {
   }
 }
 
-/**
- * Error thrown when a channel is aborted via the signal. This is used to distinguish between a normal channel close and an abort signal.
- */
-export class ChannelAbortError extends Error {
-  constructor(message?: string) {
-    super(message)
-    this.name = 'AbortError'
-  }
+interface ChannelConfig<T> {
+  bufferSize?: number
+  onDrop?: (value: T) => Promisable<void>
+  onClose?: () => Promisable<void>
+  signal?: AbortSignal
 }

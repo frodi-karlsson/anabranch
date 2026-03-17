@@ -81,10 +81,9 @@ For push-based streams where external producers send values as they arrive, use
 ```ts
 import { Channel } from 'anabranch'
 
-const channel = new Channel<PriceUpdate, Error>({
-  bufferSize: 100,
-  onDrop: (update) => console.log('dropped:', update),
-})
+const channel = Channel.create<PriceUpdate, Error>()
+  .withBufferSize(100)
+  .withOnDrop((update) => console.log('dropped:', update))
 
 // External producer sends values:
 channel.send({ symbol: 'AAPL', price: 150 })

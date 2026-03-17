@@ -1,6 +1,6 @@
 import { assertEquals, assertExists, assertRejects } from '@std/assert'
 import { createInMemory, Queue, QueueBufferFull } from './index.ts'
-import type { QueueConnector } from './adapter.ts'
+import type { QueueConnector, QueueMessage } from './adapter.ts'
 
 Deno.test({
   name: 'Queue.send - should send a message and return an ID',
@@ -583,5 +583,52 @@ Deno.test({
       (results[1] as { type: 'error'; error: Error }).error.message,
       'connection lost',
     )
+  },
+})
+
+Deno.test({
+  name:
+    'Queue.nack - should reject with QueueNackFailed for unknown message ID',
+  async fn() {
+    const connector = createInMemory()
+    const queue = await Queue.connect(connector).run()
+
+    await queue.send('test-queue', { data: 'hello' }).run()
+
+    // Receive to create the queue, then nack a nonexistent ID
+    await queue.stream('test-queue').partition()
+
+    const result = await queue.nack('test-queue', 'nonexistent-id').result()
+    assertEquals(result.type, 'error')
+
+    await queue.close().run()
+  },
+})
+
+Deno.test({
+  name: 'Queue - onDrop should receive the message on buffer overflow',
+  async fn() {
+    const dropped: QueueMessage<unknown>[] = []
+    const connector = createInMemory({
+      maxBufferSize: 1,
+      onDrop: (message) => {
+        dropped.push(message)
+      },
+    })
+    const queue = await Queue.connect(connector).run()
+
+    await queue.send('test-queue', { id: 1 }).run()
+
+    await assertRejects(
+      () => queue.send('test-queue', { id: 2 }).run(),
+      QueueBufferFull,
+    )
+
+    assertEquals(dropped.length, 1)
+    assertEquals(dropped[0].data, { id: 2 })
+    assertExists(dropped[0].id)
+    assertExists(dropped[0].timestamp)
+
+    await queue.close().run()
   },
 })

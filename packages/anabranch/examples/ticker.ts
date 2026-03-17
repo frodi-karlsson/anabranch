@@ -19,12 +19,11 @@ interface PriceUpdate {
   price: number
 }
 
-const tickerChannel = new Channel<PriceUpdate, string>({
-  bufferSize: 5,
-  onDrop: (update) => {
+const tickerChannel = Channel.create<PriceUpdate, string>()
+  .withBufferSize(5)
+  .withOnDrop((update) => {
     console.log(`  [DROPPED] ${update.symbol} @ $${update.price}`)
-  },
-})
+  })
 
 async function main() {
   console.log('Simulating real-time price updates:')

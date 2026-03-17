@@ -19,8 +19,16 @@ export class EventLogKafkaAppendFailed extends Error {
 /** Error thrown when consuming events fails. */
 export class EventLogKafkaConsumeFailed extends Error {
   override name = 'EventLogKafkaConsumeFailed'
-  constructor(topic: string, message: string, cause?: unknown) {
-    super(`Failed to consume events from ${topic}: ${message}`, { cause })
+  constructor(
+    topic: string,
+    consumerGroup: string,
+    message: string,
+    cause?: unknown,
+  ) {
+    super(
+      `Failed to consume events from ${topic} (${consumerGroup}): ${message}`,
+      { cause },
+    )
   }
 }
 

@@ -114,10 +114,18 @@ export function createInMemory(options?: InMemoryOptions): InMemoryConnector {
         consumeOptions?: ConsumeOptions,
       ): { close: () => Promise<void> } {
         if (ended) {
-          throw new EventLogConsumeFailed(topic, 'Connector ended')
+          throw new EventLogConsumeFailed(
+            topic,
+            consumerGroup,
+            'Connector ended',
+          )
         }
         if (closed) {
-          throw new EventLogConsumeFailed(topic, 'Adapter closed')
+          throw new EventLogConsumeFailed(
+            topic,
+            consumerGroup,
+            'Adapter closed',
+          )
         }
 
         let consumerState = consumerGroups.get(consumerGroup)
@@ -181,6 +189,7 @@ export function createInMemory(options?: InMemoryOptions): InMemoryConnector {
               await onError(
                 new EventLogConsumeFailed(
                   topic,
+                  consumerGroup,
                   error instanceof Error ? error.message : String(error),
                   error,
                 ),

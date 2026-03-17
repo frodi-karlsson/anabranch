@@ -152,7 +152,11 @@ export function createKafka(options: KafkaOptions): KafkaConnector {
       consumeOptions?: ConsumeOptions<KafkaCursor>,
     ): { close: () => Promise<void> } {
       if (!state || state.ended) {
-        throw new EventLogKafkaConsumeFailed(topic, 'Connector ended')
+        throw new EventLogKafkaConsumeFailed(
+          topic,
+          consumerGroup,
+          'Connector ended',
+        )
       }
 
       const batchSize = consumeOptions?.batchSize ?? 10
@@ -332,10 +336,12 @@ export function createKafka(options: KafkaOptions): KafkaConnector {
             eachBatch: handleEachBatch,
           })
         } catch (error) {
+          await closeConsumer()
           if (!closed) {
             await onError(
               new EventLogKafkaConsumeFailed(
                 topic,
+                consumerGroup,
                 error instanceof Error ? error.message : String(error),
                 error,
               ),
@@ -349,6 +355,7 @@ export function createKafka(options: KafkaOptions): KafkaConnector {
           onError(
             new EventLogKafkaConsumeFailed(
               topic,
+              consumerGroup,
               error instanceof Error ? error.message : String(error),
               error,
             ),

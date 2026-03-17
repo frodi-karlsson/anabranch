@@ -120,7 +120,7 @@ export class BrokenLinkChecker {
     if (retry) client = client.withRetry(retry)
     if (fetch) client = client.withFetch(fetch)
 
-    const channel = new Channel<WorkItem>()
+    const channel = Channel.create<WorkItem>()
     const visited = new Set<string>()
     let pending = 0
     let checkedCount = 0

@@ -56,7 +56,7 @@ import {
  * ```
  */
 export class EventLog<Cursor = string> {
-  constructor(private readonly adapter: EventLogAdapter<Cursor>) {}
+  private constructor(private readonly adapter: EventLogAdapter<Cursor>) {}
 
   /**
    * Connect to an event log via a connector.
@@ -179,8 +179,9 @@ export class EventLog<Cursor = string> {
       }
     }
 
-    const channel = new Channel<EventBatch<T, Cursor>, EventLogConsumeFailed>({
-      onDrop: (batch) => {
+    let channel = Channel.create<EventBatch<T, Cursor>, EventLogConsumeFailed>()
+      .withBufferSize(options?.bufferSize ?? Infinity)
+      .withOnDrop((batch) => {
         channel.fail(
           new EventLogConsumeFailed(
             topic,
@@ -192,11 +193,11 @@ export class EventLog<Cursor = string> {
             })`,
           ),
         )
-      },
-      onClose: () => close(),
-      bufferSize: options?.bufferSize ?? Infinity,
-      signal: options?.signal,
-    })
+      })
+      .withOnClose(() => close())
+    if (options?.signal) {
+      channel = channel.withSignal(options.signal)
+    }
 
     const { close } = this.adapter.consume<T>(
       topic,

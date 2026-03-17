@@ -72,19 +72,6 @@ export class QueueNackFailed extends QueueError {
   }
 }
 
-/** Consumer handler failed unexpectedly. */
-export class QueueConsumeFailed extends QueueError {
-  constructor(
-    message: string,
-    queue: string,
-    messageId: string,
-    public readonly originalError?: unknown,
-  ) {
-    super(message, queue, messageId)
-    this.name = 'QueueConsumeFailed'
-  }
-}
-
 /** Message exceeded maximum delivery attempts. */
 export class QueueMaxAttemptsExceeded extends QueueError {
   constructor(

@@ -2,7 +2,7 @@ import { Channel } from '../channel/channel.ts'
 import { assertEquals } from '@std/assert'
 
 Deno.test('Channel.send - should enqueue success values', async () => {
-  const ch = new Channel<number, string>()
+  const ch = Channel.create<number, string>()
   ch.send(1)
   ch.send(2)
   ch.send(3)
@@ -17,7 +17,7 @@ Deno.test('Channel.send - should enqueue success values', async () => {
 })
 
 Deno.test('Channel.fail - should enqueue error values', async () => {
-  const ch = new Channel<number, string>()
+  const ch = Channel.create<number, string>()
   ch.send(1)
   ch.fail('error 1')
   ch.send(2)
@@ -34,7 +34,7 @@ Deno.test('Channel.fail - should enqueue error values', async () => {
 })
 
 Deno.test('Channel - should support map operation', async () => {
-  const ch = new Channel<number, string>()
+  const ch = Channel.create<number, string>()
   ch.send(1)
   ch.send(2)
   ch.send(3)
@@ -51,7 +51,7 @@ Deno.test('Channel - should support map operation', async () => {
 })
 
 Deno.test('Channel - should support filter operation', async () => {
-  const ch = new Channel<number, string>()
+  const ch = Channel.create<number, string>()
   ch.send(1)
   ch.send(2)
   ch.send(3)
@@ -68,7 +68,7 @@ Deno.test('Channel - should support filter operation', async () => {
 })
 
 Deno.test('Channel - should support flatMap operation', async () => {
-  const ch = new Channel<number, string>()
+  const ch = Channel.create<number, string>()
   ch.send(1)
   ch.send(2)
   ch.close()
@@ -85,7 +85,7 @@ Deno.test('Channel - should support flatMap operation', async () => {
 })
 
 Deno.test('Channel.collect - should return successes as array', async () => {
-  const ch = new Channel<number, string>()
+  const ch = Channel.create<number, string>()
   ch.send(1)
   ch.send(2)
   ch.send(3)
@@ -96,7 +96,7 @@ Deno.test('Channel.collect - should return successes as array', async () => {
 })
 
 Deno.test('Channel.partition - should split successes and errors', async () => {
-  const ch = new Channel<number, string>()
+  const ch = Channel.create<number, string>()
   ch.send(1)
   ch.fail('bad')
   ch.send(2)
@@ -110,7 +110,7 @@ Deno.test('Channel.partition - should split successes and errors', async () => {
 })
 
 Deno.test('Channel.close - should discard values sent after close', async () => {
-  const ch = new Channel<number, string>()
+  const ch = Channel.create<number, string>()
   ch.close()
   ch.send(1)
   ch.send(2)
@@ -120,7 +120,7 @@ Deno.test('Channel.close - should discard values sent after close', async () => 
 })
 
 Deno.test('Channel.take - should limit successes', async () => {
-  const ch = new Channel<number, string>()
+  const ch = Channel.create<number, string>()
   ch.send(1)
   ch.send(2)
   ch.send(3)
@@ -138,14 +138,13 @@ Deno.test('Channel.take - should limit successes', async () => {
   ])
 })
 
-Deno.test('Channel - should honor bufferSize and onDrop options', async () => {
+Deno.test('Channel - should honor bufferSize and onDrop', async () => {
   const dropped: number[] = []
-  const ch = new Channel<number, string>({
-    bufferSize: 3,
-    onDrop: (n: number) => {
+  const ch = Channel.create<number, string>()
+    .withBufferSize(3)
+    .withOnDrop((n: number) => {
       dropped.push(n)
-    },
-  })
+    })
 
   ch.send(1)
   ch.send(2)
@@ -162,7 +161,7 @@ Deno.test('Channel - should honor bufferSize and onDrop options', async () => {
 })
 
 Deno.test('Channel.scan - should emit running accumulator', async () => {
-  const ch = new Channel<number, string>()
+  const ch = Channel.create<number, string>()
   ch.send(1)
   ch.send(2)
   ch.send(3)
@@ -179,7 +178,7 @@ Deno.test('Channel.scan - should emit running accumulator', async () => {
 })
 
 Deno.test('Channel.chunks - should group successes into arrays', async () => {
-  const ch = new Channel<number, string>()
+  const ch = Channel.create<number, string>()
   ch.send(1)
   ch.send(2)
   ch.send(3)
@@ -198,7 +197,7 @@ Deno.test('Channel.chunks - should group successes into arrays', async () => {
 })
 
 Deno.test('Channel.fail - should preserve error type', async () => {
-  const ch = new Channel<number, Error>()
+  const ch = Channel.create<number, Error>()
   ch.send(1)
   ch.fail(new Error('oops'))
   ch.send(2)
@@ -212,11 +211,10 @@ Deno.test('Channel.fail - should preserve error type', async () => {
 
 Deno.test('Channel.onClose - should call onClose when stream is exhausted', async () => {
   let closed = false
-  const ch = new Channel<number, string>({
-    onClose: () => {
+  const ch = Channel.create<number, string>()
+    .withOnClose(() => {
       closed = true
-    },
-  })
+    })
 
   ch.send(1)
   ch.send(2)
@@ -228,11 +226,10 @@ Deno.test('Channel.onClose - should call onClose when stream is exhausted', asyn
 
 Deno.test('Channel.onClose - should call onClose when stream is cancelled early', async () => {
   let closeCount = 0
-  const ch = new Channel<number, string>({
-    onClose: () => {
+  const ch = Channel.create<number, string>()
+    .withOnClose(() => {
       closeCount++
-    },
-  })
+    })
 
   ch.send(1)
   ch.send(2)
@@ -246,11 +243,10 @@ Deno.test('Channel.onClose - should call onClose when stream is cancelled early'
 
 Deno.test('Channel.onClose - should call onClose once per consumer', async () => {
   let closeCount = 0
-  const ch = new Channel<number, string>({
-    onClose: () => {
+  const ch = Channel.create<number, string>()
+    .withOnClose(() => {
       closeCount++
-    },
-  })
+    })
 
   ch.send(1)
   ch.close()
@@ -261,7 +257,7 @@ Deno.test('Channel.onClose - should call onClose once per consumer', async () =>
 })
 
 Deno.test('Channel.waitForCapacity - should block until capacity frees up', async () => {
-  const ch = new Channel<number, string>({ bufferSize: 2 })
+  const ch = Channel.create<number, string>().withBufferSize(2)
 
   ch.send(1)
   ch.send(2)
@@ -284,7 +280,7 @@ Deno.test('Channel.waitForCapacity - should block until capacity frees up', asyn
 })
 
 Deno.test('Channel.waitForCapacity - should resolve instantly if bufferSize is Infinity', async () => {
-  const ch = new Channel<number, string>()
+  const ch = Channel.create<number, string>()
 
   for (let i = 0; i < 100; i++) {
     ch.send(i)
@@ -300,7 +296,7 @@ Deno.test('Channel.waitForCapacity - should resolve instantly if bufferSize is I
 })
 
 Deno.test('Channel.waitForCapacity - should unblock waiting producers when channel closes', async () => {
-  const ch = new Channel<number, string>({ bufferSize: 1 })
+  const ch = Channel.create<number, string>().withBufferSize(1)
 
   ch.send(1)
 
@@ -319,7 +315,7 @@ Deno.test('Channel.waitForCapacity - should unblock waiting producers when chann
 })
 
 Deno.test('Channel - take should unblock blocked producers via close in finally', async () => {
-  const ch = new Channel<number, string>({ bufferSize: 1 })
+  const ch = Channel.create<number, string>().withBufferSize(1)
 
   const producerDone = (async () => {
     for (let i = 0; i < 10; i++) {
@@ -344,35 +340,30 @@ Deno.test('Channel - take should unblock blocked producers via close in finally'
   )
 })
 
-Deno.test('Channel - should respect AbortSignal in constructor', async () => {
+Deno.test('Channel - should respect AbortSignal via withSignal', async () => {
   const controller = new AbortController()
-  const { signal } = controller
 
-  const ch = new Channel<number, string>({ signal })
+  const ch = Channel.create<number, string>()
+    .withSignal(controller.signal)
 
-  // 1. Send some data
   ch.send(1)
   ch.send(2)
 
-  // 2. Abort the controller
   controller.abort()
 
-  // 3. Sending after abort should ideally be ignored or handled
   ch.send(3)
   ch.close()
 
-  // 4. Consuming should stop/throw based on the abort
-  // Most implementations will throw the abort reason or just return an empty/partial stream
   const results = await ch.toArray()
-  // If your implementation finishes early on abort:
   assertEquals(results.length < 3, true)
 })
 
 Deno.test('Channel.waitForCapacity - should close when signal is aborted', async () => {
   const controller = new AbortController()
-  const { signal } = controller
 
-  const ch = new Channel<number, string>({ bufferSize: 1, signal })
+  const ch = Channel.create<number, string>()
+    .withBufferSize(1)
+    .withSignal(controller.signal)
 
   for (let i = 0; i < 10; i++) {
     ch.send(i)
@@ -386,12 +377,10 @@ Deno.test('Channel.waitForCapacity - should close when signal is aborted', async
 
 Deno.test('Channel - should remove abort listener on normal close', () => {
   const controller = new AbortController()
-  // We can't easily check for listener count in a platform-independent way,
-  // but we can ensure that aborting after close doesn't trigger unexpected behavior.
-  const ch = new Channel<number, string>({ signal: controller.signal })
+  const ch = Channel.create<number, string>()
+    .withSignal(controller.signal)
 
   ch.close()
-  // The internal state should already be closed.
   assertEquals(ch.isClosed(), true)
 
   // Aborting now should be a no-op since it's already closed.
@@ -399,7 +388,7 @@ Deno.test('Channel - should remove abort listener on normal close', () => {
 })
 
 Deno.test('Channel - should unblock producers in FIFO order', async () => {
-  const channel = new Channel<number>({ bufferSize: 1 })
+  const channel = Channel.create<number>().withBufferSize(1)
   const order: string[] = []
 
   await channel.waitForCapacity()

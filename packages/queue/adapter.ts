@@ -11,7 +11,7 @@
 export interface QueueMessage<T = unknown> {
   /** Unique message identifier */
   id: string
-  /** Message payload. The message may have no content when q*/
+  /** Message payload. */
   data: T
   /** Number of times this message has been delivered */
   attempt: number

@@ -112,8 +112,8 @@ export function createInMemory(options?: InMemoryOptions): InMemoryConnector {
             data: message.data,
             attempt: message.attempt,
             timestamp: message.timestamp,
-          } as DlqMessage).catch((err) => {
-            onDrop?.({ message, error: err })
+          } as DlqMessage).catch(() => {
+            onDrop?.(message)
           })
         }
       }
@@ -136,6 +136,7 @@ export function createInMemory(options?: InMemoryOptions): InMemoryConnector {
        * A message with maxAttempts=2 will be delivered 2x before DLQ.
        */
       const handleNack = <T>(
+        queueName: string,
         queue: InMemoryQueue<T>,
         id: string,
         nackOptions?: NackOptions,
@@ -145,7 +146,7 @@ export function createInMemory(options?: InMemoryOptions): InMemoryConnector {
           return Promise.reject(
             new QueueNackFailed(
               'Message not found',
-              queue.options.deadLetterQueue ?? '',
+              queueName,
               id,
             ),
           )
@@ -421,7 +422,7 @@ export function createInMemory(options?: InMemoryOptions): InMemoryConnector {
 
           const queue = queues.get(queueName) as InMemoryQueue<T> | undefined
           if (!queue) return Promise.resolve()
-          return handleNack(queue, id, nackOptions)
+          return handleNack(queueName, queue, id, nackOptions)
         },
 
         close(): Promise<void> {
@@ -501,8 +502,8 @@ function expireVisibleMessages<T>(queue: InMemoryQueue<T>): void {
 export interface InMemoryOptions {
   /** Maximum buffer size per queue (enforces backpressure) */
   maxBufferSize?: number
-  /** Callback when a message is dropped due to buffer overflow */
-  onDrop?: (value: unknown) => void
+  /** Callback when a message is dropped due to buffer overflow or failed DLQ routing */
+  onDrop?: (message: QueueMessage<unknown>) => void
   /** Per-queue configuration */
   queues?: Record<string, QueueOptions>
 }

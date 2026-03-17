@@ -47,9 +47,8 @@ export function watch(
       },
     )
 
-    const channel = new Channel<FsEvent, WatchError>({
-      onClose: () => watcher?.close(),
-    })
+    const channel = Channel.create<FsEvent, WatchError>()
+      .withOnClose(() => watcher?.close())
 
     watcher.once(
       'error',

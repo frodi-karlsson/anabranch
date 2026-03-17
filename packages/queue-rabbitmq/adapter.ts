@@ -8,7 +8,9 @@ import type {
   StreamAdapter,
 } from '@anabranch/queue'
 import {
+  QueueAckFailed,
   QueueConfigError,
+  QueueNackFailed,
   QueueReceiveFailed,
   QueueSendFailed,
 } from '@anabranch/queue'
@@ -63,12 +65,13 @@ export class RabbitMQAdapter implements StreamAdapter {
       }
 
       const content = Buffer.from(JSON.stringify(envelope))
-      this.channel.sendToQueue(this.key(queue), content, {
+      const ok = this.channel.sendToQueue(this.key(queue), content, {
         persistent: true,
         messageId: id,
         headers: options?.headers ?? {},
         priority: options?.priority,
       })
+      if (!ok) await this.awaitDrain()
 
       return id
     } catch (error) {
@@ -112,12 +115,13 @@ export class RabbitMQAdapter implements StreamAdapter {
         }
 
         const content = Buffer.from(JSON.stringify(envelope))
-        this.channel.sendToQueue(queueName, content, {
+        const ok = this.channel.sendToQueue(queueName, content, {
           persistent: true,
           messageId: id,
           headers: options?.headers ?? {},
           priority: options?.priority,
         })
+        if (!ok) await this.awaitDrain()
         ids.push(id)
       }
 
@@ -168,71 +172,93 @@ export class RabbitMQAdapter implements StreamAdapter {
   }
 
   /** Acknowledges successful message processing. */
-  ack(_queue: string, ...ids: string[]): Promise<void> {
-    for (const id of ids) {
-      const msg = this.inflight.get(id)
-      if (msg) {
-        this.channel.ack(msg)
-        this.inflight.delete(id)
+  ack(queue: string, ...ids: string[]): Promise<void> {
+    try {
+      for (const id of ids) {
+        const msg = this.inflight.get(id)
+        if (msg) {
+          this.channel.ack(msg)
+          this.inflight.delete(id)
+        }
       }
+      return Promise.resolve()
+    } catch (error) {
+      throw new QueueAckFailed(
+        error instanceof Error ? error.message : String(error),
+        queue,
+        ids.join(','),
+        error,
+      )
     }
-    return Promise.resolve()
   }
 
   /** Rejects a message, optionally requeuing or sending to dead letter queue. */
-  nack(
-    _queue: string,
+  async nack(
+    queue: string,
     id: string,
-    _options?: NackOptions,
+    options?: NackOptions,
   ): Promise<void> {
-    const msg = this.inflight.get(id)
-    if (!msg) return Promise.resolve()
+    try {
+      const msg = this.inflight.get(id)
+      if (!msg) return
 
-    this.inflight.delete(id)
+      this.inflight.delete(id)
 
-    if (_options?.deadLetter) {
-      this.channel.nack(msg, false, false)
-      return Promise.resolve()
-    }
-
-    if (_options?.requeue) {
-      const envelope: StoredEnvelope<unknown> = JSON.parse(
-        msg.content.toString(),
-      )
-      const attempt = envelope.attempt + 1
-      const config = this.getConfig(_queue)
-
-      if (attempt > config.maxAttempts) {
-        // Let the broker-side DLQ handle it
+      if (options?.deadLetter) {
         this.channel.nack(msg, false, false)
-        return Promise.resolve()
+        return
       }
 
-      envelope.attempt = attempt
-      const content = Buffer.from(JSON.stringify(envelope))
+      if (options?.requeue) {
+        const envelope: StoredEnvelope<unknown> = JSON.parse(
+          msg.content.toString(),
+        )
+        const attempt = envelope.attempt + 1
+        const config = this.getConfig(queue)
 
-      this.channel.sendToQueue(
-        msg.fields.routingKey,
-        content,
-        {
-          persistent: true,
-          messageId: envelope.id,
-          headers: msg.properties.headers,
-          priority: msg.properties.priority,
-        },
+        if (attempt > config.maxAttempts) {
+          // Let the broker-side DLQ handle it
+          this.channel.nack(msg, false, false)
+          return
+        }
+
+        envelope.attempt = attempt
+        const content = Buffer.from(JSON.stringify(envelope))
+
+        const ok = this.channel.sendToQueue(
+          msg.fields.routingKey,
+          content,
+          {
+            persistent: true,
+            messageId: envelope.id,
+            headers: msg.properties.headers,
+            priority: msg.properties.priority,
+          },
+        )
+        if (!ok) await this.awaitDrain()
+
+        this.channel.ack(msg)
+        return
+      }
+
+      this.channel.nack(msg, false, false)
+    } catch (error) {
+      throw new QueueNackFailed(
+        error instanceof Error ? error.message : String(error),
+        queue,
+        id,
+        error,
       )
-
-      this.channel.ack(msg)
-      return Promise.resolve()
     }
-
-    this.channel.nack(msg, false, false)
-    return Promise.resolve()
   }
 
   /** Closes the RabbitMQ channel. */
   async close(): Promise<void> {
     await this.channel.close()
+  }
+
+  private awaitDrain(): Promise<void> {
+    return new Promise((resolve) => this.channel.once('drain', resolve))
   }
 
   /** Subscribes to messages from a queue (push-based). */

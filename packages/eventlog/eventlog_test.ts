@@ -1,5 +1,5 @@
-import { assertEquals, assertExists } from '@std/assert'
-import { createInMemory, EventLog } from './index.ts'
+import { assertEquals, assertExists, assertStringIncludes } from '@std/assert'
+import { createInMemory, EventLog, EventLogConsumeFailed } from './index.ts'
 
 Deno.test({
   name: 'EventLog.append - should append an event and return an ID',
@@ -655,6 +655,66 @@ Deno.test({
     }
 
     assertExists(errorNegative)
+
+    await log.close().run()
+  },
+})
+
+Deno.test({
+  name: 'EventLogConsumeFailed - should include consumerGroup in error message',
+  async fn() {
+    const connector = createInMemory()
+    const adapter = await connector.connect()
+
+    await connector.end()
+
+    let error: Error | undefined
+    try {
+      adapter.consume('my-topic', 'my-group', () => {}, () => {})
+    } catch (e) {
+      error = e as Error
+    }
+
+    assertExists(error)
+    assertEquals(error instanceof EventLogConsumeFailed, true)
+    assertStringIncludes(error!.message, 'my-topic')
+    assertStringIncludes(error!.message, 'my-group')
+  },
+})
+
+Deno.test({
+  name: 'EventLog.consume - should throw if batchSize is invalid',
+  async fn() {
+    const connector = createInMemory()
+    const log = await EventLog.connect(connector).run()
+
+    let error: Error | undefined
+    try {
+      log.consume('test', 'group', { batchSize: 0 })
+    } catch (e) {
+      error = e as Error
+    }
+
+    assertExists(error)
+    assertEquals(error!.message, 'batchSize must be a positive integer')
+
+    let errorNegative: Error | undefined
+    try {
+      log.consume('test', 'group', { batchSize: -5 })
+    } catch (e) {
+      errorNegative = e as Error
+    }
+
+    assertExists(errorNegative)
+
+    let errorFloat: Error | undefined
+    try {
+      log.consume('test', 'group', { batchSize: 1.5 })
+    } catch (e) {
+      errorFloat = e as Error
+    }
+
+    assertExists(errorFloat)
 
     await log.close().run()
   },
