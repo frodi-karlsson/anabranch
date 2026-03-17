@@ -31,15 +31,24 @@ export { glob, readDir, walk } from './dir.ts'
 export type { DirError } from './dir.ts'
 export { watch } from './watch.ts'
 export type { WatchError } from './watch.ts'
+export { copyFile, ensureDir, exists, remove, stat } from './util.ts'
+export type {
+  CopyFileError,
+  EnsureDirError,
+  ExistsError,
+  RemoveError,
+  StatError,
+} from './util.ts'
 export type {
   DirEntry,
   FsEvent,
   GlobOptions,
+  StatInfo,
   WalkEntry,
   WalkOptions,
   WatchOptions,
 } from './types.ts'
-export { FSError } from './errors.ts'
+export { FSError, nodeErrorToFSError } from './errors.ts'
 export {
   AlreadyExists,
   InvalidData,

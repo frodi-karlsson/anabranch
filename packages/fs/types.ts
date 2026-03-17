@@ -52,6 +52,24 @@ export interface WalkOptions {
 /** Options for {@link glob}. Same as {@link WalkOptions} without `match`. */
 export interface GlobOptions extends Omit<WalkOptions, 'match'> {}
 
+/** File metadata returned by {@link stat}. */
+export interface StatInfo {
+  /** Size in bytes. */
+  size: number
+  /** Whether the path is a regular file. */
+  isFile: boolean
+  /** Whether the path is a directory. */
+  isDirectory: boolean
+  /** Whether the path is a symbolic link. */
+  isSymlink: boolean
+  /** Last modification time. */
+  mtime: Date
+  /** Last access time. */
+  atime: Date
+  /** Creation time. */
+  birthtime: Date
+}
+
 /** A file-system change event, as yielded by {@link watch}. */
 export interface FsEvent {
   /** The type of change. */
