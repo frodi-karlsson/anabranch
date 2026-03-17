@@ -1,6 +1,6 @@
 {
   "name": "@anabranch/storage-gcs",
-  "version": "0.2.10",
+  "version": "0.2.11",
   "exports": "./index.ts",
   "publish": {
     "exclude": [
