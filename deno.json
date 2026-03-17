@@ -18,7 +18,8 @@
     "./packages/eventlog",
     "./packages/eventlog-kafka",
     "./packages/nosql",
-    "./packages/nosql-datastore"
+    "./packages/nosql-datastore",
+    "./packages/cache"
   ],
   "lint": {
     "rules": {

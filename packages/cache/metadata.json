@@ -1,0 +1,4 @@
+{
+  "name": "cache",
+  "description": "Cache primitives with Task semantics for composable error handling"
+}
