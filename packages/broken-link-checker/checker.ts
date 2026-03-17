@@ -38,7 +38,9 @@ export class BrokenLinkChecker {
       retry: undefined,
       fetch: undefined,
       userAgent: 'BrokenLinkChecker/1.0',
+      maxDepth: Infinity,
       urlFilters: [],
+      urlPreprocessors: [],
       keepBrokenPredicates: [],
     })
   }
@@ -81,6 +83,19 @@ export class BrokenLinkChecker {
     })
   }
 
+  /** Returns a new BrokenLinkChecker with the given maximum crawl depth. Seed URLs are depth 0. */
+  withMaxDepth(depth: number): BrokenLinkChecker {
+    return new BrokenLinkChecker({ ...this.config, maxDepth: depth })
+  }
+
+  /** Returns a new BrokenLinkChecker that transforms discovered URLs before deduplication and checking. */
+  preprocessUrl(fn: (url: URL) => URL): BrokenLinkChecker {
+    return new BrokenLinkChecker({
+      ...this.config,
+      urlPreprocessors: [...this.config.urlPreprocessors, fn],
+    })
+  }
+
   /** Returns a new BrokenLinkChecker that keeps broken links matching the predicate in results. */
   keepBroken(fn: (result: CheckResult) => boolean): BrokenLinkChecker {
     return new BrokenLinkChecker({
@@ -110,7 +125,9 @@ export class BrokenLinkChecker {
       retry,
       fetch,
       userAgent,
+      maxDepth,
       urlFilters,
+      urlPreprocessors,
       keepBrokenPredicates,
     } = this.config
 
@@ -138,18 +155,22 @@ export class BrokenLinkChecker {
     function enqueue(
       url: URL,
       parent: URL | undefined,
+      depth: number,
       { skipFilter }: { skipFilter: boolean },
     ): void {
+      for (const fn of urlPreprocessors) {
+        url = fn(new URL(url.href))
+      }
       const key = url.href
       if (visited.has(key)) return
       if (!skipFilter && !urlFilters.every((f) => f(url))) return
       visited.add(key)
       pending++
-      channel.send({ url, parent })
+      channel.send({ url, parent, depth })
     }
 
     async function checkOne(item: WorkItem): Promise<CheckResult> {
-      const { url, parent } = item
+      const { url, parent, depth } = item
       const start = Date.now()
       const isPath = hosts.has(url.hostname)
 
@@ -162,13 +183,13 @@ export class BrokenLinkChecker {
       const result = await task
         .map(async (res): Promise<CheckResult> => {
           const finalUrl = res.url
-          if (isPath) {
+          if (isPath && depth < maxDepth) {
             const contentType = res.headers.get('content-type') ?? ''
             if (contentType.includes('text/html')) {
               const html = await getText(res.data)
               const links = _extractLinks(html, finalUrl)
               for (const link of links) {
-                enqueue(link, url, { skipFilter: false })
+                enqueue(link, url, depth + 1, { skipFilter: false })
               }
               if (links.length > 0) {
                 log(
@@ -185,7 +206,7 @@ export class BrokenLinkChecker {
               const xml = await getText(res.data)
               const links = _extractLinksFromXml(xml)
               for (const link of links) {
-                enqueue(link, url, { skipFilter: false })
+                enqueue(link, url, depth + 1, { skipFilter: false })
               }
               if (links.length > 0) {
                 log(
@@ -246,7 +267,7 @@ export class BrokenLinkChecker {
     }
 
     for (const seed of seeds) {
-      enqueue(seed, undefined, { skipFilter: true })
+      enqueue(seed, undefined, 0, { skipFilter: true })
     }
 
     return Source.from<WorkItem, Error>(channel.successes())
@@ -265,7 +286,9 @@ interface ResolvedConfig {
   retry: RetryOptions | undefined
   fetch: typeof globalThis.fetch | undefined
   userAgent: string
+  maxDepth: number
   urlFilters: ReadonlyArray<(url: URL) => boolean>
+  urlPreprocessors: ReadonlyArray<(url: URL) => URL>
   keepBrokenPredicates: ReadonlyArray<(result: CheckResult) => boolean>
 }
 
@@ -296,4 +319,5 @@ function log(configLevel: LogLevel, level: LogLevel, message: string): void {
 interface WorkItem {
   url: URL
   parent: URL | undefined
+  depth: number
 }

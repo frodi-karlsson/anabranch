@@ -39,7 +39,7 @@ export class WebClient {
       timeout: 30_000,
       retry: {
         attempts: 3,
-        delay: (_attempt: number, _error: HttpError) => 1000 * 2 ** _attempt,
+        delay: (attempt: number) => 1000 * 2 ** attempt,
         when: isRetryable,
       },
       fetch: globalThis.fetch,

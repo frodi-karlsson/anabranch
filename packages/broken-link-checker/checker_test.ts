@@ -205,6 +205,68 @@ Deno.test('BrokenLinkChecker.check - should support multiple entrypoints', async
   assert(urls.includes('https://example.com/sitemap.xml'))
 })
 
+Deno.test('BrokenLinkChecker.withMaxDepth - should stop crawling beyond max depth', async () => {
+  const fetch = mockFetch({
+    'https://example.com/': makeResponse(200, '<a href="/a">a</a>'),
+    'https://example.com/a': makeResponse(200, '<a href="/b">b</a>'),
+    'https://example.com/b': makeResponse(200, '<a href="/c">c</a>'),
+    'https://example.com/c': makeResponse(200, '<html></html>'),
+  })
+  const results = await baseChecker(fetch)
+    .withMaxDepth(1)
+    .check(['https://example.com/'])
+    .collect()
+
+  const urls = results.map((r) => r.url.href)
+  assert(urls.includes('https://example.com/'), 'seed at depth 0')
+  assert(urls.includes('https://example.com/a'), 'link at depth 1')
+  assertEquals(
+    urls.includes('https://example.com/b'),
+    false,
+    'depth 2 should not be crawled',
+  )
+  assertEquals(
+    urls.includes('https://example.com/c'),
+    false,
+    'depth 3 should not be crawled',
+  )
+})
+
+Deno.test('BrokenLinkChecker.withMaxDepth(0) - should only check seed URLs', async () => {
+  const fetch = mockFetch({
+    'https://example.com/': makeResponse(200, '<a href="/a">a</a>'),
+    'https://example.com/a': makeResponse(200, '<html></html>'),
+  })
+  const results = await baseChecker(fetch)
+    .withMaxDepth(0)
+    .check(['https://example.com/'])
+    .collect()
+
+  assertEquals(results.length, 1)
+  assertEquals(results[0].url.href, 'https://example.com/')
+})
+
+Deno.test('BrokenLinkChecker.preprocessUrl - should transform URLs before dedup and checking', async () => {
+  const fetch = mockFetch({
+    'https://example.com/': makeResponse(
+      200,
+      '<a href="/page?a=1">1</a><a href="/page?a=2">2</a>',
+    ),
+    'https://example.com/page': makeResponse(200, '<html></html>'),
+  })
+  const results = await baseChecker(fetch)
+    .preprocessUrl((url) => {
+      url.search = ''
+      return url
+    })
+    .check(['https://example.com/'])
+    .collect()
+
+  const urls = results.map((r) => r.url.href)
+  // Both /page?a=1 and /page?a=2 should collapse to /page
+  assertEquals(urls.filter((u) => u.includes('/page')).length, 1)
+})
+
 function baseChecker(fetch: FetchFn): BrokenLinkChecker {
   return BrokenLinkChecker.create()
     .withFetch(fetch)
