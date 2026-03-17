@@ -9,7 +9,7 @@ const { description } = JSON.parse(
 
 await emptyDir(`${dir}/npm`)
 
-const anabranchPath = resolve(dir, '../anabranch/index.ts')
+const cachePath = resolve(dir, '../cache/index.ts')
 
 await build({
   entryPoints: [`${dir}/index.ts`],
@@ -22,7 +22,7 @@ await build({
   scriptModule: false,
   test: false,
   package: {
-    name: '@anabranch/cache',
+    name: '@anabranch/cache-redis',
     version,
     sideEffects: false,
     description,
@@ -35,15 +35,16 @@ await build({
       url: 'https://github.com/frodi-karlsson/anabranch/issues',
     },
     dependencies: {
-      anabranch: '^0',
+      '@anabranch/cache': '^0',
+      ioredis: '^5',
     },
     devDependencies: {
       '@types/node': '^24',
     },
   },
   mappings: {
-    [new URL(`file://${anabranchPath}`).href]: {
-      name: 'anabranch',
+    [new URL(`file://${cachePath}`).href]: {
+      name: '@anabranch/cache',
       version: '^0',
     },
   },

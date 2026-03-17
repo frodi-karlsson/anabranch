@@ -134,7 +134,7 @@ await build({
       url: "git+https://github.com/frodi-karlsson/anabranch.git",
     },
     bugs: {
-      url: "https://github.com/frodi-karlsson/anabranch.git",
+      url: "https://github.com/frodi-karlsson/anabranch/issues",
     },
     dependencies: {
       anabranch: "^0",

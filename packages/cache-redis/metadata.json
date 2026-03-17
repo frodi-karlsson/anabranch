@@ -1,0 +1,18 @@
+{
+  "name": "cache-redis",
+  "description": "Redis adapter for @anabranch/cache using ioredis with native TTL support",
+  "env": {
+    "REDIS_URL": "redis://localhost:6379"
+  },
+  "service": {
+    "name": "redis",
+    "image": "redis:7",
+    "ports": [
+      "6379:6379"
+    ],
+    "probe": {
+      "type": "exec",
+      "command": ["redis-cli", "ping"]
+    }
+  }
+}
