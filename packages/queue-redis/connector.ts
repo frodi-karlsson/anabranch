@@ -8,6 +8,7 @@ import type {
 import { RedisAdapter } from './adapter.ts'
 import process from 'node:process'
 
+/** Creates a Redis queue connector. */
 export function createRedis(
   options?: string | RedisQueueOptions,
 ): RedisConnector {
@@ -54,6 +55,7 @@ export function createRedis(
   }
 }
 
+/** Options for creating a Redis queue connector. */
 export interface RedisQueueOptions {
   connection: string | RedisOptions
   prefix?: string
@@ -62,6 +64,7 @@ export interface RedisQueueOptions {
   defaultMaxAttempts?: number
 }
 
+/** Redis queue connector. */
 export interface RedisConnector extends QueueConnector {
   connect(): Promise<QueueAdapter>
   end(): Promise<void>
