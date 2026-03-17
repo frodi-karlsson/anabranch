@@ -75,8 +75,7 @@ async function main() {
     })
     .partition()
 
-  await new Promise((r) => setTimeout(r, 500))
-  setTimeout(() => ac.abort(), 9500)
+  setTimeout(() => ac.abort(), 10_000)
 
   // Workers: split each tick to 3 parallel health checkers
   const ticks = queue
