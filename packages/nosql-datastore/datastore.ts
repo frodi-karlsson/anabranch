@@ -9,8 +9,8 @@ import { Source } from '@anabranch/anabranch'
 export class DatastoreAdapter<TDoc>
   implements DocumentAdapter<TDoc, DatastoreQuery, DatastoreKey> {
   constructor(
-    readonly client: Datastore,
-    readonly kind: string,
+    private readonly client: Datastore,
+    private readonly kind: string,
   ) {}
 
   private buildKey(id: DatastoreKey): Key {

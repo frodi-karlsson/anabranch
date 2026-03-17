@@ -107,20 +107,6 @@ export class CollectionConnectionFailed extends Error {
 }
 
 /**
- * Error thrown when closing a collection connection fails.
- */
-export class CollectionCloseFailed extends Error {
-  override name = 'CollectionCloseFailed'
-  /** Name of the collection. */
-  readonly collection: string
-
-  constructor(collection: string, message: string, cause?: unknown) {
-    super(`Failed to close ${collection}: ${message}`, { cause })
-    this.collection = collection
-  }
-}
-
-/**
  * Registry of error constructors for instanceof checks.
  */
 export const CollectionErrors = {
@@ -130,5 +116,4 @@ export const CollectionErrors = {
   CollectionDeleteFailed,
   CollectionFindFailed,
   CollectionConnectionFailed,
-  CollectionCloseFailed,
 } as const
