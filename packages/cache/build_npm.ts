@@ -37,6 +37,9 @@ await build({
     dependencies: {
       anabranch: '^0',
     },
+    devDependencies: {
+      '@types/node': '^24',
+    },
   },
   mappings: {
     [new URL(`file://${anabranchPath}`).href]: {
