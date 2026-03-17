@@ -12,7 +12,7 @@ in-memory or file-based databases.
 import { DB } from '@anabranch/db'
 import { createSqlite } from '@anabranch/db-sqlite'
 
-const db = new DB(
+const db = DB.from(
   await createSqlite({ filename: './mydb.sqlite' }).connect(),
 )
 
@@ -22,7 +22,7 @@ const users = await db
   .run()
 
 // In-memory database for testing
-const testDb = new DB(
+const testDb = DB.from(
   await createSqlite().connect(),
 )
 ```

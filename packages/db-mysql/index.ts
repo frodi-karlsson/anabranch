@@ -11,7 +11,7 @@
  * import { DB } from "@anabranch/db";
  * import { createMySQL } from "@anabranch/db-mysql";
  *
- * const db = new DB(
+ * const db = DB.from(
  *   await createMySQL({
  *     connectionString: "mysql://user:pass@localhost:3306/mydb",
  *   }).connect(),

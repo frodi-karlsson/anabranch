@@ -3,7 +3,7 @@ import { ErrorResult, Task } from '@anabranch/anabranch'
 import { createInMemory, DB, DBAdapter } from './index.ts'
 
 Deno.test('DB - should execute SELECT and return results', async () => {
-  const db = new DB(await createInMemory().connect())
+  const db = DB.from(await createInMemory().connect())
   await db.execute('CREATE TABLE test (id INTEGER, name TEXT)').run()
   await db.execute("INSERT INTO test VALUES (1, 'alice')").run()
 
@@ -14,7 +14,7 @@ Deno.test('DB - should execute SELECT and return results', async () => {
 })
 
 Deno.test('DB.query - should handle WHERE clause with params', async () => {
-  const db = new DB(await createInMemory().connect())
+  const db = DB.from(await createInMemory().connect())
   await db.execute('CREATE TABLE test (id INTEGER)').run()
   await db.execute('INSERT INTO test VALUES (1)').run()
   await db.execute('INSERT INTO test VALUES (2)').run()
@@ -27,14 +27,14 @@ Deno.test('DB.query - should handle WHERE clause with params', async () => {
 })
 
 Deno.test('DB.execute - INSERT should return affected rows', async () => {
-  const db = new DB(await createInMemory().connect())
+  const db = DB.from(await createInMemory().connect())
   await db.execute('CREATE TABLE test (id INTEGER)').run()
   const affected = await db.execute('INSERT INTO test VALUES (1)').run()
   assertEquals(affected, 1)
 })
 
 Deno.test('DB.execute - UPDATE should return affected rows', async () => {
-  const db = new DB(await createInMemory().connect())
+  const db = DB.from(await createInMemory().connect())
   await db.execute('CREATE TABLE test (id INTEGER)').run()
   await db.execute('INSERT INTO test VALUES (1)').run()
   await db.execute('INSERT INTO test VALUES (2)').run()
@@ -44,7 +44,7 @@ Deno.test('DB.execute - UPDATE should return affected rows', async () => {
 })
 
 Deno.test('DB.execute - DELETE should return affected rows', async () => {
-  const db = new DB(await createInMemory().connect())
+  const db = DB.from(await createInMemory().connect())
   await db.execute('CREATE TABLE test (id INTEGER)').run()
   await db.execute('INSERT INTO test VALUES (1)').run()
 
@@ -53,7 +53,7 @@ Deno.test('DB.execute - DELETE should return affected rows', async () => {
 })
 
 Deno.test('DB.stream - should yield rows one at a time', async () => {
-  const db = new DB(await createInMemory().connect())
+  const db = DB.from(await createInMemory().connect())
   await db.execute('CREATE TABLE test (id INTEGER)').run()
   await db.execute('INSERT INTO test VALUES (1)').run()
   await db.execute('INSERT INTO test VALUES (2)').run()
@@ -63,7 +63,7 @@ Deno.test('DB.stream - should yield rows one at a time', async () => {
 })
 
 Deno.test('DB.stream - partition should collect successes and errors', async () => {
-  const db = new DB(await createInMemory().connect())
+  const db = DB.from(await createInMemory().connect())
   await db.execute('CREATE TABLE test (id INTEGER)').run()
   await db.execute('INSERT INTO test VALUES (1)').run()
 
@@ -84,7 +84,7 @@ Deno.test(
       close: () => Promise.resolve(),
     }
 
-    const db = new DB(mockAdapter)
+    const db = DB.from(mockAdapter)
     const rows = await db.stream<{ id: number }>('SELECT 1').collect()
     assertEquals(rows, [{ id: 1 }])
   },
@@ -126,7 +126,7 @@ Deno.test('DB.withTransaction - should commit on success', async () => {
     close: () => Promise.resolve(),
   }
 
-  const db = new DB(mockAdapter)
+  const db = DB.from(mockAdapter)
   await db.withTransaction(async (tx) => {
     await tx.execute('INSERT INTO test VALUES (1)').run()
   }).run()
@@ -152,7 +152,7 @@ Deno.test(
       close: () => Promise.resolve(),
     }
 
-    const db = new DB(mockAdapter)
+    const db = DB.from(mockAdapter)
     await db.withTransaction(async (tx) => {
       await tx.execute('INSERT INTO test VALUES (1)').run()
     }).run()
@@ -177,7 +177,7 @@ Deno.test(
       close: () => Promise.resolve(),
     }
 
-    const db = new DB(mockAdapter)
+    const db = DB.from(mockAdapter)
     try {
       await db.withTransaction(() => {
         throw new Error('fail')
@@ -187,6 +187,38 @@ Deno.test(
     }
 
     assertEquals(rollbackCount, 1, 'Should have rolled back exactly once')
+  },
+)
+
+Deno.test(
+  'DBTransaction.commit - should not commit twice when already settled',
+  async () => {
+    let commitCount = 0
+
+    const mockAdapter: DBAdapter = {
+      query: () => Promise.resolve([]),
+      execute: (sql: string) => {
+        if (sql === 'COMMIT') commitCount++
+        return Promise.resolve(0)
+      },
+      executeBatch: () => Promise.resolve([]),
+      close: () => Promise.resolve(),
+    }
+
+    const db = DB.from(mockAdapter)
+
+    // Manually acquire a transaction so we can call commit() twice
+    const tx = await db.withTransaction(async (tx) => {
+      await tx.execute('INSERT INTO test VALUES (1)').run()
+      // First commit via withTransaction's normal flow
+      return tx
+    }).run()
+
+    // tx is now settled (committed). Calling commit again should be a no-op.
+    await tx.commit().run()
+
+    // Only 1 COMMIT should have been issued, not 2
+    assertEquals(commitCount, 1, 'Should have committed exactly once')
   },
 )
 
@@ -221,7 +253,7 @@ Deno.test(
       },
       use: (adapter) =>
         Task.of(async () => {
-          const db = new DB(adapter)
+          const db = DB.from(adapter)
           await db.execute('CREATE TABLE users (id INTEGER)').run()
           await db.execute('INSERT INTO users (id) VALUES (1)').run()
           const users = await db.query('SELECT * FROM users').run()
@@ -239,7 +271,7 @@ Deno.test(
   'DB.withTransaction - should support nested transactions via savepoints',
   async () => {
     const connector = createInMemory()
-    const db = new DB(await connector.connect())
+    const db = DB.from(await connector.connect())
 
     await db.execute('CREATE TABLE test (val TEXT)').run()
 

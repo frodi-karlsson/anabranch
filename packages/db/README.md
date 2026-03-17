@@ -12,7 +12,7 @@ packages.
 import { DB } from '@anabranch/db'
 import { createPostgres } from '@anabranch/db-postgres'
 
-const db = new DB(
+const db = DB.from(
   await createPostgres({ connectionString: 'postgresql://...' }).connect(),
 )
 
@@ -46,14 +46,14 @@ for await (const row of db.stream('SELECT * FROM large_table')) {
 
 ## API
 
-### DB(adapter)
+### DB.from(adapter)
 
 Creates a DB instance from a connected adapter.
 
 ```ts
 import { DB } from '@anabranch/db'
 
-const db = new DB(adapter)
+const db = DB.from(adapter)
 ```
 
 ### query(sql, params?)

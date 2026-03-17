@@ -21,12 +21,17 @@ const transactionDepths = new WeakMap<DBAdapter, number>()
  * ).run();
  *
  * // With a bare adapter (for testing or custom lifecycle)
- * const db = new DB(adapter);
+ * const db = DB.from(adapter);
  * const users = await db.query("SELECT * FROM users").run();
  * ```
  */
 export class DB {
-  constructor(private readonly adapter: DBAdapter) {}
+  private constructor(private readonly adapter: DBAdapter) {}
+
+  /** Wrap an existing adapter in a DB instance. */
+  static from(adapter: DBAdapter): DB {
+    return new DB(adapter)
+  }
 
   /**
    * Execute operations with a connection acquired from the connector.
@@ -56,7 +61,7 @@ export class DB {
           )
         }),
       release: (adapter) => adapter.close(),
-      use: (adapter) => fn(new DB(adapter)),
+      use: (adapter) => fn(DB.from(adapter)),
     })
   }
 
@@ -307,6 +312,7 @@ export class DBTransaction {
 
   commit(): Task<void, TransactionFailed> {
     return Task.of(async () => {
+      if (this.settled) return
       await this.adapter.commit()
       this.settled = true
       const depth = transactionDepths.get(this.rawAdapter) ?? 1

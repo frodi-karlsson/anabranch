@@ -13,7 +13,7 @@
  * import { DB } from "@anabranch/db";
  * import { createSqlite } from "@anabranch/db-sqlite";
  *
- * const db = new DB(
+ * const db = DB.from(
  *   await createSqlite({ filename: "./mydb.sqlite" }).connect(),
  * );
  *

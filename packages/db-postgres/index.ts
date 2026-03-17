@@ -12,7 +12,7 @@
  * import { DB } from "@anabranch/db";
  * import { createPostgres } from "@anabranch/db-postgres";
  *
- * const db = new DB(
+ * const db = DB.from(
  *   await createPostgres({
  *     connectionString: "postgresql://user:pass@localhost:5432/mydb",
  *   }).connect(),
