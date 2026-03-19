@@ -1,0 +1,23 @@
+{
+  "name": "@anabranch/check-runs",
+  "version": "0.1.0",
+  "exports": "./index.ts",
+  "publish": {
+    "exclude": [
+      "examples/",
+      "build_npm.ts",
+      "npm/"
+    ]
+  },
+  "imports": {
+    "@anabranch/anabranch": "jsr:@anabranch/anabranch@^0",
+    "@deno/dnt": "jsr:@deno/dnt@^0",
+    "@std/assert": "jsr:@std/assert@^1"
+  },
+  "mappings": {
+    "@anabranch/anabranch": {
+      "name": "anabranch",
+      "version": "^0"
+    }
+  }
+}

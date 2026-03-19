@@ -20,7 +20,9 @@
     "./packages/nosql",
     "./packages/nosql-datastore",
     "./packages/cache",
-    "./packages/cache-redis"
+    "./packages/cache-redis",
+    "./packages/check-runs",
+    "./packages/check-runs-github"
   ],
   "lint": {
     "rules": {

@@ -2528,6 +2528,21 @@
           "jsr:@std/assert@1"
         ]
       },
+      "packages/check-runs": {
+        "dependencies": [
+          "jsr:@anabranch/anabranch@0",
+          "jsr:@deno/dnt@0",
+          "jsr:@std/assert@1"
+        ]
+      },
+      "packages/check-runs-github": {
+        "dependencies": [
+          "jsr:@anabranch/anabranch@0",
+          "jsr:@anabranch/check-runs@0",
+          "jsr:@deno/dnt@0",
+          "jsr:@std/assert@1"
+        ]
+      },
       "packages/db": {
         "dependencies": [
           "jsr:@anabranch/anabranch@0",
