@@ -89,6 +89,7 @@ const checkJobs: Job[] = [
         '--allow-write',
         '--allow-env',
         '--allow-net',
+        '--allow-sys',
       ])
       return { success, output }
     },
