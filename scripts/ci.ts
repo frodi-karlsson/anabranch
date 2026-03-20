@@ -28,6 +28,13 @@ function getEnv(name: string): string {
   return value
 }
 
+// deno-lint-ignore no-control-regex
+const ANSI_ESCAPE = /\x1b\[[0-9;]*[a-zA-Z]/g
+
+function stripAnsi(str: string): string {
+  return str.replace(ANSI_ESCAPE, '')
+}
+
 async function runCommand(
   command: string,
   args: string[],
@@ -41,7 +48,7 @@ async function runCommand(
   })
 
   const { success, stdout, stderr } = await process.output()
-  const output = new TextDecoder().decode(success ? stdout : stderr)
+  const output = stripAnsi(new TextDecoder().decode(success ? stdout : stderr))
 
   return { success, output }
 }

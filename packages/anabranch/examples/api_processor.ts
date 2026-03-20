@@ -31,7 +31,7 @@ const urls = [
 
 const stream = Source.fromArray(urls)
   .withConcurrency(3)
-  .map(
+  .map<ApiResponse, Error>(
     async (url) => {
       const response = await fetch(url)
       if (!response.ok) {

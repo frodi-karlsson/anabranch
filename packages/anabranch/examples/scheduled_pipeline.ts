@@ -15,6 +15,23 @@
 
 import { Source } from '../index.ts'
 
+type HealthResult = {
+  tick: number
+  service: string
+  healthy: boolean
+  latencyMs: number
+  type: 'health'
+}
+
+type CleanupResult = {
+  tick: number
+  removed: number
+  durationMs: number
+  type: 'cleanup'
+}
+
+type PipelineResult = HealthResult | CleanupResult
+
 // Simulated services
 const metrics = {
   healthy: true,
@@ -59,7 +76,7 @@ async function main() {
   const healthChecks = Source.fromSchedule('* * * * * *', {
     signal: ac.signal,
   })
-    .map((tick) => {
+    .map<PipelineResult, Error>((tick) => {
       const result = metrics.check()
       const icon = result.healthy ? 'OK' : 'DEGRADED'
       console.log(
@@ -72,7 +89,7 @@ async function main() {
   const cleanups = Source.fromSchedule('*/3 * * * * *', {
     signal: ac.signal,
   })
-    .map((tick) => {
+    .map<PipelineResult, Error>((tick) => {
       const result = cleanExpiredSessions()
       console.log(
         `  [${tick.scheduledAt.toISOString()}] CLEANUP: removed ${result.removed} sessions`,
