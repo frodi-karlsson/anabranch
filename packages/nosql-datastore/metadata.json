@@ -15,7 +15,8 @@
       "datastore",
       "start",
       "--host-port=0.0.0.0:3232",
-      "--project=test-project"
+      "--project=test-project",
+      "--no-store-on-disk"
     ],
     "ports": [
       "3232:3232"

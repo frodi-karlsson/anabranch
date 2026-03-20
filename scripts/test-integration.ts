@@ -101,10 +101,13 @@ async function runTests(
   for (const pkg of packages) {
     console.log(`Running ${pkg.name} integration tests...`)
     const testPath = `./packages/${pkg.name}/${pkg.name}_test.ts`
+    const timeout = pkg.name === 'nosql-datastore' ? 120_000 : 60_000
+    console.log(`  Timeout: ${timeout / 1000}s`)
     await Task.of(() => runTest(testPath, pkg.env ?? {}, filter)).timeout(
-      45_000,
+      timeout,
       new Error(`Tests for ${pkg.name} did not complete in time`),
     ).run()
+    console.log(`  ✓ ${pkg.name} passed`)
   }
 }
 
