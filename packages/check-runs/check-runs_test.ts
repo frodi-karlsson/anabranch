@@ -70,19 +70,6 @@ Deno.test('CheckRuns.start - transitions to in_progress', async () => {
   await cleanup(checkRuns, started)
 })
 
-Deno.test('CheckRuns.start - errors on already in_progress', async () => {
-  const checkRuns = createTestCheckRuns()
-  const checkRun = await checkRuns
-    .create('my-check', 'abc123', { status: 'in_progress' })
-    .run()
-
-  await assertRejects(
-    () => checkRuns.start(checkRun).run(),
-    CheckRunAlreadyStarted,
-    'already started',
-  )
-})
-
 Deno.test('CheckRuns.start - errors on already completed', async () => {
   const checkRuns = createTestCheckRuns()
   const checkRun = await checkRuns.create('my-check', 'abc123').run()
@@ -291,4 +278,17 @@ Deno.test('CheckRuns.start - writeAnnotation respects backpressure', async () =>
   await started.writeAnnotation!(annotation)
 
   await cleanup(checkRuns, started)
+})
+
+Deno.test('CheckRuns.start - closes existing batcher for same ID', async () => {
+  const checkRuns = createInMemory()
+  const checkRun = await checkRuns.create('my-check', 'abc123').run()
+
+  // Start once
+  await checkRuns.start(checkRun).run()
+
+  // Start again (this happens if a user retries starting or calls it twice)
+  await checkRuns.start(checkRun).run()
+
+  await checkRuns.complete(checkRun, 'success').run()
 })

@@ -89,11 +89,20 @@ export class CheckRuns {
 
   start(checkRun: CheckRun): Task<StartedCheckRun, AnyCheckRunsError> {
     return Task.of<StartedCheckRun, AnyCheckRunsError>(async () => {
+      const existing = this.batchers.get(checkRun.id)
+      if (existing) {
+        await existing.batcher.close()
+      }
+
       let started: CheckRun
       try {
         started = await this.client.start(checkRun).run()
       } catch (error) {
-        throw this.toAnyCheckRunsError(error)
+        if (error instanceof CheckRunAlreadyStarted) {
+          started = { ...checkRun, status: 'in_progress' }
+        } else {
+          throw this.toAnyCheckRunsError(error)
+        }
       }
 
       const batchSize = this.batcherConfig.batchSize ?? 50
