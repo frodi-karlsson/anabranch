@@ -1,6 +1,7 @@
 import { assertEquals, assertRejects } from '@std/assert'
+import { Task } from '@anabranch/anabranch'
 import { CheckRuns } from './check-runs.ts'
-import { createInMemory } from './in-memory.ts'
+import { createInMemory, createInMemoryClient } from './in-memory.ts'
 import type { CheckRun } from './check-run.ts'
 import {
   CheckRunAlreadyCompleted,
@@ -287,8 +288,116 @@ Deno.test('CheckRuns.start - closes existing batcher for same ID', async () => {
   // Start once
   await checkRuns.start(checkRun).run()
 
+  // @ts-ignore: access private batchers map for testing
+  const batchers = checkRuns.batchers as Map<number, any>
+  const firstBatcherState = batchers.get(checkRun.id)
+  assertEquals(firstBatcherState !== undefined, true)
+  assertEquals(firstBatcherState.channel.isClosed(), false)
+
   // Start again (this happens if a user retries starting or calls it twice)
   await checkRuns.start(checkRun).run()
 
+  // Verify first batcher's channel is closed
+  assertEquals(firstBatcherState.channel.isClosed(), true)
+
   await checkRuns.complete(checkRun, 'success').run()
+})
+
+Deno.test('CheckRuns.start - ensures state consistency on failure', async () => {
+  const innerClient = createInMemoryClient()
+  const checkRun = await innerClient.create('my-check', 'abc123').run()
+
+  // Create a proxy that fails on start()
+  let shouldFail = false
+  const client: any = {
+    create: (...args: any[]) => innerClient.create(...args),
+    start: (checkRun: CheckRun) => {
+      if (shouldFail) {
+        return Task.of<CheckRun, any>(() => {
+          throw new Error('Start failed')
+        })
+      }
+      return innerClient.start(checkRun)
+    },
+    update: (...args: any[]) => innerClient.update(...args),
+    complete: (...args: any[]) => innerClient.complete(...args),
+    watch: (...args: any[]) => innerClient.watch(...args),
+  }
+
+  const checkRuns = CheckRuns.fromLike(client)
+  // Re-run start once to set up initial state in our CheckRuns instance
+  await checkRuns.start(checkRun).run()
+  assertEquals((checkRuns as any).batchers.has(checkRun.id), true)
+
+  // Now make it fail
+  shouldFail = true
+  await assertRejects(
+    () => checkRuns.start(checkRun).run(),
+  )
+
+  // Map should be empty because we called delete() after closing old one,
+  // and failure prevented setting the new one.
+  assertEquals((checkRuns as any).batchers.has(checkRun.id), false)
+})
+
+Deno.test('CheckRuns.withCheckRun - automates lifecycle', async () => {
+  const checkRuns = createInMemory()
+
+  const result = await checkRuns.withCheckRun(
+    'auto-check',
+    'abc123',
+    (started) => {
+      return Task.of(async () => {
+        await started.writeAnnotation({
+          path: 'test.ts',
+          startLine: 1,
+          endLine: 1,
+          level: 'failure',
+          message: 'Oops',
+        })
+        return 'done'
+      })
+    },
+  ).run()
+
+  assertEquals(result, 'done')
+})
+
+Deno.test('CheckRuns.withCheckRun - completes with failure if logic fails', async () => {
+  const innerClient = createInMemoryClient()
+  let lastConclusion: CheckRunConclusion | undefined
+
+  const client: any = {
+    create: (...args: any[]) => innerClient.create(...args),
+    start: (...args: any[]) => innerClient.start(...args),
+    update: (...args: any[]) => innerClient.update(...args),
+    complete: (
+      checkRun: any,
+      conclusion: CheckRunConclusion,
+      options?: any,
+    ) => {
+      lastConclusion = conclusion
+      return innerClient.complete(checkRun, conclusion, options)
+    },
+    watch: (...args: any[]) => innerClient.watch(...args),
+  }
+
+  const checkRuns = CheckRuns.fromLike(client)
+
+  await assertRejects(
+    () =>
+      checkRuns.withCheckRun(
+        'auto-check',
+        'abc123',
+        () => {
+          return Task.of(async () => {
+            throw new Error('Oops')
+          })
+        },
+      ).run(),
+    Error,
+    'Oops',
+  )
+
+  assertEquals(lastConclusion, 'failure')
 })

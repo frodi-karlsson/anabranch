@@ -87,11 +87,33 @@ export class CheckRuns {
     )
   }
 
+  withCheckRun<T>(
+    name: string,
+    headSha: string,
+    use: (started: StartedCheckRun) => Task<T, AnyCheckRunsError>,
+    options?: CreateOptions,
+  ): Task<T, AnyCheckRunsError> {
+    return this.create(name, headSha, options)
+      .flatMap((checkRun) => {
+        let finalConclusion: CheckRunConclusion = 'success'
+        return Task.acquireRelease({
+          acquire: () => this.start(checkRun).run(),
+          release: (started) =>
+            this.complete(started, finalConclusion).run().then(() => {}),
+          use: (started) =>
+            use(started).tapErr(() => {
+              finalConclusion = 'failure'
+            }),
+        })
+      })
+  }
+
   start(checkRun: CheckRun): Task<StartedCheckRun, AnyCheckRunsError> {
     return Task.of<StartedCheckRun, AnyCheckRunsError>(async () => {
       const existing = this.batchers.get(checkRun.id)
       if (existing) {
         await existing.batcher.close()
+        this.batchers.delete(checkRun.id)
       }
 
       let started: CheckRun
