@@ -49,3 +49,11 @@ export interface WatchOptions {
   /** AbortSignal to cancel the watch operation. */
   signal?: AbortSignal
 }
+
+/** Configuration for annotation batching. */
+export interface AnnotationBatcherConfig {
+  /** Maximum annotations per batch. GitHub limits to 50. @default 50 */
+  batchSize?: number
+  /** Maximum time between flushes in milliseconds. @default 5000 */
+  flushInterval?: number
+}

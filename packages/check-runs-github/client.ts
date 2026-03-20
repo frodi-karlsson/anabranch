@@ -145,31 +145,19 @@ export class GithubClient {
     checkRun: CheckRun,
     options: CheckRunUpdate & { annotations?: Annotation[] },
   ): Task<CheckRun, CheckRunsApiError> {
-    const body: Record<string, unknown> = {}
-    if (options.title !== undefined) {
-      body.output = {
-        ...(body.output as Record<string, unknown>),
-        title: options.title,
-      }
-    }
-    if (options.summary !== undefined) {
-      body.output = {
-        ...(body.output as Record<string, unknown>),
-        summary: options.summary,
-      }
-    }
-    if (options.text !== undefined) {
-      body.output = {
-        ...(body.output as Record<string, unknown>),
-        text: options.text,
-      }
-    }
+    const output: Record<string, unknown> = {}
+    if (options.title !== undefined) output.title = options.title
+    if (options.summary !== undefined) output.summary = options.summary
+    if (options.text !== undefined) output.text = options.text
     if (options.annotations !== undefined) {
-      body.output = {
-        ...(body.output as Record<string, unknown>),
-        annotations: options.annotations.map((a) => this.toGithubAnnotation(a)),
-      }
+      output.annotations = options.annotations.map((a) =>
+        this.toGithubAnnotation(a)
+      )
     }
+
+    const body: Record<string, unknown> = {}
+    if (Object.keys(output).length > 0) body.output = output
+
     return Task.of<CheckRun, CheckRunsApiError>((signal) =>
       this.request(
         'PATCH',
@@ -239,6 +227,11 @@ export class GithubClient {
   /**
    * Watches a check run for status changes.
    *
+   * Yields the initial state immediately, then polls for updates until:
+   * - The check run reaches 'completed' status (normal completion)
+   * - The timeout is exceeded (yields a timeout error)
+   * - The signal is aborted (stream ends without error)
+   *
    * @param checkRun - The check run to watch.
    * @param options - Watch options including interval and timeout.
    * @returns A Source that emits CheckRun updates.
@@ -254,31 +247,49 @@ export class GithubClient {
     const signal = options?.signal
     const startTime = Date.now()
 
-    return Source.from<CheckRun, CheckRunsApiError>(async function* () {
-      let current = await client.get({ ...checkRun }).run()
+    return Source.fromResults<CheckRun, CheckRunsApiError>(async function* () {
+      // Fetch initial state - yield before completion check so caller sees final state
+      const initial = await client.get({ ...checkRun }).result()
+      if (initial.type === 'error') {
+        yield initial
+        return
+      }
+      let current = initial.value
 
       while (true) {
         if (signal?.aborted) {
-          break
+          return
         }
 
         if (Date.now() - startTime > timeout) {
-          break
+          yield {
+            type: 'error',
+            error: new CheckRunsApiError(
+              `Watch timeout after ${timeout}ms`,
+              {},
+            ),
+          }
+          return
         }
 
-        yield current
+        yield { type: 'success', value: current }
 
         if (current.status === 'completed') {
-          break
+          return
         }
 
         await new Promise((resolve) => setTimeout(resolve, interval))
 
         if (signal?.aborted) {
-          break
+          return
         }
 
-        current = await client.get({ ...current }).run()
+        const result = await client.get({ ...current }).result()
+        if (result.type === 'error') {
+          yield result
+          return
+        }
+        current = result.value
       }
     })
   }
@@ -353,12 +364,46 @@ export class GithubClient {
   }
 
   private toCheckRun(data: GithubCheckRunResponse): CheckRun {
+    const validStatuses: CheckRunStatus[] = [
+      'queued',
+      'in_progress',
+      'completed',
+      'waiting',
+    ]
+    const validConclusions: CheckRunConclusion[] = [
+      'success',
+      'failure',
+      'neutral',
+      'cancelled',
+      'timed_out',
+      'action_required',
+    ]
+
+    const status = data.status
+    if (!validStatuses.includes(status as CheckRunStatus)) {
+      throw new CheckRunsApiError(
+        `Invalid check run status: ${status}`,
+        {},
+      )
+    }
+
+    const conclusion = data.conclusion
+    if (
+      conclusion !== null &&
+      !validConclusions.includes(conclusion as CheckRunConclusion)
+    ) {
+      throw new CheckRunsApiError(
+        `Invalid check run conclusion: ${conclusion}`,
+        {},
+      )
+    }
+
     return {
       id: data.id,
       name: data.name,
       headSha: data.head_sha,
-      status: data.status as CheckRunStatus,
-      conclusion: data.conclusion as CheckRunConclusion | undefined,
+      status: status as CheckRunStatus,
+      conclusion: conclusion as CheckRunConclusion | undefined,
       title: data.output.title ?? undefined,
       summary: data.output.summary ?? undefined,
       text: data.output.text ?? undefined,

@@ -2,6 +2,7 @@
 export { CheckRuns } from './check-runs.ts'
 export type { AnyCheckRunsError, CheckRunsLike } from './check-runs.ts'
 export type {
+  AnnotationBatcherConfig,
   CheckRunComplete,
   CheckRunsOptions,
   CheckRunUpdate,
@@ -16,6 +17,7 @@ export type {
 export type { Annotation } from './annotation.ts'
 export {
   AnnotationsClosedError,
+  AnnotationsViaChannelError,
   CheckRunAlreadyCompleted,
   CheckRunAlreadyStarted,
   CheckRunNotFound,

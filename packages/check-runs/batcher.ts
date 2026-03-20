@@ -14,6 +14,7 @@ export class AnnotationBatcher<E = never> {
   private buffer: Annotation[] = []
   private running = false
   private flushing = false
+  private flushPromise?: Promise<void>
   private lastFlushTime: number
   private intervalTimer?: number
   private loopPromise?: Promise<void>
@@ -34,7 +35,10 @@ export class AnnotationBatcher<E = never> {
 
   private startIntervalCheck(): void {
     const clock = this.config.clock ?? Date.now
-    const checkInterval = Math.min(this.config.flushInterval, 10)
+    const checkInterval = Math.max(
+      10,
+      Math.min(this.config.flushInterval / 10, 1000),
+    )
     this.intervalTimer = setInterval(() => {
       if (!this.running || this.flushing) return
       const now = clock()
@@ -81,9 +85,11 @@ export class AnnotationBatcher<E = never> {
     this.lastFlushTime = (this.config.clock ?? Date.now)()
 
     try {
-      await this.config.onFlush(toFlush)
+      this.flushPromise = this.config.onFlush(toFlush)
+      await this.flushPromise
     } finally {
       this.flushing = false
+      this.flushPromise = undefined
     }
   }
 
@@ -94,6 +100,11 @@ export class AnnotationBatcher<E = never> {
 
     if (this.loopPromise) {
       await this.loopPromise
+    }
+
+    // Wait for any in-flight flush to complete before draining remaining buffer
+    if (this.flushPromise) {
+      await this.flushPromise
     }
 
     if (this.buffer.length > 0) {

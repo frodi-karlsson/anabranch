@@ -57,6 +57,17 @@ export class AnnotationsClosedError extends CheckRunsError {
   }
 }
 
+/** Error thrown when using update() with annotations instead of the channel. */
+export class AnnotationsViaChannelError extends CheckRunsError {
+  constructor() {
+    super(
+      'Annotations must be sent via the check run channel, not update()',
+      {},
+    )
+    this.name = 'AnnotationsViaChannelError'
+  }
+}
+
 /** Error thrown when the GitHub API returns an error response. */
 export class CheckRunsApiError extends CheckRunsError {
   constructor(

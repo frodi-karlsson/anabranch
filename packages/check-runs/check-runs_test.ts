@@ -12,6 +12,18 @@ function createTestCheckRuns(): CheckRuns {
   return createInMemory()
 }
 
+/** Helper to clean up batcher after start() */
+async function cleanup(
+  checkRuns: CheckRuns,
+  checkRun: CheckRun,
+): Promise<void> {
+  try {
+    await checkRuns.complete(checkRun, 'success').run()
+  } catch {
+    // Ignore errors - check run may already be completed
+  }
+}
+
 Deno.test('CheckRuns.create - returns Task', async () => {
   const checkRuns = createTestCheckRuns()
   const task = checkRuns.create('my-check', 'abc123')
@@ -39,6 +51,8 @@ Deno.test('CheckRuns.create - creates in_progress check run with status option',
 
   assertEquals(checkRun.status, 'in_progress')
   assertEquals(checkRun.startedAt instanceof Date, true)
+
+  await cleanup(checkRuns, checkRun)
 })
 
 Deno.test('CheckRuns.start - transitions to in_progress', async () => {
@@ -51,6 +65,9 @@ Deno.test('CheckRuns.start - transitions to in_progress', async () => {
 
   assertEquals(started.status, 'in_progress')
   assertEquals(started.startedAt instanceof Date, true)
+  assertEquals(started.annotations !== undefined, true)
+
+  await cleanup(checkRuns, started)
 })
 
 Deno.test('CheckRuns.start - errors on already in_progress', async () => {

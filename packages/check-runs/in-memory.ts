@@ -167,36 +167,63 @@ function createInMemoryClient(options?: InMemoryOptions): InMemoryClient {
       checkRun: CheckRun,
       watchOptions?: WatchOptions,
     ): Stream<CheckRun, AnyCheckRunsError> {
-      const interval = watchOptions?.interval ?? 5000
       const timeout = watchOptions?.timeout ?? 60000
       const signal = watchOptions?.signal
       const startTime = clock()
       const storedCheckRuns = checkRuns
+      const watchersSet = watchers
 
-      return Source.from<CheckRun, AnyCheckRunsError>(async function* () {
-        while (true) {
-          if (signal?.aborted) {
-            break
-          }
-
-          if (clock() - startTime > timeout) {
-            break
-          }
-
+      return Source.fromResults<CheckRun, AnyCheckRunsError>(
+        async function* () {
           const stored = storedCheckRuns.get(checkRun.id)
           if (!stored) {
-            throw new CheckRunNotFound(checkRun.id)
+            yield { type: 'error', error: new CheckRunNotFound(checkRun.id) }
+            return
           }
 
-          yield stored
+          let current = stored
+          let resolveNext: (() => void) | undefined
 
-          if (stored.status === 'completed') {
-            break
+          const watcher = (updated: CheckRun) => {
+            if (updated.id === checkRun.id) {
+              current = updated as StoredCheckRun
+              resolveNext?.()
+            }
           }
+          watchersSet.add(watcher)
 
-          await new Promise((resolve) => setTimeout(resolve, interval))
-        }
-      })
+          try {
+            while (true) {
+              if (signal?.aborted) {
+                return
+              }
+
+              if (clock() - startTime > timeout) {
+                yield {
+                  type: 'error',
+                  error: new CheckRunsApiError(
+                    `Watch timeout after ${timeout}ms`,
+                    {},
+                  ),
+                }
+                return
+              }
+
+              yield { type: 'success', value: current }
+
+              if (current.status === 'completed') {
+                return
+              }
+
+              await new Promise<void>((resolve) => {
+                resolveNext = resolve
+              })
+            }
+          } finally {
+            watchersSet.delete(watcher)
+          }
+        },
+      )
     },
   }
 }
