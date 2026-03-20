@@ -64,7 +64,7 @@
     "semiColons": false
   },
   "tasks": {
-    "check": "deno fmt --check && deno lint && deno test --allow-read --allow-write --allow-sys --allow-env --allow-net",
+    "check": "deno run -A ./scripts/check.ts",
     "test:integration": "deno run -A ./scripts/test-integration.ts",
     "doc": "deno run -A ./scripts/build-docs.ts",
     "doc:lint": "deno doc --lint ./packages/anabranch/index.ts",

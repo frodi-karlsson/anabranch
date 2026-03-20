@@ -20,19 +20,19 @@ import type { CheckRuns } from '@anabranch/check-runs'
 /** Maximum parallel jobs to run concurrently */
 const MAX_CONCURRENCY = 8
 
+// deno-lint-ignore no-control-regex
+const ANSI_ESCAPE = /\x1b\[[0-9;]*[a-zA-Z]/g
+
+function stripAnsi(str: string): string {
+  return str.replace(ANSI_ESCAPE, '')
+}
+
 function getEnv(name: string): string {
   const value = Deno.env.get(name)
   if (!value) {
     throw new Error(`Missing environment variable: ${name}`)
   }
   return value
-}
-
-// deno-lint-ignore no-control-regex
-const ANSI_ESCAPE = /\x1b\[[0-9;]*[a-zA-Z]/g
-
-function stripAnsi(str: string): string {
-  return str.replace(ANSI_ESCAPE, '')
 }
 
 async function runCommand(
@@ -45,12 +45,41 @@ async function runCommand(
     stdout: 'piped',
     stderr: 'piped',
     cwd: options?.cwd,
-  })
+  }).spawn()
 
-  const { success, stdout, stderr } = await process.output()
-  const output = stripAnsi(new TextDecoder().decode(success ? stdout : stderr))
+  const decoder = new TextDecoder()
+  const chunks: string[] = []
 
-  return { success, output }
+  async function drain(
+    stream: ReadableStream<Uint8Array>,
+    writer: (chunk: Uint8Array) => Promise<void>,
+  ): Promise<void> {
+    for await (const chunk of stream) {
+      const text = decoder.decode(chunk, { stream: true })
+      chunks.push(text)
+      await writer(chunk)
+    }
+  }
+
+  const stdoutWriter = async (chunk: Uint8Array) => {
+    await Deno.stdout.write(chunk)
+  }
+
+  const stderrWriter = async (chunk: Uint8Array) => {
+    await Deno.stderr.write(chunk)
+  }
+
+  await Promise.all([
+    drain(process.stdout, stdoutWriter),
+    drain(process.stderr, stderrWriter),
+  ])
+
+  const { success } = await process.status
+
+  return {
+    success,
+    output: stripAnsi(chunks.join('')),
+  }
 }
 
 interface Job {
