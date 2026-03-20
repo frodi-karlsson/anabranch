@@ -1,4 +1,4 @@
 {
   "name": "check-runs",
-  "description": "GitHub Check Runs API client with Task/Stream semantics"
+  "description": "CI status reporting with line annotations. Report tests, lints, builds with error locations."
 }

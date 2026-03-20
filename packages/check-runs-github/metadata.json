@@ -1,4 +1,4 @@
 {
   "name": "check-runs-github",
-  "description": "TODO: Add description"
+  "description": "GitHub API implementation for @anabranch/check-runs"
 }

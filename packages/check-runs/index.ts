@@ -1,4 +1,54 @@
-/** @module */
+/**
+ * @anabranch/check-runs
+ *
+ * Check Runs API client with Task/Stream semantics.
+ *
+ * Provides a `CheckRuns` class for creating, updating, and completing check runs
+ * with automatic annotation batching. Designed for CI/CD workflows with streaming
+ * output support. Includes an in-memory implementation for testing.
+ *
+ * ## Core Types
+ *
+ * - {@linkcode CheckRuns} - Main class for managing check runs
+ * - {@linkcode CheckRunsLike} - Interface for custom implementations
+ * - {@linkcode CheckRun} - Check run state and metadata
+ * - {@linkcode Annotation} - Code annotation for check run output
+ *
+ * ## Error Types
+ *
+ * All errors are typed for catchable handling:
+ * - {@linkcode CheckRunNotFound} - Check run does not exist
+ * - {@linkcode CheckRunAlreadyStarted} - Check run already started
+ * - {@linkcode CheckRunAlreadyCompleted} - Check run already completed
+ * - {@linkcode AnnotationsClosedError} - Annotation channel closed
+ * - {@linkcode CheckRunsApiError} - API request failed
+ *
+ * @example Basic usage with in-memory implementation (for testing)
+ * ```ts
+ * import { createInMemory } from "@anabranch/check-runs";
+ *
+ * const checkRuns = createInMemory();
+ * const checkRun = await checkRuns.create("my-check", "abc123").run();
+ * await checkRuns.start(checkRun).run();
+ * await checkRuns.complete(checkRun, "success").run();
+ * ```
+ *
+ * @example Streaming annotations during long-running jobs
+ * ```ts
+ * const checkRuns = createInMemory();
+ * const checkRun = await checkRuns.create("build", "abc123").run();
+ * const started = await checkRuns.start(checkRun).run();
+ *
+ * // Stream annotations through the channel
+ * const writer = started.annotations.getWriter();
+ * await writer.write({ path: "src/index.ts", line: 42, message: "Unused import" });
+ * await writer.close();
+ *
+ * await checkRuns.complete(started, "failure").run();
+ * ```
+ *
+ * @module
+ */
 export { CheckRuns } from './check-runs.ts'
 export type { AnyCheckRunsError, CheckRunsLike } from './check-runs.ts'
 export type {
