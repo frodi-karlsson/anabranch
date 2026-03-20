@@ -304,7 +304,7 @@ export class GithubClient {
   private headers(): Record<string, string> {
     return {
       'Accept': 'application/vnd.github.v3+json',
-      'Authorization': `Bearer ${this.config.token}`,
+      'Authorization': `token ${this.config.token}`,
       'Content-Type': 'application/json',
     }
   }
