@@ -70,7 +70,7 @@ export class Task<T, E> {
   /**
    * Chains another task based on the successful value.
    */
-  flatMap<U>(fn: (value: T) => Task<U, E>): Task<U, E> {
+  flatMap<U, E2 = E>(fn: (value: T) => Task<U, E2>): Task<U, E | E2> {
     return new Task(async (signal) => {
       const value = await this.runWithSignal(signal)
       const next = fn(value)

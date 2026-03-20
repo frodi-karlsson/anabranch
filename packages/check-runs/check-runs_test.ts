@@ -2,11 +2,12 @@ import { assertEquals, assertRejects } from '@std/assert'
 import { Task } from '@anabranch/anabranch'
 import { CheckRuns } from './check-runs.ts'
 import { createInMemory, createInMemoryClient } from './in-memory.ts'
-import type { CheckRun } from './check-run.ts'
+import type { CheckRun, CheckRunConclusion } from './check-run.ts'
+import type { CheckRunsLike } from './check-runs.ts'
 import {
   CheckRunAlreadyCompleted,
-  CheckRunAlreadyStarted,
   CheckRunNotFound,
+  CheckRunsApiError,
 } from './errors.ts'
 
 function createTestCheckRuns(): CheckRuns {
@@ -289,16 +290,18 @@ Deno.test('CheckRuns.start - closes existing batcher for same ID', async () => {
   await checkRuns.start(checkRun).run()
 
   // @ts-ignore: access private batchers map for testing
-  const batchers = checkRuns.batchers as Map<number, any>
+  const batchers = (checkRuns as unknown as {
+    batchers: Map<number, { channel: { isClosed(): boolean } }>
+  }).batchers
   const firstBatcherState = batchers.get(checkRun.id)
   assertEquals(firstBatcherState !== undefined, true)
-  assertEquals(firstBatcherState.channel.isClosed(), false)
+  assertEquals(firstBatcherState!.channel.isClosed(), false)
 
   // Start again (this happens if a user retries starting or calls it twice)
   await checkRuns.start(checkRun).run()
 
   // Verify first batcher's channel is closed
-  assertEquals(firstBatcherState.channel.isClosed(), true)
+  assertEquals(firstBatcherState!.channel.isClosed(), true)
 
   await checkRuns.complete(checkRun, 'success').run()
 })
@@ -307,37 +310,36 @@ Deno.test('CheckRuns.start - ensures state consistency on failure', async () => 
   const innerClient = createInMemoryClient()
   const checkRun = await innerClient.create('my-check', 'abc123').run()
 
-  // Create a proxy that fails on start()
   let shouldFail = false
-  const client: any = {
-    create: (...args: any[]) => innerClient.create(...args),
-    start: (checkRun: CheckRun) => {
+  const client: CheckRunsLike = {
+    create: (name, headSha, options) =>
+      innerClient.create(name, headSha, options),
+    start: (cr: CheckRun) => {
       if (shouldFail) {
-        return Task.of<CheckRun, any>(() => {
-          throw new Error('Start failed')
+        return Task.of<CheckRun, CheckRunsApiError>(() => {
+          throw new CheckRunsApiError('Start failed', {})
         })
       }
-      return innerClient.start(checkRun)
+      return innerClient.start(cr)
     },
-    update: (...args: any[]) => innerClient.update(...args),
-    complete: (...args: any[]) => innerClient.complete(...args),
-    watch: (...args: any[]) => innerClient.watch(...args),
+    update: (cr, options) => innerClient.update(cr, options),
+    complete: (cr, conclusion, options) =>
+      innerClient.complete(cr, conclusion, options),
+    watch: (cr, options) => innerClient.watch(cr, options),
   }
 
   const checkRuns = CheckRuns.fromLike(client)
-  // Re-run start once to set up initial state in our CheckRuns instance
   await checkRuns.start(checkRun).run()
-  assertEquals((checkRuns as any).batchers.has(checkRun.id), true)
+  const batchers =
+    (checkRuns as unknown as { batchers: Map<number, unknown> }).batchers
+  assertEquals(batchers.has(checkRun.id), true)
 
-  // Now make it fail
   shouldFail = true
   await assertRejects(
     () => checkRuns.start(checkRun).run(),
   )
 
-  // Map should be empty because we called delete() after closing old one,
-  // and failure prevented setting the new one.
-  assertEquals((checkRuns as any).batchers.has(checkRun.id), false)
+  assertEquals(batchers.has(checkRun.id), false)
 })
 
 Deno.test('CheckRuns.withCheckRun - automates lifecycle', async () => {
@@ -367,19 +369,16 @@ Deno.test('CheckRuns.withCheckRun - completes with failure if logic fails', asyn
   const innerClient = createInMemoryClient()
   let lastConclusion: CheckRunConclusion | undefined
 
-  const client: any = {
-    create: (...args: any[]) => innerClient.create(...args),
-    start: (...args: any[]) => innerClient.start(...args),
-    update: (...args: any[]) => innerClient.update(...args),
-    complete: (
-      checkRun: any,
-      conclusion: CheckRunConclusion,
-      options?: any,
-    ) => {
+  const client: CheckRunsLike = {
+    create: (name, headSha, options) =>
+      innerClient.create(name, headSha, options),
+    start: (cr) => innerClient.start(cr),
+    update: (cr, options) => innerClient.update(cr, options),
+    complete: (cr, conclusion, options) => {
       lastConclusion = conclusion
-      return innerClient.complete(checkRun, conclusion, options)
+      return innerClient.complete(cr, conclusion, options)
     },
-    watch: (...args: any[]) => innerClient.watch(...args),
+    watch: (cr, options) => innerClient.watch(cr, options),
   }
 
   const checkRuns = CheckRuns.fromLike(client)
@@ -390,7 +389,7 @@ Deno.test('CheckRuns.withCheckRun - completes with failure if logic fails', asyn
         'auto-check',
         'abc123',
         () => {
-          return Task.of(async () => {
+          return Task.of(() => {
             throw new Error('Oops')
           })
         },

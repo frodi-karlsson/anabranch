@@ -109,24 +109,28 @@ export class CheckRuns {
   }
 
   start(checkRun: CheckRun): Task<StartedCheckRun, AnyCheckRunsError> {
-    return Task.of<StartedCheckRun, AnyCheckRunsError>(async () => {
+    return Task.of<void, never>(async () => {
       const existing = this.batchers.get(checkRun.id)
       if (existing) {
         await existing.batcher.close()
         this.batchers.delete(checkRun.id)
       }
+    }).flatMap(() =>
+      this.client.start(checkRun)
+        .recoverWhen(
+          (e): e is CheckRunAlreadyStarted =>
+            e instanceof CheckRunAlreadyStarted,
+          () => ({ ...checkRun, status: 'in_progress' as const }),
+        )
+        .mapErr((e) => this.toAnyCheckRunsError(e))
+        .flatMap((started) => this.setupStartedCheckRun(started))
+    )
+  }
 
-      let started: CheckRun
-      try {
-        started = await this.client.start(checkRun).run()
-      } catch (error) {
-        if (error instanceof CheckRunAlreadyStarted) {
-          started = { ...checkRun, status: 'in_progress' }
-        } else {
-          throw this.toAnyCheckRunsError(error)
-        }
-      }
-
+  private setupStartedCheckRun(
+    started: CheckRun,
+  ): Task<StartedCheckRun, never> {
+    return Task.of<StartedCheckRun, never>(() => {
       const batchSize = this.batcherConfig.batchSize ?? 50
       const dropped: Annotation[] = []
       const channel = Channel.create<Annotation>()
@@ -142,7 +146,7 @@ export class CheckRuns {
         onFlush: async (annotations: Annotation[]) => {
           if (dropped.length > 0) {
             console.error(
-              `[CheckRuns ${checkRun.id}] Dropped ${dropped.length} annotations due to buffer overflow`,
+              `[CheckRuns ${started.id}] Dropped ${dropped.length} annotations due to buffer overflow`,
             )
             dropped.length = 0
           }
@@ -151,7 +155,7 @@ export class CheckRuns {
             .result()
           if (result.type === 'error') {
             console.error(
-              `[CheckRuns ${checkRun.id}] Failed to flush annotations: ${result.error.message}`,
+              `[CheckRuns ${started.id}] Failed to flush annotations: ${result.error.message}`,
             )
           }
         },
@@ -188,20 +192,17 @@ export class CheckRuns {
     conclusion: CheckRunConclusion,
     options?: CheckRunUpdate,
   ): Task<CheckRun, AnyCheckRunsError> {
-    return Task.of<CheckRun, AnyCheckRunsError>(async () => {
+    return Task.of<void, never>(async () => {
       const state = this.batchers.get(checkRun.id)
-
       if (state) {
         await state.batcher.close()
         this.batchers.delete(checkRun.id)
       }
-
-      try {
-        return await this.client.complete(checkRun, conclusion, options).run()
-      } catch (error) {
-        throw this.toAnyCheckRunsError(error)
-      }
-    })
+    }).flatMap(() =>
+      this.client.complete(checkRun, conclusion, options).mapErr((e) =>
+        this.toAnyCheckRunsError(e)
+      )
+    )
   }
 
   watch(
