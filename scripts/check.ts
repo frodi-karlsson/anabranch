@@ -229,5 +229,3 @@ main().catch((error) => {
   console.error('Fatal error:', error)
   Deno.exit(1)
 })
-const x: string = 1
-const x: string = 1
