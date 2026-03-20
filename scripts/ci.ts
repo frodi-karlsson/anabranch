@@ -238,19 +238,18 @@ const checkJobs: Job[] = [
     },
     parseAnnotations: parseTestFailures,
   },
-]
-
-const integrationTestJob: Job = {
-  name: 'Integration Tests',
-  fn: async (onChunk, signal) => {
-    const { success, output } = await runCommand(
-      'deno',
-      ['task', 'test:integration'],
-      { onChunk, signal },
-    )
-    return { success, output }
+  {
+    name: 'Integration Tests',
+    fn: async (onChunk, signal) => {
+      const { success, output } = await runCommand(
+        'deno',
+        ['task', 'test:integration'],
+        { onChunk, signal },
+      )
+      return { success, output }
+    },
   },
-}
+]
 
 function runWithCheckRunTask<T>(
   checkRuns: CheckRuns,
@@ -421,30 +420,6 @@ async function runJobsParallel(
   return failures.length === 0 && successes.every((r: JobResult) => r.success)
 }
 
-async function runJob(
-  checkRuns: CheckRuns,
-  job: Job,
-  headSha: string,
-): Promise<boolean> {
-  const abortController = new AbortController()
-
-  const result = await runWithCheckRunTask(
-    checkRuns,
-    job.name,
-    headSha,
-    job.fn,
-    (r) => r.success,
-    (r) => r.output,
-    abortController.signal,
-    job.parseAnnotations,
-  ).result()
-
-  if (result.type === 'error') {
-    return false
-  }
-  return result.value.success
-}
-
 async function deployDocs(
   onChunk: (chunk: string) => void,
   signal: AbortSignal,
@@ -546,7 +521,7 @@ async function main() {
 
   const checkRuns = createGithub({ token, owner, repo })
 
-  // Run fast checks in parallel
+  // Run all checks in parallel (including integration tests)
   console.log('=== Running Checks ===\n')
   const checksPassed = await runJobsParallel(checkRuns, checkJobs, sha)
 
@@ -556,17 +531,6 @@ async function main() {
   }
 
   console.log('\n✅ All checks passed')
-
-  // Run integration tests after fast checks pass
-  console.log('\n=== Running Integration Tests ===\n')
-  const integrationPassed = await runJob(checkRuns, integrationTestJob, sha)
-
-  if (!integrationPassed) {
-    console.error('\n❌ Integration tests failed')
-    Deno.exit(1)
-  }
-
-  console.log('\n✅ Integration tests passed')
 
   // Deploy docs on main
   if (isMain) {
