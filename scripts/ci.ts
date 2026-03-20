@@ -17,8 +17,8 @@ import { Source, Task } from '@anabranch/anabranch'
 import { createGithub } from '@anabranch/check-runs-github'
 import type { CheckRuns } from '@anabranch/check-runs'
 
-/** Maximum parallel jobs to run concurrently */
-const MAX_CONCURRENCY = 8
+const FLUSH_INTERVAL_MS = 5000
+const MAX_CHECK_RUN_TEXT = 65000
 
 // deno-lint-ignore no-control-regex
 const ANSI_ESCAPE = /\x1b\[[0-9;]*[a-zA-Z]/g
@@ -38,13 +38,18 @@ function getEnv(name: string): string {
 async function runCommand(
   command: string,
   args: string[],
-  options?: { cwd?: string },
+  options?: {
+    cwd?: string
+    signal?: AbortSignal
+    onChunk?: (chunk: string) => void
+  },
 ): Promise<{ success: boolean; output: string }> {
   const process = new Deno.Command(command, {
     args,
     stdout: 'piped',
     stderr: 'piped',
     cwd: options?.cwd,
+    signal: options?.signal,
   }).spawn()
 
   const decoder = new TextDecoder()
@@ -57,6 +62,7 @@ async function runCommand(
     for await (const chunk of stream) {
       const text = decoder.decode(chunk, { stream: true })
       chunks.push(text)
+      options?.onChunk?.(text)
       await writer(chunk)
     }
   }
@@ -84,42 +90,58 @@ async function runCommand(
 
 interface Job {
   name: string
-  fn: () => Promise<{ success: boolean; output?: string }>
+  fn: (
+    onChunk: (chunk: string) => void,
+    signal: AbortSignal,
+  ) => Promise<{ success: boolean; output?: string }>
 }
 
 const checkJobs: Job[] = [
   {
     name: 'Format',
-    fn: async () => {
-      const { success, output } = await runCommand('deno', ['fmt', '--check'])
+    fn: async (onChunk, signal) => {
+      const { success, output } = await runCommand('deno', ['fmt', '--check'], {
+        onChunk,
+        signal,
+      })
       return { success, output }
     },
   },
   {
     name: 'Lint',
-    fn: async () => {
-      const { success, output } = await runCommand('deno', ['lint'])
+    fn: async (onChunk, signal) => {
+      const { success, output } = await runCommand('deno', ['lint'], {
+        onChunk,
+        signal,
+      })
       return { success, output }
     },
   },
   {
     name: 'Type Check',
-    fn: async () => {
-      const { success, output } = await runCommand('deno', ['check', '.'])
+    fn: async (onChunk, signal) => {
+      const { success, output } = await runCommand('deno', ['check', '.'], {
+        onChunk,
+        signal,
+      })
       return { success, output }
     },
   },
   {
     name: 'Tests',
-    fn: async () => {
-      const { success, output } = await runCommand('deno', [
-        'test',
-        '--allow-read',
-        '--allow-write',
-        '--allow-env',
-        '--allow-net',
-        '--allow-sys',
-      ])
+    fn: async (onChunk, signal) => {
+      const { success, output } = await runCommand(
+        'deno',
+        [
+          'test',
+          '--allow-read',
+          '--allow-write',
+          '--allow-env',
+          '--allow-net',
+          '--allow-sys',
+        ],
+        { onChunk, signal },
+      )
       return { success, output }
     },
   },
@@ -127,11 +149,12 @@ const checkJobs: Job[] = [
 
 const integrationTestJob: Job = {
   name: 'Integration Tests',
-  fn: async () => {
-    const { success, output } = await runCommand('deno', [
-      'task',
-      'test:integration',
-    ])
+  fn: async (onChunk, signal) => {
+    const { success, output } = await runCommand(
+      'deno',
+      ['task', 'test:integration'],
+      { onChunk, signal },
+    )
     return { success, output }
   },
 }
@@ -140,11 +163,16 @@ function runWithCheckRunTask<T>(
   checkRuns: CheckRuns,
   name: string,
   headSha: string,
-  fn: () => Promise<T>,
+  fn: (onChunk: (chunk: string) => void, signal: AbortSignal) => Promise<T>,
   getSuccess: (result: T) => boolean,
   getOutput: (result: T) => string | undefined,
+  signal: AbortSignal,
 ): Task<T, Error> {
   return Task.of(async () => {
+    if (signal.aborted) {
+      throw new Error('Aborted')
+    }
+
     const created = await checkRuns.create(name, headSha).result()
 
     if (created.type === 'error') {
@@ -166,17 +194,44 @@ function runWithCheckRunTask<T>(
       throw started.error
     }
 
+    // Live output streaming
+    let liveOutput = ''
+    let lastFlushed = ''
+
+    const flushInterval = setInterval(async () => {
+      if (liveOutput === lastFlushed || signal.aborted) return
+      lastFlushed = liveOutput
+      const updateResult = await checkRuns
+        .update(checkRun, {
+          title: name,
+          summary: 'Running...',
+          text: liveOutput.slice(-MAX_CHECK_RUN_TEXT),
+        })
+        .result()
+      if (updateResult.type === 'error') {
+        console.error(
+          `[${name}] Failed to update: ${updateResult.error.message}`,
+        )
+      }
+    }, FLUSH_INTERVAL_MS)
+
+    const onChunk = (chunk: string) => {
+      liveOutput += stripAnsi(chunk)
+    }
+
     try {
       console.log(`[${name}] Running...`)
-      const result = await fn()
+      const result = await fn(onChunk, signal)
+      clearInterval(flushInterval)
+
       const success = getSuccess(result)
-      const output = getOutput(result)
+      const output = getOutput(result) ?? liveOutput
       const conclusion = success ? 'success' : 'failure'
 
       const completed = await checkRuns.complete(checkRun, conclusion, {
         title: name,
         summary: success ? 'Passed' : 'Failed',
-        text: output?.slice(0, 65000),
+        text: output.slice(-MAX_CHECK_RUN_TEXT),
       }).result()
 
       if (completed.type === 'error') {
@@ -187,13 +242,30 @@ function runWithCheckRunTask<T>(
       }
 
       console.log(`[${name}] ${success ? '✓' : '✗'} ${conclusion}`)
+
+      if (!success) {
+        throw new Error(`${name} failed`)
+      }
+
       return result
     } catch (error) {
+      clearInterval(flushInterval)
+
+      if (signal.aborted) {
+        console.log(`[${name}] ⊘ Aborted`)
+        await checkRuns.complete(checkRun, 'failure', {
+          title: name,
+          summary: 'Aborted',
+          text: liveOutput.slice(-MAX_CHECK_RUN_TEXT),
+        }).result()
+        throw new Error('Aborted')
+      }
+
       const message = error instanceof Error ? error.message : String(error)
       await checkRuns.complete(checkRun, 'failure', {
         title: name,
         summary: 'Failed with error',
-        text: message.slice(0, 65000),
+        text: message.slice(0, MAX_CHECK_RUN_TEXT),
       }).result()
       console.error(`[${name}] ✗ ${message}`)
       throw error
@@ -210,8 +282,10 @@ async function runJobsParallel(
   jobs: Job[],
   headSha: string,
 ): Promise<boolean> {
+  const abortController = new AbortController()
+
   const { successes, errors } = await Source.fromArray(jobs)
-    .withConcurrency(MAX_CONCURRENCY)
+    .withConcurrency(jobs.length)
     .map<JobResult, Error>((job) => {
       const task = runWithCheckRunTask(
         checkRuns,
@@ -220,19 +294,25 @@ async function runJobsParallel(
         job.fn,
         (result) => result.success,
         (result) => result.output,
+        abortController.signal,
       )
       return task.run()
     })
     .partition()
 
-  if (errors.length > 0) {
+  const failures = errors.filter((e) => e.message !== 'Aborted')
+
+  if (failures.length > 0) {
+    if (!abortController.signal.aborted) {
+      abortController.abort()
+    }
     console.error('\n=== Errors ===')
-    for (const error of errors) {
+    for (const error of failures) {
       console.error(`  - ${error.message}`)
     }
   }
 
-  return errors.length === 0 && successes.every((r: JobResult) => r.success)
+  return failures.length === 0 && successes.every((r: JobResult) => r.success)
 }
 
 async function runJob(
@@ -240,6 +320,8 @@ async function runJob(
   job: Job,
   headSha: string,
 ): Promise<boolean> {
+  const abortController = new AbortController()
+
   const result = await runWithCheckRunTask(
     checkRuns,
     job.name,
@@ -247,6 +329,7 @@ async function runJob(
     job.fn,
     (r) => r.success,
     (r) => r.output,
+    abortController.signal,
   ).result()
 
   if (result.type === 'error') {
@@ -255,9 +338,15 @@ async function runJob(
   return result.value.success
 }
 
-async function deployDocs(): Promise<{ success: boolean; output: string }> {
+async function deployDocs(
+  onChunk: (chunk: string) => void,
+  signal: AbortSignal,
+): Promise<{ success: boolean; output: string }> {
   console.log('Generating docs...')
-  const { success, output } = await runCommand('deno', ['task', 'doc'])
+  const { success, output } = await runCommand('deno', ['task', 'doc'], {
+    onChunk,
+    signal,
+  })
   if (!success) {
     console.error('Failed to generate docs')
   } else {
@@ -268,13 +357,15 @@ async function deployDocs(): Promise<{ success: boolean; output: string }> {
 
 async function publishPackage(
   packageName: string,
+  onChunk: (chunk: string) => void,
+  signal: AbortSignal,
 ): Promise<{ success: boolean; output: string }> {
   console.log(`Publishing ${packageName}...`)
 
   const { success: jsrSuccess, output: jsrOutput } = await runCommand(
     'deno',
     ['publish'],
-    { cwd: `packages/${packageName}` },
+    { cwd: `packages/${packageName}`, onChunk, signal },
   )
   if (!jsrSuccess) {
     console.error(`Failed to publish ${packageName} to JSR`)
@@ -284,6 +375,7 @@ async function publishPackage(
   const { success: buildSuccess, output: buildOutput } = await runCommand(
     'deno',
     ['run', '-A', './scripts/build-npm.ts', `-p=${packageName}`],
+    { onChunk, signal },
   )
   if (!buildSuccess) {
     console.error(`Failed to build ${packageName} for npm`)
@@ -293,7 +385,7 @@ async function publishPackage(
   const { success: npmSuccess, output: npmOutput } = await runCommand(
     'npm',
     ['publish', '--access', 'public'],
-    { cwd: `packages/${packageName}/npm` },
+    { cwd: `packages/${packageName}/npm`, onChunk, signal },
   )
   if (!npmSuccess) {
     console.error(`Failed to publish ${packageName} to npm`)
@@ -306,14 +398,15 @@ async function publishPackage(
 
 async function releaseDownstream(
   tags: string,
+  onChunk: (chunk: string) => void,
+  signal: AbortSignal,
 ): Promise<{ success: boolean; output: string }> {
   console.log(`Bumping downstream: ${tags}`)
-  const { success, output } = await runCommand('deno', [
-    'run',
-    '-A',
-    'scripts/bump-downstream.ts',
-    ...tags.split(' '),
-  ])
+  const { success, output } = await runCommand(
+    'deno',
+    ['run', '-A', 'scripts/bump-downstream.ts', ...tags.split(' ')],
+    { onChunk, signal },
+  )
   if (!success) {
     console.error('Failed to bump downstream')
   } else {
@@ -371,6 +464,7 @@ async function main() {
   // Deploy docs on main
   if (isMain) {
     console.log('\n=== Deploying Docs ===\n')
+    const abortController = new AbortController()
     const docsResult = await runWithCheckRunTask(
       checkRuns,
       'Deploy Docs',
@@ -378,6 +472,7 @@ async function main() {
       deployDocs,
       (r) => r.success,
       (r) => r.output,
+      abortController.signal,
     ).result()
 
     if (docsResult.type === 'error' || !docsResult.value.success) {
@@ -388,15 +483,17 @@ async function main() {
   // Publish on tags
   if (isTag) {
     const packageName = refName.split('@')[0]
+    const abortController = new AbortController()
 
     console.log('\n=== Publishing ===\n')
     const publishResult = await runWithCheckRunTask(
       checkRuns,
       `Publish ${packageName}`,
       sha,
-      () => publishPackage(packageName),
+      (onChunk, signal) => publishPackage(packageName, onChunk, signal),
       (r) => r.success,
       (r) => r.output,
+      abortController.signal,
     ).result()
 
     if (publishResult.type === 'error' || !publishResult.value.success) {
@@ -409,9 +506,10 @@ async function main() {
       checkRuns,
       'Release Downstream',
       sha,
-      () => releaseDownstream(refName),
+      (onChunk, signal) => releaseDownstream(refName, onChunk, signal),
       (r) => r.success,
       (r) => r.output,
+      abortController.signal,
     ).result()
 
     if (downstreamResult.type === 'error' || !downstreamResult.value.success) {
