@@ -1,3 +1,4 @@
+import { Task } from '@anabranch/anabranch'
 import { createInMemory } from '@anabranch/check-runs'
 
 // deno-lint-ignore no-control-regex
@@ -93,80 +94,62 @@ const checkJobs: Job[] = [
   },
 ]
 
-async function runWithCheckRunTask<T>(
+function runWithCheckRunTask<T>(
   checkRuns: ReturnType<typeof createInMemory>,
   name: string,
   fn: (signal: AbortSignal) => Promise<T>,
   signal: AbortSignal,
   getSuccess: (result: T) => boolean,
   getOutput: (result: T) => string | undefined,
-): Promise<T> {
+): Task<T, Error> {
   if (signal.aborted) {
-    throw new Error('Aborted')
+    return Task.of(() => {
+      throw new Error('Aborted')
+    })
   }
 
-  const created = await checkRuns.create(name, 'local').result()
+  return checkRuns.withCheckRun(
+    name,
+    'local',
+    (started) =>
+      Task.of(async () => {
+        console.log(`[${name}] Running...`)
+        const result = await fn(signal)
+        const success = getSuccess(result)
+        const output = getOutput(result)
 
-  if (created.type === 'error') {
-    console.error(`[${name}] Failed to create: ${created.error.message}`)
-    throw created.error
-  }
+        const updateResult = await checkRuns
+          .update(started, {
+            title: name,
+            summary: success ? 'Passed' : 'Failed',
+            text: output?.slice(0, 65000),
+          })
+          .result()
 
-  const checkRun = created.value
-  console.log(`[${name}] Created`)
+        if (updateResult.type === 'error') {
+          console.error(
+            `[${name}] Failed to update: ${updateResult.error.message}`,
+          )
+        }
 
-  const started = await checkRuns.start(checkRun).result()
-  if (started.type === 'error') {
-    console.error(`[${name}] Failed to start: ${started.error.message}`)
-    await checkRuns.complete(checkRun, 'failure', {
-      title: name,
-      summary: 'Failed to start',
-      text: started.error.message,
-    }).result()
-    throw started.error
-  }
+        console.log(
+          `[${name}] ${success ? '✓' : '✗'} ${success ? 'success' : 'failure'}`,
+        )
 
-  try {
-    console.log(`[${name}] Running...`)
-    const result = await fn(signal)
-    const success = getSuccess(result)
-    const output = getOutput(result)
-    const conclusion = success ? 'success' : 'failure'
+        if (!success) {
+          throw new Error(`${name} failed`)
+        }
 
-    const completed = await checkRuns.complete(checkRun, conclusion, {
-      title: name,
-      summary: success ? 'Passed' : 'Failed',
-      text: output?.slice(0, 65000),
-    }).result()
-
-    if (completed.type === 'error') {
-      console.error(
-        `[${name}] Failed to complete: ${completed.error.message}`,
-      )
-      throw completed.error
-    }
-
-    console.log(`[${name}] ${success ? '✓' : '✗'} ${conclusion}`)
-
-    if (!success) {
-      throw new Error(`${name} failed`)
-    }
-
-    return result
-  } catch (error) {
+        return result
+      }),
+  ).mapErr((error) => {
     if (signal.aborted) {
       console.log(`[${name}] ⊘ Aborted`)
-      throw new Error('Aborted')
+      return new Error('Aborted')
     }
-    const message = error instanceof Error ? error.message : String(error)
-    await checkRuns.complete(checkRun, 'failure', {
-      title: name,
-      summary: 'Failed with error',
-      text: message.slice(0, 65000),
-    }).result()
-    console.error(`[${name}] ✗ ${message}`)
-    throw error
-  }
+    console.error(`[${name}] ✗ ${error.message}`)
+    return error
+  })
 }
 
 async function runJobsParallel(
@@ -185,7 +168,7 @@ async function runJobsParallel(
           abortController.signal,
           (result) => result.success,
           (result) => result.output,
-        )
+        ).run()
         return { success: true, name: job.name }
       } catch (error) {
         if (!abortController.signal.aborted) {

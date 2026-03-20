@@ -15,11 +15,7 @@
 
 import { Source, Task } from '@anabranch/anabranch'
 import { createGithub } from '@anabranch/check-runs-github'
-import type {
-  Annotation,
-  CheckRuns,
-  StartedCheckRun,
-} from '@anabranch/check-runs'
+import type { Annotation, CheckRuns } from '@anabranch/check-runs'
 
 const FLUSH_INTERVAL_MS = 5000
 const MAX_CHECK_RUN_TEXT = 65000
@@ -261,119 +257,100 @@ function runWithCheckRunTask<T>(
   signal: AbortSignal,
   parseAnnotations?: (output: string) => Annotation[],
 ): Task<T, Error> {
-  return Task.of(async () => {
-    if (signal.aborted) {
+  if (signal.aborted) {
+    return Task.of(() => {
       throw new Error('Aborted')
-    }
+    })
+  }
 
-    const created = await checkRuns.create(name, headSha).result()
+  console.log(`[${name}] Created`)
 
-    if (created.type === 'error') {
-      console.error(`[${name}] Failed to create: ${created.error.message}`)
-      throw created.error
-    }
+  return checkRuns.withCheckRun(
+    name,
+    headSha,
+    (startedRun) =>
+      Task.of(async () => {
+        console.log(`[${name}] Running...`)
 
-    const checkRun = created.value
-    console.log(`[${name}] Created`)
+        let liveOutput = ''
+        let lastFlushed = ''
 
-    const started = await checkRuns.start(checkRun).result()
-    if (started.type === 'error') {
-      console.error(`[${name}] Failed to start: ${started.error.message}`)
-      await checkRuns.complete(checkRun, 'failure', {
-        title: name,
-        summary: 'Failed to start',
-        text: started.error.message,
-      }).result()
-      throw started.error
-    }
+        const flushInterval = setInterval(async () => {
+          if (liveOutput === lastFlushed || signal.aborted) return
+          lastFlushed = liveOutput
+          const updateResult = await checkRuns
+            .update(startedRun, {
+              title: name,
+              summary: 'Running...',
+              text: liveOutput.slice(-MAX_CHECK_RUN_TEXT),
+            })
+            .result()
+          if (updateResult.type === 'error') {
+            console.error(
+              `[${name}] Failed to update: ${updateResult.error.message}`,
+            )
+          }
+        }, FLUSH_INTERVAL_MS)
 
-    const startedRun: StartedCheckRun = started.value
-
-    // Live output streaming
-    let liveOutput = ''
-    let lastFlushed = ''
-
-    const flushInterval = setInterval(async () => {
-      if (liveOutput === lastFlushed || signal.aborted) return
-      lastFlushed = liveOutput
-      const updateResult = await checkRuns
-        .update(checkRun, {
-          title: name,
-          summary: 'Running...',
-          text: liveOutput.slice(-MAX_CHECK_RUN_TEXT),
-        })
-        .result()
-      if (updateResult.type === 'error') {
-        console.error(
-          `[${name}] Failed to update: ${updateResult.error.message}`,
-        )
-      }
-    }, FLUSH_INTERVAL_MS)
-
-    const onChunk = (chunk: string) => {
-      liveOutput += stripAnsi(chunk)
-    }
-
-    try {
-      console.log(`[${name}] Running...`)
-      const result = await fn(onChunk, signal)
-      clearInterval(flushInterval)
-
-      const success = getSuccess(result)
-      const output = getOutput(result) ?? liveOutput
-
-      // Stream annotations if parser provided
-      if (parseAnnotations && !success) {
-        const annotations = parseAnnotations(output)
-        for (const annotation of annotations) {
-          await startedRun.writeAnnotation(annotation)
+        const onChunk = (chunk: string) => {
+          liveOutput += stripAnsi(chunk)
         }
-      }
 
-      const conclusion = success ? 'success' : 'failure'
+        try {
+          const result = await fn(onChunk, signal)
+          clearInterval(flushInterval)
 
-      const completed = await checkRuns.complete(checkRun, conclusion, {
-        title: name,
-        summary: success ? 'Passed' : 'Failed',
-        text: output.slice(-MAX_CHECK_RUN_TEXT),
-      }).result()
+          const success = getSuccess(result)
+          const output = getOutput(result) ?? liveOutput
 
-      if (completed.type === 'error') {
-        console.error(
-          `[${name}] Failed to complete: ${completed.error.message}`,
-        )
-        throw completed.error
-      }
+          if (parseAnnotations && !success) {
+            const annotations = parseAnnotations(output)
+            for (const annotation of annotations) {
+              await startedRun.writeAnnotation(annotation)
+            }
+          }
 
-      console.log(`[${name}] ${success ? '✓' : '✗'} ${conclusion}`)
+          const updateResult = await checkRuns
+            .update(startedRun, {
+              title: name,
+              summary: success ? 'Passed' : 'Failed',
+              text: output.slice(-MAX_CHECK_RUN_TEXT),
+            })
+            .result()
 
-      if (!success) {
-        throw new Error(`${name} failed`)
-      }
+          if (updateResult.type === 'error') {
+            console.error(
+              `[${name}] Failed to update: ${updateResult.error.message}`,
+            )
+          }
 
-      return result
-    } catch (error) {
-      clearInterval(flushInterval)
+          console.log(
+            `[${name}] ${success ? '✓' : '✗'} ${
+              success ? 'success' : 'failure'
+            }`,
+          )
 
-      if (signal.aborted) {
-        console.log(`[${name}] ⊘ Aborted`)
-        await checkRuns.complete(checkRun, 'failure', {
-          title: name,
-          summary: 'Aborted',
-          text: liveOutput.slice(-MAX_CHECK_RUN_TEXT),
-        }).result()
-        throw new Error('Aborted')
-      }
+          if (!success) {
+            throw new Error(`${name} failed`)
+          }
 
-      const message = error instanceof Error ? error.message : String(error)
-      await checkRuns.complete(checkRun, 'failure', {
-        title: name,
-        summary: 'Failed with error',
-        text: message.slice(0, MAX_CHECK_RUN_TEXT),
-      }).result()
-      console.error(`[${name}] ✗ ${message}`)
-      throw error
-    }
+          return result
+        } catch (error) {
+          clearInterval(flushInterval)
+
+          if (signal.aborted) {
+            console.log(`[${name}] ⊘ Aborted`)
+            throw new Error('Aborted')
+          }
+
+          const message = error instanceof Error ? error.message : String(error)
+          console.error(`[${name}] ✗ ${message}`)
+          throw error
+        }
+      }),
+  ).mapErr((error) => {
+    console.error(`[${name}] Error: ${error.message}`)
+    return error
   })
 }
 

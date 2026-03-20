@@ -1,25 +1,40 @@
 /**
  * check-runs-github Example
  *
+ * Demonstrates using withCheckRun with the GitHub client.
+ *
  * Run:
  * ```
- * deno run -A packages/check-runs-github/examples/main.ts
+ * GITHUB_TOKEN=xxx deno run -A packages/check-runs-github/examples/main.ts
  * ```
  */
 
 import { createGithub } from '../index.ts'
+import { Task } from '../../anabranch/task/task.ts'
 
-async function main() {
-  console.log('Starting check-runs-github example...')
+function main() {
+  const token = Deno.env.get('GITHUB_TOKEN')
+  if (!token) {
+    console.error('Please set GITHUB_TOKEN environment variable')
+    return
+  }
 
-  // In real usage, you would provide actual GitHub credentials
   const checkRuns = createGithub({
-    token: Deno.env.get('GITHUB_TOKEN') ?? '',
+    token,
     owner: 'my-org',
     repo: 'my-repo',
   })
-  const checkRun = await checkRuns.create('my-check', 'abc123').run()
-  console.log('Created check run:', checkRun)
+
+  return checkRuns.withCheckRun(
+    'CI Build',
+    'abc123def456',
+    (started) => {
+      console.log(`Started: ${started.name}`)
+      return Task.of<void, never>(() => undefined)
+    },
+  ).map(() => {
+    console.log('Check run completed!')
+  })
 }
 
-main().catch(console.error)
+main()?.run().catch(console.error)
