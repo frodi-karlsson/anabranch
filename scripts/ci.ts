@@ -122,6 +122,7 @@ function runWithCheckRunTask<T>(
     if (started.type === 'error') {
       console.error(`[${name}] Failed to start: ${started.error.message}`)
       await checkRuns.complete(checkRun, 'failure', {
+        title: name,
         summary: 'Failed to start',
         text: started.error.message,
       }).result()
@@ -136,6 +137,7 @@ function runWithCheckRunTask<T>(
       const conclusion = success ? 'success' : 'failure'
 
       const completed = await checkRuns.complete(checkRun, conclusion, {
+        title: name,
         summary: success ? 'Passed' : 'Failed',
         text: output?.slice(0, 65000),
       }).result()
@@ -152,6 +154,7 @@ function runWithCheckRunTask<T>(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       await checkRuns.complete(checkRun, 'failure', {
+        title: name,
         summary: 'Failed with error',
         text: message.slice(0, 65000),
       }).result()
