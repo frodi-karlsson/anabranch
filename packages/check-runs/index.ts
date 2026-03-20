@@ -13,7 +13,6 @@
  * - {@linkcode CheckRunsLike} - Interface for custom implementations
  * - {@linkcode CheckRun} - Check run state and metadata
  * - {@linkcode Annotation} - Code annotation for check run output
- * - {@linkcode AnnotationWriter} - Writer for streaming annotations with backpressure
  *
  * ## Error Types
  *
@@ -24,33 +23,35 @@
  * - {@linkcode AnnotationsClosedError} - Annotation channel closed
  * - {@linkcode CheckRunsApiError} - API request failed
  *
- * @example Basic usage with in-memory implementation (for testing)
+ * @example Automatic lifecycle management with withCheckRun
  * ```ts
  * import { createInMemory } from "@anabranch/check-runs";
+ * import { Task } from "@anabranch/anabranch";
  *
+ * const checkRuns = createInMemory();
+ *
+ * await checkRuns
+ *   .withCheckRun("my-check", "abc123def456", (started) =>
+ *     Task.of(async () => {
+ *       // Write annotations during the check
+ *       await started.writeAnnotation({
+ *         path: "src/index.ts",
+ *         startLine: 42,
+ *         level: "warning",
+ *         message: "Unused import",
+ *       });
+ *     })
+ *   )
+ *   .run();
+ * // Automatically completes with "success" or "failure" based on callback result
+ * ```
+ *
+ * @example Manual lifecycle management (for advanced use cases)
+ * ```ts
  * const checkRuns = createInMemory();
  * const checkRun = await checkRuns.create("my-check", "abc123").run();
  * await checkRuns.start(checkRun).run();
  * await checkRuns.complete(checkRun, "success").run();
- * ```
- *
- * @example Streaming annotations during long-running jobs
- * ```ts
- * const checkRuns = createInMemory();
- * const checkRun = await checkRuns.create("build", "abc123").run();
- * const started = await checkRuns.start(checkRun).run();
- *
- * // Stream annotations with backpressure
- * await started.writeAnnotation({
- *   path: "src/index.ts",
- *   startLine: 42,
- *   endLine: 42,
- *   level: "warning",
- *   message: "Unused import"
- * });
- * started.closeAnnotations();
- *
- * await checkRuns.complete(started, "failure").run();
  * ```
  *
  * @module
