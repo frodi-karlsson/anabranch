@@ -65,7 +65,7 @@ Deno.test('CheckRuns.start - transitions to in_progress', async () => {
 
   assertEquals(started.status, 'in_progress')
   assertEquals(started.startedAt instanceof Date, true)
-  assertEquals(started.annotations !== undefined, true)
+  assertEquals(started.writeAnnotation !== undefined, true)
 
   await cleanup(checkRuns, started)
 })
@@ -271,4 +271,24 @@ Deno.test('CheckRuns.watch - errors on non-existent check run', async () => {
   assertEquals(results.length, 0)
   assertEquals(errors.length, 1)
   assertEquals(errors[0] instanceof CheckRunNotFound, true)
+})
+
+Deno.test('CheckRuns.start - writeAnnotation respects backpressure', async () => {
+  const checkRuns = createInMemory()
+  const checkRun = await checkRuns.create('my-check', 'abc123').run()
+  const started = await checkRuns.start(checkRun).run()
+
+  assertEquals(typeof started.writeAnnotation, 'function')
+
+  const annotation = {
+    path: 'test.ts',
+    startLine: 1,
+    endLine: 1,
+    level: 'warning' as const,
+    message: 'Test warning',
+  }
+
+  await started.writeAnnotation!(annotation)
+
+  await cleanup(checkRuns, started)
 })

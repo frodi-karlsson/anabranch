@@ -13,6 +13,7 @@
  * - {@linkcode CheckRunsLike} - Interface for custom implementations
  * - {@linkcode CheckRun} - Check run state and metadata
  * - {@linkcode Annotation} - Code annotation for check run output
+ * - {@linkcode AnnotationWriter} - Writer for streaming annotations with backpressure
  *
  * ## Error Types
  *
@@ -39,10 +40,15 @@
  * const checkRun = await checkRuns.create("build", "abc123").run();
  * const started = await checkRuns.start(checkRun).run();
  *
- * // Stream annotations through the channel
- * const writer = started.annotations.getWriter();
- * await writer.write({ path: "src/index.ts", line: 42, message: "Unused import" });
- * await writer.close();
+ * // Stream annotations with backpressure
+ * await started.writeAnnotation({
+ *   path: "src/index.ts",
+ *   startLine: 42,
+ *   endLine: 42,
+ *   level: "warning",
+ *   message: "Unused import"
+ * });
+ * started.closeAnnotations();
  *
  * await checkRuns.complete(started, "failure").run();
  * ```
@@ -63,6 +69,7 @@ export type {
   CheckRun,
   CheckRunConclusion,
   CheckRunStatus,
+  StartedCheckRun,
 } from './check-run.ts'
 export type { Annotation } from './annotation.ts'
 export {

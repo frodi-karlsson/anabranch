@@ -29,30 +29,22 @@ async function main() {
   const started = await checkRuns.start(run).run()
   console.log(`   Status: ${started.status}\n`)
 
-  console.log('3. Pushing annotations...')
-  await checkRuns
-    .update(started, {
-      title: 'Build Results',
-      summary: 'Running tests...',
-      annotations: [
-        {
-          path: 'src/index.ts',
-          startLine: 10,
-          endLine: 10,
-          level: 'warning',
-          message: 'Unused variable "x"',
-        },
-        {
-          path: 'src/utils.ts',
-          startLine: 25,
-          endLine: 30,
-          level: 'failure',
-          message: 'Potential null reference',
-        },
-      ],
-    })
-    .run()
-  console.log('   Pushed 2 annotations\n')
+  console.log('3. Writing annotations with backpressure...')
+  await started.writeAnnotation!({
+    path: 'src/index.ts',
+    startLine: 10,
+    endLine: 10,
+    level: 'warning',
+    message: 'Unused variable "x"',
+  })
+  await started.writeAnnotation!({
+    path: 'src/utils.ts',
+    startLine: 25,
+    endLine: 30,
+    level: 'failure',
+    message: 'Potential null reference',
+  })
+  console.log('   Wrote 2 annotations\n')
 
   console.log('4. Updating output...')
   const updated = await checkRuns

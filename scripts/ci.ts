@@ -15,7 +15,11 @@
 
 import { Source, Task } from '@anabranch/anabranch'
 import { createGithub } from '@anabranch/check-runs-github'
-import type { CheckRuns } from '@anabranch/check-runs'
+import type {
+  Annotation,
+  CheckRuns,
+  StartedCheckRun,
+} from '@anabranch/check-runs'
 
 const FLUSH_INTERVAL_MS = 5000
 const MAX_CHECK_RUN_TEXT = 65000
@@ -33,6 +37,91 @@ function getEnv(name: string): string {
     throw new Error(`Missing environment variable: ${name}`)
   }
   return value
+}
+
+interface ParsedOutput {
+  success: boolean
+  output: string
+  annotations: Annotation[]
+}
+
+function parseLintJson(output: string): Annotation[] {
+  const annotations: Annotation[] = []
+  try {
+    const result = JSON.parse(output)
+    for (const diag of result.diagnostics ?? []) {
+      const filePath = diag.filename?.replace(/^file:\/\//, '') ?? ''
+      annotations.push({
+        path: filePath,
+        startLine: diag.range?.start?.line ?? 1,
+        endLine: diag.range?.end?.line ?? diag.range?.start?.line ?? 1,
+        level: 'warning',
+        message: diag.message,
+        title: diag.code,
+      })
+    }
+  } catch {
+    // If JSON parsing fails, return empty array
+  }
+  return annotations
+}
+
+function parseCheckErrors(output: string): Annotation[] {
+  const annotations: Annotation[] = []
+  const lines = output.split('\n')
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const errorMatch = line.match(/\[ERROR\]:\s*(.+)/)
+    if (errorMatch) {
+      const message = errorMatch[1]
+      let filepath = ''
+      let lineNum = 1
+
+      for (let j = i + 1; j < lines.length; j++) {
+        const atMatch = lines[j].match(/at\s+(file:\/\/.+):(\d+):(\d+)/)
+        if (atMatch) {
+          filepath = atMatch[1].replace(/^file:\/\//, '')
+          lineNum = parseInt(atMatch[2], 10)
+          break
+        }
+      }
+
+      if (filepath && message) {
+        annotations.push({
+          path: filepath,
+          startLine: lineNum,
+          endLine: lineNum,
+          level: 'failure',
+          message,
+        })
+      }
+    }
+  }
+  return annotations
+}
+
+function parseTestFailures(output: string): Annotation[] {
+  const annotations: Annotation[] = []
+  const lines = output.split('\n')
+
+  for (const line of lines) {
+    const match = line.match(/^(.+?)\s*=>\s*(.+?):(\d+):(\d+)/)
+    if (match) {
+      const testName = match[1].trim()
+      const filepath = match[2].replace(/^file:\/\//, '')
+      const lineNum = parseInt(match[3], 10)
+
+      annotations.push({
+        path: filepath,
+        startLine: lineNum,
+        endLine: lineNum,
+        level: 'failure',
+        message: `Test failed: ${testName}`,
+      })
+    }
+  }
+  return annotations
 }
 
 async function runCommand(
@@ -94,6 +183,7 @@ interface Job {
     onChunk: (chunk: string) => void,
     signal: AbortSignal,
   ) => Promise<{ success: boolean; output?: string }>
+  parseAnnotations?: (output: string) => Annotation[]
 }
 
 const checkJobs: Job[] = [
@@ -110,12 +200,13 @@ const checkJobs: Job[] = [
   {
     name: 'Lint',
     fn: async (onChunk, signal) => {
-      const { success, output } = await runCommand('deno', ['lint'], {
+      const { success, output } = await runCommand('deno', ['lint', '--json'], {
         onChunk,
         signal,
       })
       return { success, output }
     },
+    parseAnnotations: parseLintJson,
   },
   {
     name: 'Type Check',
@@ -126,6 +217,7 @@ const checkJobs: Job[] = [
       })
       return { success, output }
     },
+    parseAnnotations: parseCheckErrors,
   },
   {
     name: 'Tests',
@@ -144,6 +236,7 @@ const checkJobs: Job[] = [
       )
       return { success, output }
     },
+    parseAnnotations: parseTestFailures,
   },
 ]
 
@@ -167,6 +260,7 @@ function runWithCheckRunTask<T>(
   getSuccess: (result: T) => boolean,
   getOutput: (result: T) => string | undefined,
   signal: AbortSignal,
+  parseAnnotations?: (output: string) => Annotation[],
 ): Task<T, Error> {
   return Task.of(async () => {
     if (signal.aborted) {
@@ -193,6 +287,8 @@ function runWithCheckRunTask<T>(
       }).result()
       throw started.error
     }
+
+    const startedRun: StartedCheckRun = started.value
 
     // Live output streaming
     let liveOutput = ''
@@ -226,6 +322,15 @@ function runWithCheckRunTask<T>(
 
       const success = getSuccess(result)
       const output = getOutput(result) ?? liveOutput
+
+      // Stream annotations if parser provided
+      if (parseAnnotations && !success) {
+        const annotations = parseAnnotations(output)
+        for (const annotation of annotations) {
+          await startedRun.writeAnnotation(annotation)
+        }
+      }
+
       const conclusion = success ? 'success' : 'failure'
 
       const completed = await checkRuns.complete(checkRun, conclusion, {
@@ -295,6 +400,7 @@ async function runJobsParallel(
         (result) => result.success,
         (result) => result.output,
         abortController.signal,
+        job.parseAnnotations,
       )
       return task.run()
     })
@@ -330,6 +436,7 @@ async function runJob(
     (r) => r.success,
     (r) => r.output,
     abortController.signal,
+    job.parseAnnotations,
   ).result()
 
   if (result.type === 'error') {

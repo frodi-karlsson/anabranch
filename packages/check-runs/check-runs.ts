@@ -1,6 +1,10 @@
 import { Channel, Stream, Task } from '@anabranch/anabranch'
 import { AnnotationBatcher } from './batcher.ts'
-import type { CheckRun, CheckRunConclusion } from './check-run.ts'
+import type {
+  CheckRun,
+  CheckRunConclusion,
+  StartedCheckRun,
+} from './check-run.ts'
 import type { Annotation } from './annotation.ts'
 import type {
   AnnotationBatcherConfig,
@@ -83,8 +87,8 @@ export class CheckRuns {
     )
   }
 
-  start(checkRun: CheckRun): Task<CheckRun, AnyCheckRunsError> {
-    return Task.of<CheckRun, AnyCheckRunsError>(async () => {
+  start(checkRun: CheckRun): Task<StartedCheckRun, AnyCheckRunsError> {
+    return Task.of<StartedCheckRun, AnyCheckRunsError>(async () => {
       let started: CheckRun
       try {
         started = await this.client.start(checkRun).run()
@@ -92,12 +96,25 @@ export class CheckRuns {
         throw this.toAnyCheckRunsError(error)
       }
 
+      const batchSize = this.batcherConfig.batchSize ?? 50
+      const dropped: Annotation[] = []
       const channel = Channel.create<Annotation>()
+        .withBufferSize(batchSize)
+        .withOnDrop((annotation) => {
+          dropped.push(annotation)
+        })
+
       const batcher = new AnnotationBatcher({
         channel,
-        batchSize: this.batcherConfig.batchSize ?? 50,
+        batchSize,
         flushInterval: this.batcherConfig.flushInterval ?? 5000,
         onFlush: async (annotations: Annotation[]) => {
+          if (dropped.length > 0) {
+            console.error(
+              `[CheckRuns ${checkRun.id}] Dropped ${dropped.length} annotations due to buffer overflow`,
+            )
+            dropped.length = 0
+          }
           const result = await this.client
             .update(started, { annotations })
             .result()
@@ -112,7 +129,13 @@ export class CheckRuns {
       batcher.start()
       this.batchers.set(started.id, { channel, batcher })
 
-      return { ...started, annotations: channel }
+      return {
+        ...started,
+        writeAnnotation: async (annotation: Annotation) => {
+          await channel.waitForCapacity()
+          channel.send(annotation)
+        },
+      }
     })
   }
 

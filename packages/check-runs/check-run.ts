@@ -1,4 +1,3 @@
-import { Channel } from '@anabranch/anabranch'
 import type { Annotation } from './annotation.ts'
 
 /** Possible status values for a check run. */
@@ -35,6 +34,10 @@ export interface CheckRun {
   startedAt?: Date
   /** Timestamp when the check run finished. */
   completedAt?: Date
-  /** Channel for streaming annotations. */
-  annotations?: Channel<Annotation>
+}
+
+/** A started check run with annotation streaming capabilities. */
+export interface StartedCheckRun extends CheckRun {
+  /** Write an annotation with backpressure. Waits for buffer capacity before writing. */
+  writeAnnotation: (annotation: Annotation) => Promise<void>
 }
