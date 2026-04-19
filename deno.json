@@ -18,7 +18,7 @@
     "./packages/eventlog",
     "./packages/eventlog-kafka",
     "./packages/nosql",
-    "./packages/nosql-datastore",
+
     "./packages/cache",
     "./packages/cache-redis",
     "./packages/check-runs",

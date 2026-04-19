@@ -46,11 +46,6 @@ import { Collection, createInMemory } from 'jsr:@anabranch/nosql'
 npm install @anabranch/nosql
 ```
 
-## Adapters
-
-- [@anabranch/nosql-datastore](https://jsr.io/@anabranch/nosql-datastore) -
-  Google Cloud Datastore
-
 ## API reference
 
 See [generated documentation](https://frodi-karlsson.github.io/anabranch/nosql)
