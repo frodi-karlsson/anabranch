@@ -25,7 +25,7 @@ jobs:
           token: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && secrets.RELEASE_TOKEN || github.token }}
       - uses: denoland/setup-deno@v2
         with:
-          deno-version: v2.x
+          deno-version: v2.7.7
       - uses: actions/cache@v4
         with:
           path: ~/.cache/deno
