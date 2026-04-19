@@ -136,7 +136,13 @@ async function main(): Promise<void> {
   log(dryRun, `\nCommit: ${commitMsg}`)
 
   if (!dryRun) {
-    await runGit('add', ...pkgNames.map((p) => `packages/${p}/deno.json`))
+    const denoInstall = new Deno.Command('deno', { args: ['install'] })
+    await denoInstall.output()
+    await runGit(
+      'add',
+      ...pkgNames.map((p) => `packages/${p}/deno.json`),
+      'deno.lock',
+    )
     await runGit('commit', '-m', commitMsg)
     const pushOk = await runGitChecked('push', 'origin', 'HEAD:main')
 

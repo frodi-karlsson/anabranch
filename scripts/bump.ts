@@ -35,7 +35,13 @@ async function main(): Promise<void> {
   log(dryRun, `Commit: chore(${pkgs.join(',')}): bump`)
 
   if (!dryRun) {
-    await runGit('add', ...pkgs.map((p) => `packages/${p}/deno.json`))
+    const denoInstall = new Deno.Command('deno', { args: ['install'] })
+    await denoInstall.output()
+    await runGit(
+      'add',
+      ...pkgs.map((p) => `packages/${p}/deno.json`),
+      'deno.lock',
+    )
     await runGit('commit', '-m', `chore(${pkgs.join(',')}): bump`)
     await runGit('push')
   }
