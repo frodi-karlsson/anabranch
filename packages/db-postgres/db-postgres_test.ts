@@ -3,9 +3,9 @@
  * Set POSTGRES_URL or PGHOST environment variables to run them.
  * CI uses GitHub Actions service containers for this.
  */
-import { assertEquals } from '@std/assert'
+import { assertEquals, assertInstanceOf } from '@std/assert'
 import { ErrorResult, Task } from '@anabranch/anabranch'
-import { DB } from '@anabranch/db'
+import { ConstraintViolation, DB, ListenFailed } from '@anabranch/db'
 import { createPostgres } from './index.ts'
 
 const POSTGRES_URL = Deno.env.get('POSTGRES_URL') ||
@@ -334,8 +334,6 @@ Deno.test({
   },
 })
 
-import { ConstraintViolation } from '@anabranch/db'
-
 Deno.test({
   name: 'db-postgres - should throw ConstraintViolation on duplicate key',
   ignore: !POSTGRES_URL,
@@ -360,6 +358,128 @@ Deno.test({
             true,
           )
         })).run()
+    } finally {
+      await connector.end()
+    }
+  },
+})
+
+Deno.test({
+  name:
+    'PostgresConnector.listen - should fail for channel names exceeding 63 bytes',
+  async fn() {
+    const connector = createPostgres({
+      connectionString: 'postgresql://user:pass@localhost:5432/testdb',
+    })
+    const result = await connector.listen('a'.repeat(64)).result()
+    assertEquals(result.type, 'error')
+    if (result.type === 'error') {
+      assertInstanceOf(result.error, ListenFailed)
+    }
+  },
+})
+
+Deno.test({
+  name:
+    'PostgresConnector.notify - should fail for channel names exceeding 63 bytes',
+  async fn() {
+    const connector = createPostgres({
+      connectionString: 'postgresql://user:pass@localhost:5432/testdb',
+    })
+    const result = await connector.notify('a'.repeat(64), 'payload').result()
+    assertEquals(result.type, 'error')
+    if (result.type === 'error') {
+      assertInstanceOf(result.error, ListenFailed)
+    }
+  },
+})
+
+Deno.test({
+  name:
+    'PostgresConnector.notify - should deliver a notification to a listener',
+  ignore: !POSTGRES_URL,
+  async fn() {
+    const connector = createPostgres({ connectionString: POSTGRES_URL! })
+    try {
+      const channel = `test_${crypto.randomUUID().replace(/-/g, '_')}`
+      const ch = await connector.listen(channel).run()
+
+      await connector.notify(channel, 'from-notify').run()
+
+      const notifications = await ch.take(1).collect()
+      assertEquals(notifications[0].payload, 'from-notify')
+    } finally {
+      await connector.end()
+    }
+  },
+})
+
+Deno.test({
+  name: 'PostgresConnector.listen - should receive a notification',
+  ignore: !POSTGRES_URL,
+  async fn() {
+    const connector = createPostgres({ connectionString: POSTGRES_URL! })
+    try {
+      const channel = `test_${crypto.randomUUID().replace(/-/g, '_')}`
+      const ch = await connector.listen(channel).run()
+
+      await connector.notify(channel, 'hello').run()
+
+      const notifications = await ch.take(1).collect()
+      assertEquals(notifications.length, 1)
+      assertEquals(notifications[0].payload, 'hello')
+      assertEquals(notifications[0].channel, channel)
+    } finally {
+      await connector.end()
+    }
+  },
+})
+
+Deno.test({
+  name:
+    'PostgresConnector.listen - should receive multiple notifications in order',
+  ignore: !POSTGRES_URL,
+  async fn() {
+    const connector = createPostgres({ connectionString: POSTGRES_URL! })
+    try {
+      const channel = `test_${crypto.randomUUID().replace(/-/g, '_')}`
+      const ch = await connector.listen(channel).run()
+
+      await connector.notify(channel, 'first').run()
+      await connector.notify(channel, 'second').run()
+      await connector.notify(channel, 'third').run()
+
+      const notifications = await ch.take(3).collect()
+      assertEquals(notifications[0].payload, 'first')
+      assertEquals(notifications[1].payload, 'second')
+      assertEquals(notifications[2].payload, 'third')
+    } finally {
+      await connector.end()
+    }
+  },
+})
+
+Deno.test({
+  name:
+    'PostgresConnector.listen - should UNLISTEN and disconnect on channel close',
+  ignore: !POSTGRES_URL,
+  async fn() {
+    const connector = createPostgres({ connectionString: POSTGRES_URL! })
+    try {
+      const channel = `test_${crypto.randomUUID().replace(/-/g, '_')}`
+      const ch = await connector.listen(channel).run()
+
+      await connector.notify(channel, 'payload').run()
+      await ch.take(1).collect()
+
+      // Allow onClose to complete
+      await new Promise((resolve) => setTimeout(resolve, 100))
+
+      // A fresh subscription on the same channel must work cleanly
+      const ch2 = await connector.listen(channel).run()
+      await connector.notify(channel, 'after-close').run()
+      const notifications = await ch2.take(1).collect()
+      assertEquals(notifications[0].payload, 'after-close')
     } finally {
       await connector.end()
     }
