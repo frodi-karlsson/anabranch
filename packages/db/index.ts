@@ -21,6 +21,14 @@
  * - {@link DB} - High-level wrapper with Task/Stream methods
  * - {@link DBTransaction} - Transaction scope with commit/rollback
  *
+ * ## Pub/Sub
+ *
+ * Connectors that support it expose `listen()` and `notify()` for PostgreSQL-style
+ * pub/sub. The in-memory connector implements the same API for testing.
+ *
+ * - {@link Notification} - Notification received from a channel
+ * - {@link ListenFailed} - Failed to establish or maintain a subscription
+ *
  * ## Error Types
  *
  * All errors are typed for catchable handling:
@@ -28,6 +36,7 @@
  * - {@link QueryFailed} - Query execution error
  * - {@link ConstraintViolation} - Constraint violation (UNIQUE, FOREIGN KEY, etc.)
  * - {@link TransactionFailed} - Transaction error
+ * - {@link ListenFailed} - Pub/sub subscription failed
  *
  * @example Basic query with Task semantics
  * ```ts
@@ -75,6 +84,20 @@
  *   db.query("SELECT * FROM users")
  *     .retry({ attempts: 3, delay: (attempt) => 100 * Math.pow(2, attempt) })
  * ).run();
+ * ```
+ *
+ * @example Pub/sub with in-memory connector (swap for createPostgres in production)
+ * ```ts
+ * import { createInMemory } from "@anabranch/db";
+ *
+ * const connector = createInMemory();
+ * const ch = await connector.listen("orders").run();
+ *
+ * await connector.notify("orders", JSON.stringify({ id: 1 })).run();
+ *
+ * for await (const n of ch.successes()) {
+ *   console.log(n.payload);
+ * }
  * ```
  *
  * @module

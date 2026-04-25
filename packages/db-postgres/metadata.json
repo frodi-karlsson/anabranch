@@ -1,6 +1,6 @@
 {
   "name": "db-postgres",
-  "description": "PostgreSQL database connector using node:pg with connection pooling and cursor-based streaming for large result sets.",
+  "description": "PostgreSQL database connector using node:pg with connection pooling, cursor-based streaming, and pub/sub via LISTEN/NOTIFY.",
   "env": {
     "POSTGRES_URL": "postgresql://postgres:postgres@localhost:5432/postgres"
   },
