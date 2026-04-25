@@ -77,7 +77,7 @@
  *
  * @example Retry with exponential backoff
  * ```ts
- * import { DB, createPostgres } from "@anabranch/db";
+ * import { DB } from "@anabranch/db";
  * import { createPostgres } from "@anabranch/db-postgres";
  *
  * const users = await DB.withConnection(createPostgres(), (db) =>

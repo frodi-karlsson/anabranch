@@ -17,6 +17,10 @@
  *
  * @example Pub/sub
  * ```ts
+ * import { createPostgres } from "@anabranch/db-postgres";
+ *
+ * const connector = createPostgres({ connectionString: "postgresql://..." });
+ *
  * const ch = await connector.listen("orders").run();
  * for await (const n of ch.successes()) {
  *   console.log(n.payload);

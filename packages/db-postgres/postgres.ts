@@ -12,6 +12,7 @@ import { Channel, Task } from '@anabranch/anabranch'
 import process from 'node:process'
 
 const { Pool, Client } = pg
+const encoder = new TextEncoder()
 
 /**
  * Creates a PostgreSQL connector with connection pooling.
@@ -106,11 +107,13 @@ export function createPostgres(
     listen(
       pgChannel: string,
     ): Task<Channel<Notification, ListenFailed>, ListenFailed> {
-      if (new TextEncoder().encode(pgChannel).length > 63) {
+      if (pgChannel === '' || encoder.encode(pgChannel).length > 63) {
         return Task.of<Channel<Notification, ListenFailed>, ListenFailed>(
           () => {
             throw new ListenFailed(
-              `Channel name exceeds 63 bytes: ${pgChannel}`,
+              pgChannel === ''
+                ? 'Channel name cannot be empty'
+                : `Channel name exceeds 63 bytes: ${pgChannel}`,
             )
           },
         )
@@ -121,14 +124,26 @@ export function createPostgres(
         async () => {
           const client = new Client(clientConfig)
 
+          try {
+            await client.connect()
+            await client.query(`LISTEN ${escaped}`)
+          } catch (err) {
+            await client.end().catch(() => {})
+            throw err
+          }
+
+          let ended = false
+          function endClient(): void {
+            if (ended) return
+            ended = true
+            client.end().catch(() => {})
+          }
+
           const ch = Channel.create<Notification, ListenFailed>()
             .withOnClose(async () => {
               await client.query(`UNLISTEN ${escaped}`).catch(() => {})
-              await client.end().catch(() => {})
+              endClient()
             })
-
-          await client.connect()
-          await client.query(`LISTEN ${escaped}`)
 
           client.on(
             'notification',
@@ -142,9 +157,11 @@ export function createPostgres(
           client.on('error', (err: Error) => {
             ch.fail(new ListenFailed(err.message))
             ch.close()
+            endClient()
           })
           client.on('end', () => {
             ch.close()
+            endClient()
           })
 
           return ch
@@ -156,9 +173,13 @@ export function createPostgres(
       )
     },
     notify(pgChannel: string, payload: string): Task<void, ListenFailed> {
-      if (new TextEncoder().encode(pgChannel).length > 63) {
+      if (pgChannel === '' || encoder.encode(pgChannel).length > 63) {
         return Task.of<void, ListenFailed>(() => {
-          throw new ListenFailed(`Channel name exceeds 63 bytes: ${pgChannel}`)
+          throw new ListenFailed(
+            pgChannel === ''
+              ? 'Channel name cannot be empty'
+              : `Channel name exceeds 63 bytes: ${pgChannel}`,
+          )
         })
       }
       return Task.of<void, ListenFailed>(async () => {
@@ -175,6 +196,45 @@ export function createPostgres(
       )
     },
   }
+}
+
+function toBaseConfig(options: PostgresOptions) {
+  return {
+    host: options.host ?? process.env.PGHOST ?? 'localhost',
+    port: options.port ?? parseInt(process.env.PGPORT ?? '5432'),
+    user: options.user ?? process.env.PGUSER ?? 'postgres',
+    password: options.password ?? process.env.PGPASSWORD ?? '',
+    database: options.database ?? process.env.PGDATABASE ?? 'postgres',
+  }
+}
+
+function toClientConfig(options: PostgresOptions) {
+  if (options.connectionString) {
+    return { connectionString: options.connectionString }
+  }
+  return toBaseConfig(options)
+}
+
+function toPoolConfig(options: PostgresOptions) {
+  const pool = {
+    max: options.max,
+    idleTimeoutMillis: options.idleTimeoutMillis,
+    connectionTimeoutMillis: options.connectionTimeoutMillis,
+  }
+  if (options.connectionString) {
+    return { connectionString: options.connectionString, ...pool }
+  }
+  return { ...toBaseConfig(options), ...pool }
+}
+
+function isConstraintViolation(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof (error as { code: unknown }).code === 'string' &&
+    (error as { code: string }).code.startsWith('23')
+  )
 }
 
 /** Connection options for PostgreSQL. */
@@ -206,8 +266,13 @@ export interface PostgresConnector extends DBConnector {
    *
    * Resolves once the dedicated connection is established and LISTEN is issued.
    * The channel streams notifications until closed or the connection drops.
-   * Cleanup (UNLISTEN + disconnect) happens automatically when the consumer
-   * stops iterating.
+   * Each active subscription holds a dedicated `pg.Client` connection.
+   *
+   * Cleanup (UNLISTEN + disconnect) runs when the consumer stops iterating,
+   * for example after `take()`, `takeWhile()`, or exhausting the stream.
+   * Calling `ch.close()` without consuming does not trigger cleanup. The
+   * dedicated `pg.Client` stays connected until the channel is iterated
+   * and the generator finalizes.
    *
    * @example
    * ```ts
@@ -229,48 +294,4 @@ export interface PostgresConnector extends DBConnector {
    * ```
    */
   notify(channel: string, payload: string): Task<void, ListenFailed>
-}
-
-function toClientConfig(options: PostgresOptions) {
-  if (options.connectionString) {
-    return { connectionString: options.connectionString }
-  }
-  return {
-    host: options.host ?? process.env.PGHOST ?? 'localhost',
-    port: options.port ?? parseInt(process.env.PGPORT ?? '5432'),
-    user: options.user ?? process.env.PGUSER ?? 'postgres',
-    password: options.password ?? process.env.PGPASSWORD ?? '',
-    database: options.database ?? process.env.PGDATABASE ?? 'postgres',
-  }
-}
-
-function toPoolConfig(options: PostgresOptions) {
-  if (options.connectionString) {
-    return {
-      connectionString: options.connectionString,
-      max: options.max,
-      idleTimeoutMillis: options.idleTimeoutMillis,
-      connectionTimeoutMillis: options.connectionTimeoutMillis,
-    }
-  }
-  return {
-    host: options.host ?? process.env.PGHOST ?? 'localhost',
-    port: options.port ?? parseInt(process.env.PGPORT ?? '5432'),
-    user: options.user ?? process.env.PGUSER ?? 'postgres',
-    password: options.password ?? process.env.PGPASSWORD ?? '',
-    database: options.database ?? process.env.PGDATABASE ?? 'postgres',
-    max: options.max,
-    idleTimeoutMillis: options.idleTimeoutMillis,
-    connectionTimeoutMillis: options.connectionTimeoutMillis,
-  }
-}
-
-function isConstraintViolation(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    typeof (error as { code: unknown }).code === 'string' &&
-    (error as { code: string }).code.startsWith('23')
-  )
 }

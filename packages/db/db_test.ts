@@ -1,6 +1,6 @@
-import { assertEquals, assertExists } from '@std/assert'
+import { assertEquals, assertExists, assertInstanceOf } from '@std/assert'
 import { ErrorResult, Task } from '@anabranch/anabranch'
-import { createInMemory, DB, DBAdapter } from './index.ts'
+import { createInMemory, DB, DBAdapter, ListenFailed } from './index.ts'
 
 Deno.test('DB - should execute SELECT and return results', async () => {
   const db = DB.from(await createInMemory().connect())
@@ -292,6 +292,47 @@ Deno.test('createInMemory.notify - should deliver to multiple listeners on the s
   assertEquals(n2.payload, 'ping')
 })
 
+Deno.test('createInMemory.listen - should fail for empty channel name', async () => {
+  const connector = createInMemory()
+  const result = await connector.listen('').result()
+  assertEquals(result.type, 'error')
+  if (result.type === 'error') {
+    assertInstanceOf(result.error, ListenFailed)
+  }
+})
+
+Deno.test('createInMemory.listen - should fail for channel names exceeding 63 bytes', async () => {
+  const connector = createInMemory()
+  const result = await connector.listen('a'.repeat(64)).result()
+  assertEquals(result.type, 'error')
+  if (result.type === 'error') {
+    assertInstanceOf(result.error, ListenFailed)
+  }
+})
+
+Deno.test('createInMemory.notify - should fail for empty channel name', async () => {
+  const connector = createInMemory()
+  const result = await connector.notify('', 'payload').result()
+  assertEquals(result.type, 'error')
+  if (result.type === 'error') {
+    assertInstanceOf(result.error, ListenFailed)
+  }
+})
+
+Deno.test('createInMemory.notify - should fail for channel names exceeding 63 bytes', async () => {
+  const connector = createInMemory()
+  const result = await connector.notify('a'.repeat(64), 'payload').result()
+  assertEquals(result.type, 'error')
+  if (result.type === 'error') {
+    assertInstanceOf(result.error, ListenFailed)
+  }
+})
+
+Deno.test('createInMemory.notify - should succeed when no listeners exist', async () => {
+  const connector = createInMemory()
+  await connector.notify('nobody', 'hello').run()
+})
+
 Deno.test('createInMemory.notify - should not deliver to a closed channel', async () => {
   const connector = createInMemory()
   const ch = await connector.listen('orders').run()
@@ -308,17 +349,16 @@ Deno.test('createInMemory.notify - should not deliver to a closed channel', asyn
 Deno.test('createInMemory.listen - should unregister channel on close', async () => {
   const connector = createInMemory()
   const ch = await connector.listen('orders').run()
-  ch.close()
 
-  // Give onClose a moment to run
-  await new Promise((resolve) => setTimeout(resolve, 10))
+  await connector.notify('orders', 'first').run()
+  await ch.take(1).collect()
+  assertEquals(ch.isClosed(), true)
 
-  // Notify after unregister — a new listener should not see the old channel
   const ch2 = await connector.listen('orders').run()
   await connector.notify('orders', 'after-close').run()
   const notifications = await ch2.take(1).collect()
-  assertEquals(notifications[0].payload, 'after-close')
   assertEquals(notifications.length, 1)
+  assertEquals(notifications[0].payload, 'after-close')
 })
 
 Deno.test(

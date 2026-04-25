@@ -1,7 +1,10 @@
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import { Channel, Task } from '@anabranch/anabranch'
 import type { DBAdapter, DBConnector } from './adapter.ts'
+import { ListenFailed } from './errors.ts'
 import type { Notification } from './index.ts'
+
+const encoder = new TextEncoder()
 
 /**
  * Creates an in-memory SQLite connector for testing.
@@ -11,16 +14,25 @@ import type { Notification } from './index.ts'
  * consistent state across multiple `connect()` calls.
  */
 export function createInMemory(): DBConnector & {
-  /** Subscribe to an in-memory pub/sub channel. */
-  listen(channel: string): Task<Channel<Notification, never>, never>
+  /**
+   * Subscribe to an in-memory pub/sub channel.
+   *
+   * Cleanup runs when the consumer stops iterating. Calling `ch.close()`
+   * without consuming does not trigger cleanup.
+   */
+  listen(
+    channel: string,
+  ): Task<Channel<Notification, ListenFailed>, ListenFailed>
   /** Publish a notification to all listeners on a channel. */
-  notify(channel: string, payload: string): Task<void, never>
+  notify(channel: string, payload: string): Task<void, ListenFailed>
 } {
   const db = new DatabaseSync(':memory:')
-  const subscriptions = new Map<string, Channel<Notification, never>[]>()
+  const subscriptions = new Map<string, Channel<Notification, ListenFailed>[]>()
+  let refs = 0
 
   return {
     connect: () => {
+      refs++
       return Promise.resolve<DBAdapter>({
         // deno-lint-ignore no-explicit-any
         query: <T extends Record<string, any> = Record<string, any>>(
@@ -56,7 +68,7 @@ export function createInMemory(): DBConnector & {
           return Promise.resolve(results)
         },
         close: () => {
-          db.close()
+          if (--refs === 0) db.close()
           return Promise.resolve()
         },
         stream: async function* <
@@ -73,9 +85,19 @@ export function createInMemory(): DBConnector & {
       })
     },
 
-    listen(channel: string): Task<Channel<Notification, never>, never> {
-      return Task.of(() => {
-        const ch = Channel.create<Notification, never>()
+    listen(
+      channel: string,
+    ): Task<Channel<Notification, ListenFailed>, ListenFailed> {
+      const invalid = validateChannel(channel)
+      if (invalid) {
+        return Task.of<Channel<Notification, ListenFailed>, ListenFailed>(
+          () => {
+            throw invalid
+          },
+        )
+      }
+      return Task.of<Channel<Notification, ListenFailed>, ListenFailed>(() => {
+        const ch = Channel.create<Notification, ListenFailed>()
           .withOnClose(() => {
             const list = subscriptions.get(channel)
             if (list) {
@@ -90,12 +112,34 @@ export function createInMemory(): DBConnector & {
       })
     },
 
-    notify(channel: string, payload: string): Task<void, never> {
-      return Task.of(() => {
-        for (const ch of subscriptions.get(channel) ?? []) {
+    notify(channel: string, payload: string): Task<void, ListenFailed> {
+      const invalid = validateChannel(channel)
+      if (invalid) {
+        return Task.of<void, ListenFailed>(() => {
+          throw invalid
+        })
+      }
+      return Task.of<void, ListenFailed>(() => {
+        const list = subscriptions.get(channel)
+        if (!list) return
+        const active = list.filter((ch) => !ch.isClosed())
+        if (active.length === 0) {
+          subscriptions.delete(channel)
+          return
+        }
+        subscriptions.set(channel, active)
+        for (const ch of active) {
           ch.send({ channel, payload })
         }
       })
     },
   }
+}
+
+function validateChannel(channel: string): ListenFailed | null {
+  if (channel === '') return new ListenFailed('Channel name cannot be empty')
+  if (encoder.encode(channel).length > 63) {
+    return new ListenFailed(`Channel name exceeds 63 bytes: ${channel}`)
+  }
+  return null
 }
