@@ -365,6 +365,36 @@ Deno.test({
 })
 
 Deno.test({
+  name: 'PostgresConnector.listen - should fail for empty channel name',
+  async fn() {
+    const connector = createPostgres({
+      connectionString: 'postgresql://user:pass@localhost:5432/testdb',
+    })
+    const result = await connector.listen('').result()
+    assertEquals(result.type, 'error')
+    if (result.type === 'error') {
+      assertInstanceOf(result.error, ListenFailed)
+    }
+    await connector.end()
+  },
+})
+
+Deno.test({
+  name: 'PostgresConnector.notify - should fail for empty channel name',
+  async fn() {
+    const connector = createPostgres({
+      connectionString: 'postgresql://user:pass@localhost:5432/testdb',
+    })
+    const result = await connector.notify('', 'payload').result()
+    assertEquals(result.type, 'error')
+    if (result.type === 'error') {
+      assertInstanceOf(result.error, ListenFailed)
+    }
+    await connector.end()
+  },
+})
+
+Deno.test({
   name:
     'PostgresConnector.listen - should fail for channel names exceeding 63 bytes',
   async fn() {
@@ -376,6 +406,7 @@ Deno.test({
     if (result.type === 'error') {
       assertInstanceOf(result.error, ListenFailed)
     }
+    await connector.end()
   },
 })
 
@@ -390,6 +421,37 @@ Deno.test({
     assertEquals(result.type, 'error')
     if (result.type === 'error') {
       assertInstanceOf(result.error, ListenFailed)
+    }
+    await connector.end()
+  },
+})
+
+Deno.test({
+  name:
+    'PostgresConnector.listen - should clean up client on connection failure',
+  async fn() {
+    const connector = createPostgres({
+      connectionString: 'postgresql://user:pass@localhost:1/testdb',
+    })
+    const result = await connector.listen('test').result()
+    assertEquals(result.type, 'error')
+    if (result.type === 'error') {
+      assertInstanceOf(result.error, ListenFailed)
+    }
+    await connector.end()
+  },
+})
+
+Deno.test({
+  name: 'PostgresConnector.notify - should succeed when no listeners exist',
+  ignore: !POSTGRES_URL,
+  async fn() {
+    const connector = createPostgres({ connectionString: POSTGRES_URL! })
+    try {
+      const channel = `test_${crypto.randomUUID().replace(/-/g, '_')}`
+      await connector.notify(channel, 'nobody-listening').run()
+    } finally {
+      await connector.end()
     }
   },
 })
