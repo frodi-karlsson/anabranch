@@ -4,11 +4,14 @@ import {
   ConstraintViolation,
   type DBAdapter,
   type DBConnector,
+  ListenFailed,
+  type Notification,
   QueryFailed,
 } from '@anabranch/db'
+import { Channel, Task } from '@anabranch/anabranch'
 import process from 'node:process'
 
-const { Pool } = pg
+const { Pool, Client } = pg
 
 /**
  * Creates a PostgreSQL connector with connection pooling.
@@ -17,6 +20,7 @@ export function createPostgres(
   options: PostgresOptions = {},
 ): PostgresConnector {
   const pool = new Pool(toPoolConfig(options))
+  const clientConfig = toClientConfig(options)
 
   return {
     async connect(signal?: AbortSignal): Promise<DBAdapter> {
@@ -99,6 +103,77 @@ export function createPostgres(
     end(): Promise<void> {
       return pool.end()
     },
+    listen(
+      pgChannel: string,
+    ): Task<Channel<Notification, ListenFailed>, ListenFailed> {
+      if (new TextEncoder().encode(pgChannel).length > 63) {
+        return Task.of<Channel<Notification, ListenFailed>, ListenFailed>(
+          () => {
+            throw new ListenFailed(
+              `Channel name exceeds 63 bytes: ${pgChannel}`,
+            )
+          },
+        )
+      }
+      const escaped = '"' + pgChannel.replace(/"/g, '""') + '"'
+
+      return Task.of<Channel<Notification, ListenFailed>, ListenFailed>(
+        async () => {
+          const client = new Client(clientConfig)
+
+          const ch = Channel.create<Notification, ListenFailed>()
+            .withOnClose(async () => {
+              await client.query(`UNLISTEN ${escaped}`).catch(() => {})
+              await client.end().catch(() => {})
+            })
+
+          await client.connect()
+          await client.query(`LISTEN ${escaped}`)
+
+          client.on(
+            'notification',
+            (msg: { channel: string; payload?: string }) => {
+              ch.send({
+                channel: msg.channel,
+                payload: msg.payload ?? '',
+              })
+            },
+          )
+          client.on('error', (err: Error) => {
+            ch.fail(new ListenFailed(err.message))
+            ch.close()
+          })
+          client.on('end', () => {
+            ch.close()
+          })
+
+          return ch
+        },
+      ).mapErr((err: unknown) =>
+        err instanceof ListenFailed
+          ? err
+          : new ListenFailed(err instanceof Error ? err.message : String(err))
+      )
+    },
+    notify(pgChannel: string, payload: string): Task<void, ListenFailed> {
+      if (new TextEncoder().encode(pgChannel).length > 63) {
+        return Task.of<void, ListenFailed>(() => {
+          throw new ListenFailed(`Channel name exceeds 63 bytes: ${pgChannel}`)
+        })
+      }
+      return Task.of<void, ListenFailed>(async () => {
+        const client = await pool.connect()
+        try {
+          await client.query('SELECT pg_notify($1, $2)', [pgChannel, payload])
+        } finally {
+          client.release()
+        }
+      }).mapErr((err: unknown) =>
+        err instanceof ListenFailed
+          ? err
+          : new ListenFailed(err instanceof Error ? err.message : String(err))
+      )
+    },
   }
 }
 
@@ -126,6 +201,47 @@ export interface PostgresConnector extends DBConnector {
   connect(signal?: AbortSignal): Promise<DBAdapter>
   /** Closes the connection pool. */
   end(): Promise<void>
+  /**
+   * Subscribe to a PostgreSQL NOTIFY channel.
+   *
+   * Resolves once the dedicated connection is established and LISTEN is issued.
+   * The channel streams notifications until closed or the connection drops.
+   * Cleanup (UNLISTEN + disconnect) happens automatically when the consumer
+   * stops iterating.
+   *
+   * @example
+   * ```ts
+   * const ch = await connector.listen('orders').run()
+   * for await (const n of ch.successes()) {
+   *   console.log(n.payload)
+   * }
+   * ```
+   */
+  listen(
+    channel: string,
+  ): Task<Channel<Notification, ListenFailed>, ListenFailed>
+  /**
+   * Publish a notification to a channel.
+   *
+   * @example
+   * ```ts
+   * await connector.notify('orders', JSON.stringify(order)).run()
+   * ```
+   */
+  notify(channel: string, payload: string): Task<void, ListenFailed>
+}
+
+function toClientConfig(options: PostgresOptions) {
+  if (options.connectionString) {
+    return { connectionString: options.connectionString }
+  }
+  return {
+    host: options.host ?? process.env.PGHOST ?? 'localhost',
+    port: options.port ?? parseInt(process.env.PGPORT ?? '5432'),
+    user: options.user ?? process.env.PGUSER ?? 'postgres',
+    password: options.password ?? process.env.PGPASSWORD ?? '',
+    database: options.database ?? process.env.PGDATABASE ?? 'postgres',
+  }
 }
 
 function toPoolConfig(options: PostgresOptions) {

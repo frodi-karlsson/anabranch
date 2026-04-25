@@ -69,6 +69,13 @@ export class SerializationFailure extends DBError {
   }
 }
 
+/** Failed to establish or maintain a pub/sub subscription. */
+export class ListenFailed extends DBError {
+  constructor(message: string) {
+    super('ListenFailed', undefined, message)
+  }
+}
+
 /** Registry of error constructors for `instanceof` checks. */
 export const DBErrors = {
   ConnectionFailed,
@@ -77,4 +84,5 @@ export const DBErrors = {
   TransactionFailed,
   CloseError,
   SerializationFailure,
+  ListenFailed,
 } as const

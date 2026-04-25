@@ -79,6 +79,14 @@
  *
  * @module
  */
+/** A notification received from a pub/sub channel. */
+export type Notification = {
+  /** The channel the notification was sent to. */
+  channel: string
+  /** The payload string. */
+  payload: string
+}
+
 export { DB, DBTransaction } from './db.ts'
 export type { DBAdapter, DBConnector, DBTransactionAdapter } from './adapter.ts'
 export * from './errors.ts'
