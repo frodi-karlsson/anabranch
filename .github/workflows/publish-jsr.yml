@@ -21,6 +21,6 @@ jobs:
           TAG: ${{ inputs.tag }}
       - uses: denoland/setup-deno@v2
         with:
-          deno-version: v2.x
+          deno-version: v2.7.7
       - run: cd packages/${{ steps.meta.outputs.package }} && deno publish
         shell: bash
