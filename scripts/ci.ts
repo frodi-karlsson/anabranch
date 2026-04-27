@@ -423,7 +423,7 @@ async function publishPackage(
 
   const { success: jsrSuccess, output: jsrOutput } = await runCommand(
     'deno',
-    ['publish'],
+    ['publish', '--allow-dirty'],
     { cwd: `packages/${packageName}`, onChunk, signal },
   )
   if (!jsrSuccess) {
