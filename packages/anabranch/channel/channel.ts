@@ -5,9 +5,16 @@ import { _ChannelSource } from './channel-source.ts'
 /**
  * Channel is a concurrency primitive for communicating between producers and consumers with backpressure support.
  *
- * Producers can send values to the channel using `send()`, and consumers can receive values by iterating over the channel.
- * The channel supports an optional buffer with a configurable size. If the buffer is full, new values will be dropped and an optional `onDrop` callback will be called.
- * Producers can wait for capacity in the channel using `waitForCapacity()`, which resolves when there the total number of buffered and pending values is less than the buffer size or when the channel is closed. If the channel is aborted via the signal, this will reject with an AbortError.
+ * Producers can send values to the channel using `send()` (async, blocks until
+ * capacity is available) or `trySend()` (sync, returns false if the buffer is
+ * full or the channel is closed). Consumers receive values by iterating over
+ * the channel.
+ *
+ * The channel supports an optional buffer with a configurable size. `send()`
+ * blocks when the buffer is full; `trySend()` drops and invokes `onDrop`.
+ * Producers can check capacity without sending using `waitForCapacity()`.
+ * Both `send()` and `waitForCapacity()` resolve silently when the channel is
+ * closed or aborted (never reject).
  * The channel can be closed by calling `close()`, which will signal to consumers that no more values will be sent and unblock any waiting producers.
  *
  * @example
@@ -18,8 +25,13 @@ import { _ChannelSource } from './channel-source.ts'
  *   .withBufferSize(10)
  *   .withOnDrop((n) => console.log("dropped", n));
  *
- * ch.send(1);
- * ch.send(2);
+ * // For push-based producers (event handlers), use trySend:
+ * declare const ws: { on(event: string, cb: (data: number) => void): void };
+ * ws.on("message", (data) => ch.trySend(data));
+ *
+ * // For pump-style producers, use await send for backpressure:
+ * // await ch.send(value);
+ *
  * ch.close();
  *
  * for await (const result of ch) {
@@ -46,34 +58,47 @@ export class Channel<T, E = never> extends _StreamImpl<T, E> {
 
   /** Returns a new channel with the given buffer size. */
   withBufferSize(bufferSize: number): Channel<T, E> {
+    this.ensureConfigurable()
     const next = { ...this.options, bufferSize }
     return new Channel(new _ChannelSource<T, E>(next), next)
   }
 
   /** Returns a new channel with the given drop callback, invoked when a value is dropped due to a full buffer. */
   withOnDrop(onDrop: (value: T) => void): Channel<T, E> {
+    this.ensureConfigurable()
     const next = { ...this.options, onDrop }
     return new Channel(new _ChannelSource<T, E>(next), next)
   }
 
   /** Returns a new channel with the given close callback, invoked when the channel's consumer finishes iterating. */
   withOnClose(onClose: () => Promisable<void>): Channel<T, E> {
+    this.ensureConfigurable()
     const next = { ...this.options, onClose }
     return new Channel(new _ChannelSource<T, E>(next), next)
   }
 
   /** Returns a new channel with the given abort signal. When aborted, the channel closes and all waiting producers are unblocked. */
   withSignal(signal: AbortSignal): Channel<T, E> {
+    this.ensureConfigurable()
     const next = { ...this.options, signal }
     return new Channel(new _ChannelSource<T, E>(next), next)
   }
 
   /**
-   * Send a value to the channel. If the buffer is full, the value will be dropped and the optional `onDrop` callback will be called.
-   * If the channel is closed, the value will be ignored.
+   * Send a value to the channel. Blocks until capacity is available, then
+   * enqueues the value. Resolves silently if the channel is closed or
+   * aborted (the value is dropped).
    */
-  send(value: T): void {
-    this.sourceImpl.send(value)
+  async send(value: T): Promise<void> {
+    await this.sourceImpl.send(value)
+  }
+
+  /**
+   * Sync fire-and-forget send. Returns true if the value was enqueued, false
+   * if the buffer was full (onDrop is invoked) or the channel was closed.
+   */
+  trySend(value: T): boolean {
+    return this.sourceImpl.trySend(value)
   }
 
   /**
@@ -103,6 +128,14 @@ export class Channel<T, E = never> extends _StreamImpl<T, E> {
   /** Check if the channel is closed. */
   isClosed(): boolean {
     return this.sourceImpl.isClosed()
+  }
+
+  private ensureConfigurable(): void {
+    if (this.sourceImpl.isStarted()) {
+      throw new Error(
+        'Channel configuration cannot be changed after first use. Configure with*() methods before calling send(), fail(), close(), waitForCapacity(), or iterating.',
+      )
+    }
   }
 }
 

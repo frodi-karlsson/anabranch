@@ -43,7 +43,7 @@ export function watch(
         } else {
           kind = 'modify'
         }
-        channel.send({ kind, paths: [fullPath] })
+        channel.trySend({ kind, paths: [fullPath] })
       },
     )
 

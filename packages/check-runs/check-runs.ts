@@ -167,8 +167,7 @@ export class CheckRuns {
       return {
         ...started,
         writeAnnotation: async (annotation: Annotation) => {
-          await channel.waitForCapacity()
-          channel.send(annotation)
+          await channel.send(annotation)
         },
       }
     })

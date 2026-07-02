@@ -30,11 +30,11 @@ Deno.test('AnnotationBatcher - flushes at batch size limit', async () => {
 
   batcher.start()
 
-  channel.send(createAnnotation(1))
-  channel.send(createAnnotation(2))
-  channel.send(createAnnotation(3))
-  channel.send(createAnnotation(4))
-  channel.send(createAnnotation(5))
+  channel.trySend(createAnnotation(1))
+  channel.trySend(createAnnotation(2))
+  channel.trySend(createAnnotation(3))
+  channel.trySend(createAnnotation(4))
+  channel.trySend(createAnnotation(5))
 
   await new Promise((resolve) => setTimeout(resolve, 50))
 
@@ -65,8 +65,8 @@ Deno.test('AnnotationBatcher - flushes on interval', async () => {
 
   batcher.start()
 
-  channel.send(createAnnotation(1))
-  channel.send(createAnnotation(2))
+  channel.trySend(createAnnotation(1))
+  channel.trySend(createAnnotation(2))
 
   time = 50
   await new Promise((resolve) => setTimeout(resolve, 10))
@@ -99,9 +99,9 @@ Deno.test('AnnotationBatcher - flushes remaining on close', async () => {
 
   batcher.start()
 
-  channel.send(createAnnotation(1))
-  channel.send(createAnnotation(2))
-  channel.send(createAnnotation(3))
+  channel.trySend(createAnnotation(1))
+  channel.trySend(createAnnotation(2))
+  channel.trySend(createAnnotation(3))
 
   await new Promise((resolve) => setTimeout(resolve, 10))
 
@@ -164,9 +164,9 @@ Deno.test('AnnotationBatcher - ignores error results from channel', async () => 
 
   batcher.start()
 
-  channel.send(createAnnotation(1))
+  channel.trySend(createAnnotation(1))
   channel.fail('some error')
-  channel.send(createAnnotation(2))
+  channel.trySend(createAnnotation(2))
 
   await batcher.close()
 

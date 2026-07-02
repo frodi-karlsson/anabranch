@@ -44,7 +44,7 @@ Deno.test(
     await assertRejects(
       () => stream.collect(),
       Error,
-      'AggregateError: 1 errors',
+      '1 errors collected',
     )
   },
 )
@@ -623,7 +623,7 @@ Deno.test(
     await assertRejects(
       () => stream.fold((acc, value) => acc + value, 0),
       Error,
-      'AggregateError: 1 errors',
+      '1 errors collected',
     )
   },
 )

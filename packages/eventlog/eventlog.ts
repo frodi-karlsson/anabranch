@@ -203,8 +203,7 @@ export class EventLog<Cursor = string> {
       topic,
       consumerGroup,
       async (batch) => {
-        await channel.waitForCapacity()
-        channel.send(batch)
+        await channel.send(batch)
       },
       (error) => {
         channel.fail(

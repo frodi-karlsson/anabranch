@@ -633,3 +633,33 @@ Deno.test('Task.race - should cleanup and abort children on outer signal abort',
   assertEquals(inner1Aborted, true, 'Task 1 should be aborted')
   assertEquals(inner2Aborted, true, 'Task 2 should be aborted')
 })
+
+Deno.test('Task.retry - should throw RangeError for attempts: 0', () => {
+  const task = Task.of(() => 1)
+  try {
+    task.retry({ attempts: 0 })
+    throw new Error('should have thrown')
+  } catch (e) {
+    assertEquals((e as RangeError).name, 'RangeError')
+  }
+})
+
+Deno.test('Task.retry - should throw RangeError for negative attempts', () => {
+  const task = Task.of(() => 1)
+  try {
+    task.retry({ attempts: -1 })
+    throw new Error('should have thrown')
+  } catch (e) {
+    assertEquals((e as RangeError).name, 'RangeError')
+  }
+})
+
+Deno.test('Task.retry - should throw RangeError for non-integer attempts', () => {
+  const task = Task.of(() => 1)
+  try {
+    task.retry({ attempts: 1.5 })
+    throw new Error('should have thrown')
+  } catch (e) {
+    assertEquals((e as RangeError).name, 'RangeError')
+  }
+})

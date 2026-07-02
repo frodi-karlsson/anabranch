@@ -148,7 +148,7 @@ export function createPostgres(
           client.on(
             'notification',
             (msg: { channel: string; payload?: string }) => {
-              ch.send({
+              ch.trySend({
                 channel: msg.channel,
                 payload: msg.payload ?? '',
               })

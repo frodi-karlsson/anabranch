@@ -38,19 +38,19 @@ async function main() {
     })
     .partition()
 
-  tickerChannel.send({ symbol: 'AAPL', price: 150 })
-  tickerChannel.send({ symbol: 'GOOGL', price: 2750 })
-  tickerChannel.send({ symbol: 'MSFT', price: 300 })
-  tickerChannel.send({ symbol: 'AMZN', price: 3400 })
-  tickerChannel.send({ symbol: 'TSLA', price: 900 })
-  tickerChannel.send({ symbol: 'META', price: 350 })
-  tickerChannel.send({ symbol: 'NVDA', price: 220 })
-  tickerChannel.send({ symbol: 'NFLX', price: 600 })
-  // If we wanted to receive every event, we'd always wait for capacity
-  await tickerChannel.waitForCapacity()
-  tickerChannel.send({ symbol: 'AMD', price: 110 })
-  // However, this use case just wants "best effort" updates, so we can send without waiting and let the channel drop if it's full
-  tickerChannel.send({ symbol: 'INTC', price: 45 })
+  // Best-effort updates: use trySend (drops if buffer full)
+  tickerChannel.trySend({ symbol: 'AAPL', price: 150 })
+  tickerChannel.trySend({ symbol: 'GOOGL', price: 2750 })
+  tickerChannel.trySend({ symbol: 'MSFT', price: 300 })
+  tickerChannel.trySend({ symbol: 'AMZN', price: 3400 })
+  tickerChannel.trySend({ symbol: 'TSLA', price: 900 })
+  tickerChannel.trySend({ symbol: 'META', price: 350 })
+  tickerChannel.trySend({ symbol: 'NVDA', price: 220 })
+  tickerChannel.trySend({ symbol: 'NFLX', price: 600 })
+  // If we wanted to guarantee delivery, we'd use await send for backpressure
+  await tickerChannel.send({ symbol: 'AMD', price: 110 })
+  // This use case just wants "best effort" updates, so trySend is fine
+  tickerChannel.trySend({ symbol: 'INTC', price: 45 })
 
   tickerChannel.close()
 

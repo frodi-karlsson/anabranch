@@ -166,7 +166,8 @@ export class BrokenLinkChecker {
       if (!skipFilter && !urlFilters.every((f) => f(url))) return
       visited.add(key)
       pending++
-      channel.send({ url, parent, depth })
+      // Channel is unbounded, so trySend only fails after close.
+      if (!channel.trySend({ url, parent, depth })) pending--
     }
 
     async function checkOne(item: WorkItem): Promise<CheckResult> {

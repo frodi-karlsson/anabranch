@@ -1,18 +1,4 @@
 /**
- * Thrown by {@link Stream.collect} and {@link Stream.fold} when one or more
- * error results were collected during stream processing.
- */
-export class AggregateError extends Error {
-  /** The errors collected during stream processing. */
-  constructor(public errors: unknown[]) {
-    super(`AggregateError: ${errors.length} errors`)
-
-    this.name = 'AggregateError'
-    this.errors = errors
-  }
-}
-
-/**
  * Thrown in truly unrecoverable circumstances when propagating an error
  * doesn't make sense.
  *

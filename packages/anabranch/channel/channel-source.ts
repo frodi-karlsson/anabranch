@@ -11,6 +11,7 @@ export class _ChannelSource<T, E> {
   private readonly onClose?: () => Promisable<void>
   private readonly abortHandler?: () => void
   private readonly signal?: AbortSignal
+  private started = false
 
   constructor(options: _ChannelOptions<T> = {}) {
     this.bufferSize = Number.isFinite(options.bufferSize)
@@ -45,19 +46,52 @@ export class _ChannelSource<T, E> {
     return this.queue.length - this.head
   }
 
-  send(value: T): void {
+  /**
+   * Send a value, blocking until capacity is available. Resolves silently
+   * if the channel is closed or aborted (the value is dropped) — this is
+   * Go-like: no rejection, the producer should check `isClosed()` if it
+   * needs to distinguish delivery from close.
+   *
+   * Completion order across concurrent senders is not strictly FIFO —
+   * fast-path sends (capacity immediately available) bypass the producer
+   * queue entirely.
+   */
+  async send(value: T): Promise<void> {
+    this.started = true
     if (this.closed) return
 
-    if (this.queueSize() >= this.bufferSize && this.bufferSize !== Infinity) {
-      this.onDrop?.(value)
-      return
+    while (
+      !this.closed && this.queueSize() >= this.bufferSize &&
+      this.bufferSize !== Infinity
+    ) {
+      await this.waitForCapacity()
     }
+    if (this.closed) return
 
     this.queue.push({ type: 'success', value } as Result<T, E>)
     this.wakeConsumers()
   }
 
+  /**
+   * Sync fire-and-forget send. Returns true if the value was enqueued, false
+   * if the buffer was full (onDrop is invoked) or the channel was closed.
+   */
+  trySend(value: T): boolean {
+    this.started = true
+    if (this.closed) return false
+
+    if (this.queueSize() >= this.bufferSize && this.bufferSize !== Infinity) {
+      this.onDrop?.(value)
+      return false
+    }
+
+    this.queue.push({ type: 'success', value } as Result<T, E>)
+    this.wakeConsumers()
+    return true
+  }
+
   fail(error: E): void {
+    this.started = true
     if (this.closed) return
 
     this.queue.push({ type: 'error', error } as Result<T, E>)
@@ -65,6 +99,7 @@ export class _ChannelSource<T, E> {
   }
 
   close(): void {
+    this.started = true
     if (this.closed) return
     this.closed = true
     if (this.signal && this.abortHandler) {
@@ -82,6 +117,11 @@ export class _ChannelSource<T, E> {
     return this.closed
   }
 
+  /** Returns true after any of send, fail, close, waitForCapacity, or generator has been called. */
+  isStarted(): boolean {
+    return this.started
+  }
+
   private wakeConsumers(): void {
     const currentConsumers = this.consumers
     this.consumers = []
@@ -90,7 +130,13 @@ export class _ChannelSource<T, E> {
     }
   }
 
+  /**
+   * Wait for capacity in the channel. Resolves when there is capacity in the
+   * buffer or when the channel is closed or aborted (resolves silently, never
+   * rejects).
+   */
   waitForCapacity(): Promise<void> {
+    this.started = true
     if (this.closed) {
       return Promise.resolve()
     }
@@ -103,6 +149,7 @@ export class _ChannelSource<T, E> {
   }
 
   async *generator(): AsyncGenerator<Result<T, E>> {
+    this.started = true
     try {
       while (true) {
         while (this.queueSize() > 0) {

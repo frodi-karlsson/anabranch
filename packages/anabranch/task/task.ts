@@ -171,6 +171,9 @@ export class Task<T, E> {
     when?: (error: E) => boolean
   }): Task<T, E> {
     const { attempts, delay, when } = options
+    if (!Number.isInteger(attempts) || attempts < 1) {
+      throw new RangeError('retry attempts must be a positive integer')
+    }
     return new Task(async (signal) => {
       let lastError: E | undefined
       for (let attempt = 0; attempt < attempts; attempt += 1) {

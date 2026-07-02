@@ -129,7 +129,7 @@ export function createInMemory(): DBConnector & {
         }
         subscriptions.set(channel, active)
         for (const ch of active) {
-          ch.send({ channel, payload })
+          ch.trySend({ channel, payload })
         }
       })
     },

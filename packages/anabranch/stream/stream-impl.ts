@@ -7,7 +7,6 @@ import {
   type SplitOptions,
   Stream,
 } from './stream.ts'
-import { AggregateError } from '../util/util.ts'
 
 export class _StreamImpl<T, E> implements Stream<T, E> {
   protected concurrency: number
@@ -42,7 +41,7 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
     }
 
     if (errors.length) {
-      throw new AggregateError(errors)
+      throw new AggregateError(errors, `${errors.length} errors collected`)
     }
     return successes
   }
@@ -183,6 +182,10 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
 
             inFlight += 1
 
+            // Errors get -1 because arrivalIndex is passed to user callbacks
+            // (map, filter, etc.) and must only increment on successes to
+            // match sequential behavior. Handlers short-circuit on errors,
+            // so -1 never reaches user code.
             const currentIndex = result.type === 'success' ? arrivalIndex++ : -1
             Promise.resolve()
               .then(async () => {
@@ -556,7 +559,7 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
       }
     }
     if (errors.length) {
-      throw new AggregateError(errors)
+      throw new AggregateError(errors, `${errors.length} errors collected`)
     }
     return accumulator
   }
@@ -989,7 +992,7 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
 
           for (const s of sources) {
             if (result.type === 'success') {
-              s.send(result.value)
+              await s.send(result.value)
             } else {
               s.fail(result.error)
             }
@@ -1074,8 +1077,7 @@ export class _StreamImpl<T, E> implements Stream<T, E> {
                 throw new MissingKeyError(key)
               }
 
-              await targetChannel.waitForCapacity()
-              targetChannel.send(result.value)
+              await targetChannel.send(result.value)
             } catch (err) {
               await Promise.all(allChannels.map((c) => c.waitForCapacity()))
               for (const channel of allChannels) {

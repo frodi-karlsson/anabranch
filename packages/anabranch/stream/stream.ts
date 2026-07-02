@@ -161,7 +161,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * console.log("Sum:", sum);
    * ```
    *
-   * @throws {AggregateError} If any error results were present in the stream.
+   * @throws {AggregateError} (ES2021 built-in) If any error results were present in the stream.
    * @see {@link Stream.foldErr}
    */
   fold<U>(
@@ -395,7 +395,7 @@ export interface Stream<T, E> extends AsyncIterable<Result<T, E>> {
    * errors were collected during the stream processing, they will be thrown as
    * an `AggregateError` containing all collected errors.
    *
-   * @throws {AggregateError} If any errors were collected during the stream processing.
+   * @throws {AggregateError} (ES2021 built-in) If any errors were collected during the stream processing.
    */
   collect(): Promise<T[]>
   /**
