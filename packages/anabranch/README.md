@@ -85,9 +85,9 @@ const channel = Channel.create<PriceUpdate, Error>()
   .withBufferSize(100)
   .withOnDrop((update) => console.log('dropped:', update))
 
-// External producer sends values:
-channel.send({ symbol: 'AAPL', price: 150 })
-channel.send({ symbol: 'GOOGL', price: 2750 })
+// External producer sends values (sync fire-and-forget):
+channel.trySend({ symbol: 'AAPL', price: 150 })
+channel.trySend({ symbol: 'GOOGL', price: 2750 })
 
 // Consumer reads from the channel like any stream:
 for await (const result of channel) {
@@ -100,9 +100,9 @@ channel.close() // signals no more items
 `Channel.fail` bypasses the buffer and injects errors directly into the stream:
 
 ```ts
-channel.send({ symbol: 'AAPL', price: 150 })
+channel.trySend({ symbol: 'AAPL', price: 150 })
 channel.fail(new Error('feed disconnected')) // goes straight to consumer
-channel.send({ symbol: 'GOOGL', price: 2750 }) // still processes
+channel.trySend({ symbol: 'GOOGL', price: 2750 }) // still processes
 ```
 
 ### Single async operations with Task

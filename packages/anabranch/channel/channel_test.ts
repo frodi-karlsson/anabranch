@@ -531,7 +531,7 @@ Deno.test('Channel.send - should resolve silently when closed', async () => {
   await ch.send(1) // should not hang
 })
 
-Deno.test('Channel.withBufferSize - should not throw after Symbol.asyncIterator alone (lazy generator)', () => {
+Deno.test('Channel.withBufferSize - should not throw after Symbol.asyncIterator alone (lazy generator)', async () => {
   // [Symbol.asyncIterator]() returns an iterator but doesn't start the
   // generator body — that runs on the first .next() call. So with*()
   // should still work after acquiring an iterator, before consuming.
@@ -541,7 +541,7 @@ Deno.test('Channel.withBufferSize - should not throw after Symbol.asyncIterator 
     const configured = ch.withBufferSize(10)
     assertEquals(configured.isClosed(), false)
   } finally {
-    iter.return?.(undefined)
+    await iter.return?.(undefined)
   }
 })
 
